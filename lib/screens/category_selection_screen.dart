@@ -124,25 +124,33 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
           SliverToBoxAdapter(child: _buildSearchBar()),
 
           // Tab Bar
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _SliverTabBarDelegate(
-              TabBar(
-                controller: _tabController,
-                indicatorColor: AppTheme.primaryColor,
-                labelColor: AppTheme.primaryColor,
-                unselectedLabelColor: AppTheme.textSecondary,
-                indicatorWeight: 3,
-                indicatorSize: TabBarIndicatorSize.label,
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
+          SliverToBoxAdapter(
+            child: Container(
+              color: AppTheme.backgroundColor,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: AppTheme.softShadow,
                 ),
-                tabs: const [
-                  Tab(text: 'All'),
-                  Tab(text: 'Free'),
-                  Tab(text: 'Custom'),
-                ],
+                child: TabBar(
+                  controller: _tabController,
+                  indicatorColor: AppTheme.primaryColor,
+                  labelColor: AppTheme.primaryColor,
+                  unselectedLabelColor: AppTheme.textSecondary,
+                  indicatorWeight: 3,
+                  indicatorSize: TabBarIndicatorSize.label,
+                  labelStyle: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                  tabs: const [
+                    Tab(text: 'All'),
+                    Tab(text: 'Free'),
+                    Tab(text: 'Custom'),
+                  ],
+                ),
               ),
             ),
           ),
@@ -859,38 +867,3 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
 }
 
 enum DeckType { all, free, custom }
-
-// Custom sliver delegate for tab bar
-class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
-  final TabBar tabBar;
-
-  _SliverTabBarDelegate(this.tabBar);
-
-  @override
-  double get minExtent => 50;
-  @override
-  double get maxExtent => 50;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return Container(
-      color: AppTheme.backgroundColor,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: AppTheme.softShadow,
-        ),
-        child: tabBar,
-      ),
-    );
-  }
-
-  @override
-  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) => false;
-}
