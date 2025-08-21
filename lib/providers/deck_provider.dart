@@ -3,10 +3,12 @@ import 'dart:async';
 import '../models/deck.dart';
 import '../constants/default_decks.dart';
 import '../services/deck_firebase_service.dart';
+import '../services/local_storage_service.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class DeckProvider extends ChangeNotifier {
   final DeckFirebaseService _deckFirebaseService = DeckFirebaseService();
+  final LocalStorageService _localStorageService = LocalStorageService();
 
   List<Deck> _defaultDecks = [];
   List<Deck> _customDecks = [];
@@ -87,27 +89,19 @@ class DeckProvider extends ChangeNotifier {
           },
         );
 
-    // Listen to custom decks changes
+    // No longer streaming custom decks from Firebase
+    // Custom decks are stored locally only
     _customDecksSubscription?.cancel();
-    _customDecksSubscription = _deckFirebaseService.streamCustomDecks().listen(
-      (decks) {
-        _customDecks = decks;
-        notifyListeners();
-      },
-      onError: (error) {
-        debugPrint('Error streaming custom decks: $error');
-      },
-    );
   }
 
   Future<void> _loadUserData() async {
     try {
-      // Load custom decks
-      _customDecks = await _deckFirebaseService.getCustomDecks();
+      // Load custom decks from local storage
+      _customDecks = await _localStorageService.loadCustomDecks();
 
-      // Load unlocked premium decks
+      // Load unlocked premium decks from local storage
       _unlockedPremiumDeckIds =
-          await _deckFirebaseService.getUnlockedPremiumDecks();
+          await _localStorageService.loadUnlockedPremiumDeckIds();
 
       notifyListeners();
     } catch (e) {
@@ -149,10 +143,12 @@ class DeckProvider extends ChangeNotifier {
         cards: cards,
       );
 
-      final deckId = await _deckFirebaseService.createCustomDeck(newDeck);
+      final deckId = await _localStorageService.addCustomDeck(newDeck);
 
       if (deckId != null) {
-        // The real-time listener will update the local list
+        // Reload custom decks from local storage
+        _customDecks = await _localStorageService.loadCustomDecks();
+        notifyListeners();
         return true;
       }
       return false;
@@ -184,13 +180,15 @@ class DeckProvider extends ChangeNotifier {
         updatedAt: DateTime.now(),
       );
 
-      final success = await _deckFirebaseService.updateCustomDeck(
+      final success = await _localStorageService.updateCustomDeck(
         deckId,
         updatedDeck,
       );
 
       if (success) {
-        // The real-time listener will update the local list
+        // Reload custom decks from local storage
+        _customDecks = await _localStorageService.loadCustomDecks();
+        notifyListeners();
         return true;
       }
       return false;
@@ -203,10 +201,12 @@ class DeckProvider extends ChangeNotifier {
   // Delete a custom deck
   Future<bool> deleteCustomDeck(String deckId) async {
     try {
-      final success = await _deckFirebaseService.deleteCustomDeck(deckId);
+      final success = await _localStorageService.deleteCustomDeck(deckId);
 
       if (success) {
-        // The real-time listener will update the local list
+        // Reload custom decks from local storage
+        _customDecks = await _localStorageService.loadCustomDecks();
+        notifyListeners();
         return true;
       }
       return false;
@@ -216,13 +216,15 @@ class DeckProvider extends ChangeNotifier {
     }
   }
 
-  // Unlock a premium deck
+  // Unlock a premium deck (stored locally)
   Future<bool> unlockPremiumDeck(String deckId) async {
     try {
-      final success = await _deckFirebaseService.unlockPremiumDeck(deckId);
+      _unlockedPremiumDeckIds.add(deckId);
+      final success = await _localStorageService.saveUnlockedPremiumDeckIds(
+        _unlockedPremiumDeckIds,
+      );
 
       if (success) {
-        _unlockedPremiumDeckIds.add(deckId);
         notifyListeners();
         return true;
       }
@@ -263,20 +265,20 @@ class DeckProvider extends ChangeNotifier {
     }).toList();
   }
 
-  // Get recent decks
+  // Get recent decks (from local storage)
   Future<List<String>> getRecentDeckIds() async {
     try {
-      return await _deckFirebaseService.getRecentDeckIds();
+      return await _localStorageService.loadRecentDeckIds();
     } catch (e) {
       debugPrint('Error getting recent deck IDs: $e');
       return [];
     }
   }
 
-  // Add to recent decks
+  // Add to recent decks (stored locally)
   Future<void> addToRecentDecks(String deckId) async {
     try {
-      await _deckFirebaseService.addToRecentDecks(deckId);
+      await _localStorageService.addToRecentDecks(deckId);
     } catch (e) {
       debugPrint('Error adding to recent decks: $e');
     }
@@ -297,16 +299,19 @@ class DeckProvider extends ChangeNotifier {
     return recentDecks;
   }
 
-  // Refresh data from Firebase
+  // Refresh data
   Future<void> refreshData() async {
     _isLoading = true;
     notifyListeners();
 
     try {
+      // Default decks still from Firebase
       _defaultDecks = await _deckFirebaseService.getDefaultDecks();
-      _customDecks = await _deckFirebaseService.getCustomDecks();
+      // Custom decks from local storage
+      _customDecks = await _localStorageService.loadCustomDecks();
+      // Unlocked premium decks from local storage
       _unlockedPremiumDeckIds =
-          await _deckFirebaseService.getUnlockedPremiumDecks();
+          await _localStorageService.loadUnlockedPremiumDeckIds();
     } catch (e) {
       debugPrint('Error refreshing data: $e');
     } finally {

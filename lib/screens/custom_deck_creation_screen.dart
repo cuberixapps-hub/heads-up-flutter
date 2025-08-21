@@ -61,6 +61,11 @@ class _CustomDeckCreationScreenState extends State<CustomDeckCreationScreen>
     )..repeat();
 
     _initializeForm();
+
+    // Add listener to update preview when name changes
+    _nameController.addListener(() {
+      setState(() {});
+    });
   }
 
   void _initializeForm() {
@@ -665,35 +670,379 @@ class _CustomDeckCreationScreenState extends State<CustomDeckCreationScreen>
                           const SizedBox(height: 24),
 
                           // Appearance Section
-                          _buildSectionTitle('Appearance'),
-                          const SizedBox(height: 16),
-
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildAppearanceCard(
-                                      'Icon',
-                                      _selectedIcon,
-                                      _selectedColor,
-                                      () => _selectIcon(),
-                                    )
-                                    .animate()
-                                    .fadeIn(delay: 500.ms)
-                                    .scale(begin: const Offset(0.8, 0.8)),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _buildColorCard(
-                                      'Color',
-                                      _selectedColor,
-                                      () => _selectColor(),
-                                    )
-                                    .animate()
-                                    .fadeIn(delay: 600.ms)
-                                    .scale(begin: const Offset(0.8, 0.8)),
-                              ),
-                            ],
+                          _buildSectionTitle('Customization'),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Make your deck unique with custom styling',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: AppTheme.textSecondary),
                           ),
+                          const SizedBox(height: 20),
+
+                          // Preview Card
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  _selectedColor.withOpacity(0.15),
+                                  _selectedColor.withOpacity(0.05),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: _selectedColor.withOpacity(0.3),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                // Preview Header
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      width: 56,
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            _selectedColor,
+                                            _selectedColor.withOpacity(0.8),
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: _selectedColor.withOpacity(
+                                              0.4,
+                                            ),
+                                            blurRadius: 12,
+                                            offset: const Offset(0, 6),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Center(
+                                        child: FaIcon(
+                                          _selectedIcon,
+                                          color: Colors.white,
+                                          size: 28,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Preview',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall?.copyWith(
+                                              color: AppTheme.textSecondary,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            _nameController.text.isEmpty
+                                                ? 'Your Deck Name'
+                                                : _nameController.text,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.titleMedium?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: _selectedColor,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+
+                                // Customization Options
+                                Row(
+                                  children: [
+                                    // Icon Selection
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: _selectIcon,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 12,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            border: Border.all(
+                                              color: AppTheme.dividerColor,
+                                              width: 1,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(
+                                                  0.04,
+                                                ),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Container(
+                                                width: 36,
+                                                height: 36,
+                                                decoration: BoxDecoration(
+                                                  color: _selectedColor
+                                                      .withOpacity(0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                ),
+                                                child: Center(
+                                                  child: FaIcon(
+                                                    _selectedIcon,
+                                                    color: _selectedColor,
+                                                    size: 18,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Icon',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color:
+                                                              AppTheme
+                                                                  .textSecondary,
+                                                          fontSize: 11,
+                                                        ),
+                                                  ),
+                                                  Text(
+                                                    'Change',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyMedium
+                                                        ?.copyWith(
+                                                          color: _selectedColor,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+
+                                    // Color Selection
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: _selectColor,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 12,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            border: Border.all(
+                                              color: AppTheme.dividerColor,
+                                              width: 1,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(
+                                                  0.04,
+                                                ),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Container(
+                                                width: 36,
+                                                height: 36,
+                                                decoration: BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    begin: Alignment.topLeft,
+                                                    end: Alignment.bottomRight,
+                                                    colors: [
+                                                      _selectedColor,
+                                                      _selectedColor
+                                                          .withOpacity(0.7),
+                                                    ],
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: _selectedColor
+                                                          .withOpacity(0.3),
+                                                      blurRadius: 6,
+                                                      offset: const Offset(
+                                                        0,
+                                                        2,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Color',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color:
+                                                              AppTheme
+                                                                  .textSecondary,
+                                                          fontSize: 11,
+                                                        ),
+                                                  ),
+                                                  Text(
+                                                    'Change',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyMedium
+                                                        ?.copyWith(
+                                                          color: _selectedColor,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                // Quick Color Palette
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.7),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Quick Colors',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall?.copyWith(
+                                          color: AppTheme.textSecondary,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceAround,
+                                        children: [
+                                          ...AppTheme.categoryColors
+                                              .take(7)
+                                              .map(
+                                                (color) => GestureDetector(
+                                                  onTap: () {
+                                                    setState(() {
+                                                      _selectedColor = color;
+                                                    });
+                                                    _hapticService
+                                                        .lightImpact();
+                                                  },
+                                                  child: Container(
+                                                    width: 32,
+                                                    height: 32,
+                                                    decoration: BoxDecoration(
+                                                      color: color,
+                                                      shape: BoxShape.circle,
+                                                      border: Border.all(
+                                                        color:
+                                                            _selectedColor ==
+                                                                    color
+                                                                ? AppTheme
+                                                                    .textPrimary
+                                                                : Colors
+                                                                    .transparent,
+                                                        width: 2,
+                                                      ),
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: color
+                                                              .withOpacity(0.4),
+                                                          blurRadius: 8,
+                                                          offset: const Offset(
+                                                            0,
+                                                            2,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    child:
+                                                        _selectedColor == color
+                                                            ? const Icon(
+                                                              Icons.check,
+                                                              color:
+                                                                  Colors.white,
+                                                              size: 16,
+                                                            )
+                                                            : null,
+                                                  ),
+                                                ),
+                                              ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ).animate().fadeIn(delay: 500.ms).slideY(begin: 0.05),
 
                           const SizedBox(height: 24),
 
@@ -1094,104 +1443,6 @@ class _CustomDeckCreationScreenState extends State<CustomDeckCreationScreen>
         ),
       ),
     ).animate().fadeIn(delay: (100 * index).ms).slideX(begin: 0.1);
-  }
-
-  Widget _buildAppearanceCard(
-    String label,
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppTheme.surfaceColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.dividerColor),
-        ),
-        child: Column(
-          children: [
-            Text(
-              label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: color.withOpacity(0.3), width: 2),
-              ),
-              child: Center(child: FaIcon(icon, color: color, size: 28)),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Tap to change',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.primaryColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildColorCard(String label, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppTheme.surfaceColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.dividerColor),
-        ),
-        child: Column(
-          children: [
-            Text(
-              label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [color, color.withOpacity(0.7)],
-                ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withOpacity(0.4),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Tap to change',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.primaryColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildQuickAction(String label, IconData icon, VoidCallback onTap) {
