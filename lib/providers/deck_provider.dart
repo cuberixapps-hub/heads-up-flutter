@@ -3,12 +3,10 @@ import 'dart:async';
 import '../models/deck.dart';
 import '../constants/default_decks.dart';
 import '../services/deck_firebase_service.dart';
-import '../services/firebase_service.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class DeckProvider extends ChangeNotifier {
   final DeckFirebaseService _deckFirebaseService = DeckFirebaseService();
-  final FirebaseService _firebaseService = FirebaseService();
 
   List<Deck> _defaultDecks = [];
   List<Deck> _customDecks = [];

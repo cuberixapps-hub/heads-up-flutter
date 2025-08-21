@@ -10,8 +10,9 @@ class DeckFirebaseService {
   String? get _userId => _firebaseService.currentUser?.uid;
 
   // Collection references
-  CollectionReference get _defaultDecksRef =>
-      _firestore.collection('defaultDecks');
+  CollectionReference get _defaultDecksRef => _firestore.collection(
+    'decks',
+  ); // Changed from 'defaultDecks' to 'decks' to match admin portal
   CollectionReference get _userDecksRef => _firestore
       .collection('users')
       .doc(_userId ?? 'anonymous')

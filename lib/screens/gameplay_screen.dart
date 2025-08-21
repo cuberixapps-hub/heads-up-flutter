@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import '../constants/app_theme.dart';
@@ -9,12 +10,27 @@ import '../models/deck.dart';
 import '../providers/game_provider.dart';
 import '../services/haptic_service.dart';
 import '../services/audio_service.dart';
+import '../widgets/tutorial_hint_overlay.dart';
 import 'results_screen.dart';
+import 'team_results_screen.dart';
 
 class GameplayScreen extends StatefulWidget {
   final Deck deck;
+  final bool isTeamMode;
+  final List<String>? teamNames;
+  final List<Color>? teamColors;
+  final bool isTournamentMode;
+  final String? tournamentType;
 
-  const GameplayScreen({super.key, required this.deck});
+  const GameplayScreen({
+    super.key,
+    required this.deck,
+    this.isTeamMode = false,
+    this.teamNames,
+    this.teamColors,
+    this.isTournamentMode = false,
+    this.tournamentType,
+  });
 
   @override
   State<GameplayScreen> createState() => _GameplayScreenState();
@@ -47,11 +63,32 @@ class _GameplayScreenState extends State<GameplayScreen>
   Color _feedbackColor = Colors.transparent;
   IconData? _feedbackIcon;
 
+  // Tutorial hints
+  bool _showTutorialHints = false;
+  int _gamesPlayed = 0;
+
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
+    _checkTutorialHints();
     _startCountdown();
+  }
+
+  Future<void> _checkTutorialHints() async {
+    final prefs = await SharedPreferences.getInstance();
+    _gamesPlayed = prefs.getInt('games_played') ?? 0;
+
+    // Show hints for first 3 games or if tutorial wasn't completed
+    final tutorialCompleted = prefs.getBool('tutorial_completed') ?? false;
+    if (_gamesPlayed < 3 || !tutorialCompleted) {
+      setState(() {
+        _showTutorialHints = true;
+      });
+    }
+
+    // Increment games played
+    await prefs.setInt('games_played', _gamesPlayed + 1);
   }
 
   void _initializeAnimations() {
@@ -208,10 +245,21 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   void _navigateToResults() {
     _accelerometerSubscription?.cancel();
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const ResultsScreen()),
-    );
+
+    if (widget.isTeamMode) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder:
+              (context) => TeamResultsScreen(teamColors: widget.teamColors),
+        ),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const ResultsScreen()),
+      );
+    }
   }
 
   void _handleManualCorrect() {
@@ -321,6 +369,16 @@ class _GameplayScreenState extends State<GameplayScreen>
                     // Tilt indicator
                     if (!_isCountingDown) _buildTiltIndicator(),
 
+                    // Tutorial hints overlay
+                    TutorialHintOverlay(
+                      showHints: _showTutorialHints && !_isCountingDown,
+                      onDismiss: () {
+                        setState(() {
+                          _showTutorialHints = false;
+                        });
+                      },
+                    ),
+
                     // Pause button
                     Positioned(
                       top: 16,
@@ -348,10 +406,74 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   Widget _buildCountdown() {
+    final gameProvider = context.read<GameProvider>();
+    final currentTeam = gameProvider.currentSession?.currentTeam;
+    final currentTeamIndex = gameProvider.currentSession?.currentTeamIndex ?? 0;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          // Show team name in team mode
+          if (widget.isTeamMode && currentTeam != null) ...[
+            Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 30,
+                    vertical: 15,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        widget.teamColors?[currentTeamIndex %
+                                (widget.teamColors?.length ?? 1)] ??
+                            AppTheme.primaryColor,
+                        (widget.teamColors?[currentTeamIndex %
+                                    (widget.teamColors?.length ?? 1)] ??
+                                AppTheme.primaryColor)
+                            .withOpacity(0.7),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (widget.teamColors?[currentTeamIndex %
+                                    (widget.teamColors?.length ?? 1)] ??
+                                AppTheme.primaryColor)
+                            .withOpacity(0.4),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        currentTeam.name,
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        'Get Ready!',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+                .animate()
+                .fadeIn(duration: 600.ms)
+                .scale(begin: const Offset(0.8, 0.8)),
+            const SizedBox(height: 40),
+          ],
+
           const Icon(
                 Icons.phone_android_rounded,
                 size: 100,
@@ -398,8 +520,78 @@ class _GameplayScreenState extends State<GameplayScreen>
     Duration remainingTime,
     bool isTimeRunningOut,
   ) {
+    final gameProvider = context.read<GameProvider>();
+    final currentTeam = gameProvider.currentSession?.currentTeam;
+    final currentTeamIndex = gameProvider.currentSession?.currentTeamIndex ?? 0;
+
     return Column(
       children: [
+        // Team indicator (only in team mode)
+        if (widget.isTeamMode && currentTeam != null) ...[
+          Container(
+            margin: const EdgeInsets.only(top: 20, left: 20, right: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  widget.teamColors?[currentTeamIndex %
+                          (widget.teamColors?.length ?? 1)] ??
+                      AppTheme.primaryColor,
+                  (widget.teamColors?[currentTeamIndex %
+                              (widget.teamColors?.length ?? 1)] ??
+                          AppTheme.primaryColor)
+                      .withOpacity(0.7),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: (widget.teamColors?[currentTeamIndex %
+                              (widget.teamColors?.length ?? 1)] ??
+                          AppTheme.primaryColor)
+                      .withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.group_rounded, color: Colors.white, size: 24),
+                const SizedBox(width: 10),
+                Text(
+                  '${currentTeam.name}\'s Turn',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Score: ${currentTeam.score}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.2),
+        ],
+
         // Timer
         Container(
           margin: const EdgeInsets.all(20),

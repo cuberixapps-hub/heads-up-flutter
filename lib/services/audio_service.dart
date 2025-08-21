@@ -66,6 +66,20 @@ class AudioService {
     }
   }
 
+  Future<void> playVictory() async {
+    if (!_isSoundEnabled) return;
+    try {
+      await _player.play(AssetSource('sounds/victory.mp3'));
+    } catch (e) {
+      // Handle error silently - fallback to success sound
+      try {
+        await _player.play(AssetSource('sounds/success.mp3'));
+      } catch (e) {
+        // Handle error silently
+      }
+    }
+  }
+
   void dispose() {
     _player.dispose();
   }

@@ -9,13 +9,10 @@ import 'audio_service_test.mocks.dart';
 void main() {
   group('AudioService Tests', () {
     late AudioService audioService;
-    late MockAudioPlayer mockAudioPlayer;
 
     setUp(() {
       audioService = AudioService();
-      mockAudioPlayer = MockAudioPlayer();
-
-      // Note: In a real scenario, we'd need to inject the mock AudioPlayer
+      // MockAudioPlayer can be used when we need to inject it
       // For now, we'll test the public interface
     });
 
@@ -125,4 +122,3 @@ void main() {
     });
   });
 }
-

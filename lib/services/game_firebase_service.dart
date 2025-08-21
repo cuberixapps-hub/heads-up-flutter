@@ -375,4 +375,48 @@ class GameFirebaseService {
       totalRounds: data['totalRounds'] ?? 1,
     );
   }
+
+  // Clear all user data
+  Future<void> clearUserData() async {
+    if (_userId == null) return;
+
+    try {
+      // Delete all game sessions
+      final sessionsQuery =
+          await _firestore
+              .collection('gameSessions')
+              .where('userId', isEqualTo: _userId)
+              .get();
+
+      for (var doc in sessionsQuery.docs) {
+        await doc.reference.delete();
+      }
+
+      // Reset user statistics
+      await _firestore.collection('userStatistics').doc(_userId).set({
+        'totalGames': 0,
+        'totalCorrect': 0,
+        'totalPassed': 0,
+        'highScore': 0,
+        'favoriteDecks': [],
+        'achievements': [],
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Clear user settings (reset to defaults)
+      await _firestore.collection('userSettings').doc(_userId).set({
+        'roundDuration': 60,
+        'soundEnabled': true,
+        'vibrationEnabled': true,
+        'kidFriendlyMode': false,
+        'showWordsAfterPass': true,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      print('User data cleared successfully');
+    } catch (e) {
+      print('Error clearing user data: $e');
+      rethrow;
+    }
+  }
 }

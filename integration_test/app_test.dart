@@ -4,7 +4,6 @@ import 'package:integration_test/integration_test.dart';
 import 'package:heads_up_game/main.dart' as app;
 import 'package:heads_up_game/screens/home_screen.dart';
 import 'package:heads_up_game/screens/category_selection_screen.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -367,4 +366,3 @@ void main() {
     });
   });
 }
-

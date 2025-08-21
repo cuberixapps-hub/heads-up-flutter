@@ -371,6 +371,35 @@ class GameProvider extends ChangeNotifier {
     return achievements;
   }
 
+  // Clear all game data
+  Future<void> clearAllData() async {
+    try {
+      // Clear local data
+      _currentSession = null;
+      _gameHistory.clear();
+      _statistics = {};
+      _isGameActive = false;
+      _remainingTime = Duration.zero;
+
+      // Cancel any active timers
+      _gameTimer?.cancel();
+
+      // Clear Firebase data
+      await _gameFirebaseService.clearUserData();
+
+      // Reload fresh data
+      await _loadStatistics();
+      await _loadGameHistory();
+
+      // Log event
+      _firebaseService.logEvent('data_cleared');
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error clearing all data: $e');
+    }
+  }
+
   @override
   void dispose() {
     _gameTimer?.cancel();
