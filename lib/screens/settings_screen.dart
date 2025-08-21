@@ -36,6 +36,8 @@ class _SettingsScreenState extends State<SettingsScreen>
   bool _showTutorials = true;
   bool _kidFriendlyMode = false;
   bool _showWordsAfterPass = true;
+  bool _useManualControls = false;
+  bool _preferLandscape = true;
   String _userName = '';
   String _userAvatar = '👤';
 
@@ -70,6 +72,8 @@ class _SettingsScreenState extends State<SettingsScreen>
       _difficulty = prefs.getString('difficulty') ?? 'Medium';
       _darkMode = prefs.getBool('dark_mode') ?? false;
       _showTutorials = prefs.getBool('show_tutorials') ?? true;
+      _useManualControls = prefs.getBool('use_manual_controls') ?? false;
+      _preferLandscape = prefs.getBool('prefer_landscape_gameplay') ?? true;
       _userName = prefs.getString('user_name') ?? '';
       _userAvatar = prefs.getString('user_avatar') ?? '👤';
     });
@@ -104,6 +108,8 @@ class _SettingsScreenState extends State<SettingsScreen>
     await prefs.setString('difficulty', _difficulty);
     await prefs.setBool('dark_mode', _darkMode);
     await prefs.setBool('show_tutorials', _showTutorials);
+    await prefs.setBool('use_manual_controls', _useManualControls);
+    await prefs.setBool('prefer_landscape_gameplay', _preferLandscape);
     await prefs.setString('user_name', _userName);
     await prefs.setString('user_avatar', _userAvatar);
 
@@ -191,10 +197,11 @@ class _SettingsScreenState extends State<SettingsScreen>
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            const SizedBox(height: 60),
+                            const SizedBox(height: 40),
                             Container(
-                              padding: const EdgeInsets.all(16),
+                              padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(20),
@@ -202,29 +209,30 @@ class _SettingsScreenState extends State<SettingsScreen>
                               child: const Icon(
                                 Icons.settings_rounded,
                                 color: Colors.white,
-                                size: 40,
+                                size: 32,
                               ),
                             ).animate().scale(
                               duration: 600.ms,
                               curve: Curves.easeOutBack,
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 12),
                             Text(
                               'Settings',
                               style: Theme.of(
                                 context,
-                              ).textTheme.headlineMedium?.copyWith(
+                              ).textTheme.headlineSmall?.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
                               ),
                             ).animate().fadeIn(delay: 200.ms),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             Text(
                               'Customize your experience',
                               style: Theme.of(
                                 context,
-                              ).textTheme.bodyMedium?.copyWith(
+                              ).textTheme.bodySmall?.copyWith(
                                 color: Colors.white.withOpacity(0.9),
+                                fontSize: 13,
                               ),
                             ).animate().fadeIn(delay: 300.ms),
                           ],
@@ -280,6 +288,28 @@ class _SettingsScreenState extends State<SettingsScreen>
                   _buildTimerTile(),
                   _buildDivider(),
                   _buildDifficultyTile(),
+                  _buildDivider(),
+                  _buildSwitchTile(
+                    title: 'Manual Controls',
+                    subtitle: 'Use buttons instead of tilting',
+                    icon: Icons.touch_app_rounded,
+                    value: _useManualControls,
+                    onChanged: (value) {
+                      setState(() => _useManualControls = value);
+                      _saveSettings();
+                    },
+                  ),
+                  _buildDivider(),
+                  _buildSwitchTile(
+                    title: 'Landscape Mode',
+                    subtitle: 'Play in horizontal orientation',
+                    icon: Icons.screen_rotation_rounded,
+                    value: _preferLandscape,
+                    onChanged: (value) {
+                      setState(() => _preferLandscape = value);
+                      _saveSettings();
+                    },
+                  ),
                   _buildDivider(),
                   _buildSwitchTile(
                     title: 'Kid-Friendly Mode',

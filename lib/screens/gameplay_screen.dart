@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui';
 import '../constants/app_theme.dart';
 import '../models/deck.dart';
 import '../providers/game_provider.dart';
@@ -18,18 +20,14 @@ class GameplayScreen extends StatefulWidget {
   final Deck deck;
   final bool isTeamMode;
   final List<String>? teamNames;
-  final List<Color>? teamColors;
-  final bool isTournamentMode;
-  final String? tournamentType;
+  final int? currentTeamIndex;
 
   const GameplayScreen({
     super.key,
     required this.deck,
     this.isTeamMode = false,
     this.teamNames,
-    this.teamColors,
-    this.isTournamentMode = false,
-    this.tournamentType,
+    this.currentTeamIndex,
   });
 
   @override
@@ -38,20 +36,27 @@ class GameplayScreen extends StatefulWidget {
 
 class _GameplayScreenState extends State<GameplayScreen>
     with TickerProviderStateMixin {
-  final _hapticService = HapticService();
+  // Services
   final _audioService = AudioService();
+  final _hapticService = HapticService();
 
-  // Animation controllers
+  // Animations
   late AnimationController _countdownController;
   late AnimationController _cardFlipController;
   late AnimationController _feedbackController;
   late AnimationController _timerPulseController;
+  late AnimationController _backgroundAnimController;
+  late AnimationController _glowController;
 
   // Accelerometer
   StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
-  double _currentTilt = 0.0;
   bool _canDetectTilt = false;
   bool _hasTriggeredAction = false;
+
+  // Calibration values
+  double _calibrationY = 0.0;
+  double _calibrationZ = 0.0;
+  bool _isCalibrated = false;
 
   // Game state
   bool _isCountingDown = true;
@@ -67,21 +72,38 @@ class _GameplayScreenState extends State<GameplayScreen>
   bool _showTutorialHints = false;
   int _gamesPlayed = 0;
 
+  // Control mode
+  bool _useManualControls = false;
+  bool _isLandscapeMode = false;
+
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
     _checkTutorialHints();
+    _checkPreferredOrientation();
     _startCountdown();
+  }
+
+  Future<void> _checkPreferredOrientation() async {
+    final prefs = await SharedPreferences.getInstance();
+    _isLandscapeMode = prefs.getBool('prefer_landscape_gameplay') ?? true;
+    _useManualControls = prefs.getBool('use_manual_controls') ?? false;
+
+    if (_isLandscapeMode) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    }
   }
 
   Future<void> _checkTutorialHints() async {
     final prefs = await SharedPreferences.getInstance();
     _gamesPlayed = prefs.getInt('games_played') ?? 0;
 
-    // Show hints for first 3 games or if tutorial wasn't completed
-    final tutorialCompleted = prefs.getBool('tutorial_completed') ?? false;
-    if (_gamesPlayed < 3 || !tutorialCompleted) {
+    // Show hints for first 3 games
+    if (_gamesPlayed < 3) {
       setState(() {
         _showTutorialHints = true;
       });
@@ -93,7 +115,7 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   void _initializeAnimations() {
     _countdownController = AnimationController(
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
 
@@ -109,6 +131,16 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     _timerPulseController = AnimationController(
       duration: const Duration(seconds: 1),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _backgroundAnimController = AnimationController(
+      duration: const Duration(seconds: 20),
+      vsync: this,
+    )..repeat();
+
+    _glowController = AnimationController(
+      duration: const Duration(seconds: 3),
       vsync: this,
     )..repeat(reverse: true);
   }
@@ -133,34 +165,56 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _startGame() {
-    _canDetectTilt = true;
-    _startAccelerometer();
+    if (!_useManualControls) {
+      _calibrateAccelerometer();
+    }
     _audioService.playClick();
     _hapticService.mediumImpact();
   }
 
+  void _calibrateAccelerometer() {
+    // Calibrate the accelerometer when the phone is held to the forehead
+    accelerometerEventStream().first.then((event) {
+      _calibrationY = event.y;
+      _calibrationZ = event.z;
+      _isCalibrated = true;
+      _canDetectTilt = true;
+      _startAccelerometer();
+    });
+  }
+
   void _startAccelerometer() {
     _accelerometerSubscription = accelerometerEventStream().listen((event) {
-      if (!_canDetectTilt || _hasTriggeredAction) return;
+      if (!_canDetectTilt || _hasTriggeredAction || !_isCalibrated) return;
 
-      // Calculate tilt angle (in degrees)
-      // event.y represents forward/backward tilt
-      // Positive y = tilt down (correct), Negative y = tilt up (pass)
-      final tiltAngle = math.atan2(event.y, event.z) * (180 / math.pi);
+      // Calculate relative tilt from calibrated position
+      final deltaY = event.y - _calibrationY;
+      final deltaZ = event.z - _calibrationZ;
 
-      setState(() {
-        _currentTilt = tiltAngle;
-      });
+      // When phone is held to forehead (landscape):
+      // Tilt forward (away from head) = PASS
+      // Tilt backward (toward head) = CORRECT
+      // We use deltaZ for detecting the tilt when phone is vertical
 
-      // Threshold for triggering actions
-      const threshold = 30.0;
+      double tiltAngle;
+      if (_isLandscapeMode) {
+        // In landscape mode, use Z-axis changes
+        tiltAngle = deltaZ * 10; // Scale for sensitivity
+      } else {
+        // In portrait mode, use Y-axis
+        tiltAngle = deltaY * 10;
+      }
 
-      if (tiltAngle > threshold) {
-        // Tilted down - Correct
-        _handleCorrect();
-      } else if (tiltAngle < -threshold) {
-        // Tilted up - Pass
+      // Adjusted thresholds for better detection
+      const passThreshold = 25.0; // Tilt forward to pass
+      const correctThreshold = -25.0; // Tilt backward to mark correct
+
+      if (tiltAngle > passThreshold) {
+        // Tilted forward - Pass
         _handlePass();
+      } else if (tiltAngle < correctThreshold) {
+        // Tilted backward - Correct
+        _handleCorrect();
       }
     });
   }
@@ -249,10 +303,7 @@ class _GameplayScreenState extends State<GameplayScreen>
     if (widget.isTeamMode) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder:
-              (context) => TeamResultsScreen(teamColors: widget.teamColors),
-        ),
+        MaterialPageRoute(builder: (context) => const TeamResultsScreen()),
       );
     } else {
       Navigator.pushReplacement(
@@ -287,14 +338,15 @@ class _GameplayScreenState extends State<GameplayScreen>
               borderRadius: BorderRadius.circular(20),
             ),
             title: const Text('Game Paused'),
-            content: const Text('Take a break! Tap resume when ready.'),
+            content: const Text('Take your time! Tap Resume to continue.'),
             actions: [
               TextButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  Navigator.pop(context); // Exit game
+                  context.read<GameProvider>().endGame();
+                  Navigator.pop(context);
                 },
-                child: const Text('Quit Game'),
+                child: const Text('End Game'),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -302,6 +354,9 @@ class _GameplayScreenState extends State<GameplayScreen>
                   context.read<GameProvider>().togglePause();
                   _canDetectTilt = true;
                 },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                ),
                 child: const Text('Resume'),
               ),
             ],
@@ -315,8 +370,17 @@ class _GameplayScreenState extends State<GameplayScreen>
     _cardFlipController.dispose();
     _feedbackController.dispose();
     _timerPulseController.dispose();
+    _backgroundAnimController.dispose();
+    _glowController.dispose();
     _countdownTimer?.cancel();
     _accelerometerSubscription?.cancel();
+    // Reset orientation to default
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     super.dispose();
   }
 
@@ -330,464 +394,695 @@ class _GameplayScreenState extends State<GameplayScreen>
         }
       },
       child: Scaffold(
-        body: Consumer<GameProvider>(
-          builder: (context, gameProvider, child) {
-            final session = gameProvider.currentSession;
-            final currentCard = session?.currentCard ?? '';
-            final remainingTime = gameProvider.remainingTime;
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                widget.deck.color.withOpacity(0.8),
+                widget.deck.color,
+                widget.deck.color.withOpacity(0.6),
+              ],
+            ),
+          ),
+          child: Stack(
+            children: [
+              // Animated background elements
+              _buildAnimatedBackground(),
 
-            // Check if time is running out
-            final isTimeRunningOut = remainingTime.inSeconds <= 10;
-
-            return Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    widget.deck.color.withOpacity(0.8),
-                    widget.deck.color,
-                  ],
-                ),
+              // Main content
+              SafeArea(
+                child: _isCountingDown ? _buildCountdown() : _buildGameplay(),
               ),
-              child: SafeArea(
-                child: Stack(
-                  children: [
-                    // Main content
-                    if (_isCountingDown)
-                      _buildCountdown()
-                    else
-                      _buildGameplay(
-                        currentCard,
-                        remainingTime,
-                        isTimeRunningOut,
-                      ),
 
-                    // Feedback overlay
-                    _buildFeedbackOverlay(),
+              // Feedback overlay
+              _buildFeedbackOverlay(),
 
-                    // Tilt indicator
-                    if (!_isCountingDown) _buildTiltIndicator(),
-
-                    // Tutorial hints overlay
-                    TutorialHintOverlay(
-                      showHints: _showTutorialHints && !_isCountingDown,
-                      onDismiss: () {
-                        setState(() {
-                          _showTutorialHints = false;
-                        });
-                      },
-                    ),
-
-                    // Pause button
-                    Positioned(
-                      top: 16,
-                      right: 16,
-                      child: IconButton(
-                        onPressed: _pauseGame,
-                        icon: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.pause, color: Colors.white),
-                        ),
-                      ),
-                    ),
-                  ],
+              // Tutorial hints
+              if (_showTutorialHints && !_isCountingDown)
+                TutorialHintOverlay(
+                  showHints: true,
+                  onDismiss: () {
+                    setState(() {
+                      _showTutorialHints = false;
+                    });
+                  },
                 ),
-              ),
-            );
-          },
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildAnimatedBackground() {
+    return AnimatedBuilder(
+      animation: _backgroundAnimController,
+      builder: (context, child) {
+        return CustomPaint(
+          size: MediaQuery.of(context).size,
+          painter: _ModernBackgroundPainter(
+            animation: _backgroundAnimController.value,
+            color: widget.deck.color,
+          ),
+        );
+      },
     );
   }
 
   Widget _buildCountdown() {
-    final gameProvider = context.read<GameProvider>();
-    final currentTeam = gameProvider.currentSession?.currentTeam;
-    final currentTeamIndex = gameProvider.currentSession?.currentTeamIndex ?? 0;
-
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Show team name in team mode
-          if (widget.isTeamMode && currentTeam != null) ...[
-            Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 30,
-                    vertical: 15,
+      child: AnimatedBuilder(
+        animation: _countdownController,
+        builder: (context, child) {
+          final scale = 1.0 + (_countdownController.value * 0.5);
+          final opacity = 1.0 - (_countdownController.value * 0.3);
+
+          return Transform.scale(
+            scale: scale,
+            child: Opacity(
+              opacity: opacity,
+              child: Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.15),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 3,
                   ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        widget.teamColors?[currentTeamIndex %
-                                (widget.teamColors?.length ?? 1)] ??
-                            AppTheme.primaryColor,
-                        (widget.teamColors?[currentTeamIndex %
-                                    (widget.teamColors?.length ?? 1)] ??
-                                AppTheme.primaryColor)
-                            .withOpacity(0.7),
-                      ],
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 30,
+                      spreadRadius: 10,
                     ),
-                    borderRadius: BorderRadius.circular(25),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (widget.teamColors?[currentTeamIndex %
-                                    (widget.teamColors?.length ?? 1)] ??
-                                AppTheme.primaryColor)
-                            .withOpacity(0.4),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
+                  ],
+                ),
+                child: Center(
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        currentTeam.name,
+                        _countdownValue.toString(),
                         style: const TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w900,
                           color: Colors.white,
-                          letterSpacing: 1,
+                          fontSize: 72,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
                         ),
                       ),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 8),
                       Text(
-                        'Get Ready!',
+                        'GET READY',
                         style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
                           color: Colors.white.withOpacity(0.9),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 2,
                         ),
                       ),
                     ],
                   ),
-                )
-                .animate()
-                .fadeIn(duration: 600.ms)
-                .scale(begin: const Offset(0.8, 0.8)),
-            const SizedBox(height: 40),
-          ],
-
-          const Icon(
-                Icons.phone_android_rounded,
-                size: 100,
-                color: Colors.white,
-              )
-              .animate(onPlay: (controller) => controller.repeat())
-              .rotate(duration: 1.seconds, begin: -0.05, end: 0.05)
-              .then()
-              .rotate(duration: 1.seconds, begin: 0.05, end: -0.05),
-          const SizedBox(height: 40),
-          Text(
-            'Place on forehead!',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 40),
-          AnimatedBuilder(
-            animation: _countdownController,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: 1.0 + (_countdownController.value * 0.3),
-                child: Text(
-                  _countdownValue.toString(),
-                  style: TextStyle(
-                    fontSize: 100,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white.withOpacity(
-                      1.0 - (_countdownController.value * 0.3),
-                    ),
-                  ),
                 ),
-              );
-            },
-          ),
-        ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildGameplay(
-    String currentCard,
-    Duration remainingTime,
-    bool isTimeRunningOut,
-  ) {
-    final gameProvider = context.read<GameProvider>();
-    final currentTeam = gameProvider.currentSession?.currentTeam;
-    final currentTeamIndex = gameProvider.currentSession?.currentTeamIndex ?? 0;
+  Widget _buildGameplay() {
+    final gameProvider = context.watch<GameProvider>();
+    final currentCard =
+        gameProvider.currentSession?.currentCard ?? 'Loading...';
 
     return Column(
       children: [
-        // Team indicator (only in team mode)
-        if (widget.isTeamMode && currentTeam != null) ...[
-          Container(
-            margin: const EdgeInsets.only(top: 20, left: 20, right: 20),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  widget.teamColors?[currentTeamIndex %
-                          (widget.teamColors?.length ?? 1)] ??
-                      AppTheme.primaryColor,
-                  (widget.teamColors?[currentTeamIndex %
-                              (widget.teamColors?.length ?? 1)] ??
-                          AppTheme.primaryColor)
-                      .withOpacity(0.7),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: (widget.teamColors?[currentTeamIndex %
-                              (widget.teamColors?.length ?? 1)] ??
-                          AppTheme.primaryColor)
-                      .withOpacity(0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.group_rounded, color: Colors.white, size: 24),
-                const SizedBox(width: 10),
-                Text(
-                  '${currentTeam.name}\'s Turn',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'Score: ${currentTeam.score}',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.2),
-        ],
+        // Modern header with timer
+        _buildModernHeader(gameProvider),
 
-        // Timer
-        Container(
-          margin: const EdgeInsets.all(20),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          decoration: BoxDecoration(
-            color:
-                isTimeRunningOut
-                    ? Colors.red.withOpacity(0.3)
-                    : Colors.white.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: AnimatedBuilder(
-            animation:
-                isTimeRunningOut ? _timerPulseController : _countdownController,
-            builder: (context, child) {
-              return Transform.scale(
-                scale:
-                    isTimeRunningOut
-                        ? 1.0 + (_timerPulseController.value * 0.1)
-                        : 1.0,
-                child: Text(
-                  '${remainingTime.inSeconds}s',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: isTimeRunningOut ? Colors.white : Colors.white,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-
-        // Card
+        // Card area
         Expanded(
-          child: Center(
-            child: AnimatedBuilder(
-              animation: _cardFlipController,
-              builder: (context, child) {
-                final angle = _cardFlipController.value * math.pi;
-                if (angle >= math.pi / 2) {
-                  return Transform(
-                    alignment: Alignment.center,
-                    transform:
-                        Matrix4.identity()
-                          ..setEntry(3, 2, 0.001)
-                          ..rotateY(math.pi),
-                    child: _buildCardBack(),
-                  );
-                } else {
-                  return Transform(
-                    alignment: Alignment.center,
-                    transform:
-                        Matrix4.identity()
-                          ..setEntry(3, 2, 0.001)
-                          ..rotateY(angle),
-                    child: _buildCardFront(currentCard),
-                  );
-                }
-              },
-            ),
-          ),
-        ),
-
-        // Manual buttons
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          child: Stack(
             children: [
-              // Pass button
-              GestureDetector(
-                onTap: _handleManualPass,
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.5),
-                      width: 2,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.arrow_upward,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                      Text(
-                        'PASS',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
+              // Main card with animation
+              Center(
+                child: AnimatedBuilder(
+                  animation: _cardFlipController,
+                  builder: (context, child) {
+                    final angle = _cardFlipController.value * math.pi;
+                    if (angle >= math.pi / 2) {
+                      return Transform(
+                        alignment: Alignment.center,
+                        transform:
+                            Matrix4.identity()
+                              ..setEntry(3, 2, 0.001)
+                              ..rotateY(math.pi),
+                        child: _buildCardBack(),
+                      );
+                    } else {
+                      return Transform(
+                        alignment: Alignment.center,
+                        transform:
+                            Matrix4.identity()
+                              ..setEntry(3, 2, 0.001)
+                              ..rotateY(angle),
+                        child: _buildCardFront(currentCard),
+                      );
+                    }
+                  },
                 ),
               ),
 
-              // Correct button
-              GestureDetector(
-                onTap: _handleManualCorrect,
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: AppTheme.successColor.withOpacity(0.3),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppTheme.successColor.withOpacity(0.5),
-                      width: 2,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.arrow_downward,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                      Text(
-                        'CORRECT',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              // Manual control buttons
+              if (_useManualControls && !_isCountingDown)
+                _buildModernControlButtons(),
+
+              // Control mode toggle
+              _buildControlToggle(),
             ],
           ),
         ),
+
+        // Score indicator
+        _buildScoreIndicator(gameProvider),
       ],
     );
   }
 
-  Widget _buildCardFront(String word) {
+  Widget _buildModernHeader(GameProvider gameProvider) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 40),
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Pause button
+          _buildGlassButton(icon: Icons.pause_rounded, onTap: _pauseGame),
+
+          // Timer with modern design
+          AnimatedBuilder(
+            animation: _timerPulseController,
+            builder: (context, child) {
+              final scale = 1.0 + (_timerPulseController.value * 0.05);
+              final remainingTime =
+                  gameProvider.currentSession?.remainingTime.inSeconds ?? 60;
+              final isLowTime = remainingTime <= 10;
+
+              return Transform.scale(
+                scale: isLowTime ? scale : 1.0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color:
+                          isLowTime
+                              ? Colors.redAccent.withOpacity(0.5)
+                              : Colors.white.withOpacity(0.3),
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color:
+                            isLowTime
+                                ? Colors.redAccent.withOpacity(0.3)
+                                : Colors.black.withOpacity(0.1),
+                        blurRadius: 20,
+                        spreadRadius: isLowTime ? 5 : 0,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.timer_outlined, color: Colors.white, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${remainingTime}s',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
+
+          // Team indicator (if team mode)
+          if (widget.isTeamMode)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                widget.teamNames![widget.currentTeamIndex!],
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            )
+          else
+            const SizedBox(width: 48),
         ],
       ),
-      child: Center(
-        child: Text(
-          word,
-          style: TextStyle(
-            fontSize: 48,
-            fontWeight: FontWeight.bold,
-            color: widget.deck.color,
-          ),
-          textAlign: TextAlign.center,
+    );
+  }
+
+  Widget _buildGlassButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Icon(icon, color: Colors.white, size: 24),
         ),
       ),
+    );
+  }
+
+  Widget _buildCardFront(String word) {
+    return AnimatedBuilder(
+      animation: _glowController,
+      builder: (context, child) {
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          height: 320,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: [
+              BoxShadow(
+                color: widget.deck.color.withOpacity(
+                  0.3 + (_glowController.value * 0.1),
+                ),
+                blurRadius: 30 + (_glowController.value * 10),
+                offset: const Offset(0, 15),
+                spreadRadius: -5,
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(32),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withOpacity(0.95),
+                      Colors.white.withOpacity(0.9),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(32),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    // Decorative elements
+                    Positioned(
+                      top: -50,
+                      right: -50,
+                      child: Container(
+                        width: 200,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              widget.deck.color.withOpacity(0.1),
+                              widget.deck.color.withOpacity(0.0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Main content
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Category badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: widget.deck.color.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: widget.deck.color.withOpacity(0.2),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  widget.deck.icon,
+                                  size: 16,
+                                  color: widget.deck.color,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  widget.deck.name.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: widget.deck.color,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          // Word with gradient
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 32),
+                            child: ShaderMask(
+                              shaderCallback:
+                                  (bounds) => LinearGradient(
+                                    colors: [
+                                      widget.deck.color,
+                                      widget.deck.color.withOpacity(0.7),
+                                    ],
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                  ).createShader(bounds),
+                              child: Text(
+                                word,
+                                style: const TextStyle(
+                                  fontSize: 48,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  height: 1.1,
+                                  letterSpacing: -1,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildCardBack() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 40),
-      padding: const EdgeInsets.all(32),
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      height: 320,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [widget.deck.color.withOpacity(0.8), widget.deck.color],
-        ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(32),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: widget.deck.color.withOpacity(0.4),
+            blurRadius: 40,
+            offset: const Offset(0, 20),
+            spreadRadius: -5,
           ),
         ],
       ),
-      child: const Center(
-        child: Icon(Icons.phone_android_rounded, size: 80, color: Colors.white),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(32),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [widget.deck.color, widget.deck.color.withOpacity(0.8)],
+            ),
+          ),
+          child: Stack(
+            children: [
+              // Pattern overlay
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _CardPatternPainter(
+                    color: Colors.white.withOpacity(0.1),
+                  ),
+                ),
+              ),
+              // Content
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        widget.deck.icon,
+                        size: 56,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Next Card',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernControlButtons() {
+    return Positioned(
+      bottom: 40,
+      left: 0,
+      right: 0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Pass button
+            _buildActionButton(
+              onTap: _handleManualPass,
+              color: AppTheme.warningColor,
+              icon: Icons.close_rounded,
+              label: 'PASS',
+              isLeft: true,
+            ),
+            // Correct button
+            _buildActionButton(
+              onTap: _handleManualCorrect,
+              color: AppTheme.successColor,
+              icon: Icons.check_rounded,
+              label: 'CORRECT',
+              isLeft: false,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required VoidCallback onTap,
+    required Color color,
+    required IconData icon,
+    required String label,
+    required bool isLeft,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child:
+          Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [color.withOpacity(0.3), color.withOpacity(0.2)],
+                  ),
+                  border: Border.all(color: color.withOpacity(0.5), width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.3),
+                      blurRadius: 30,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(icon, color: Colors.white, size: 44),
+                      const SizedBox(height: 8),
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+              .animate()
+              .scale(
+                delay: isLeft ? 400.ms : 500.ms,
+                duration: 600.ms,
+                curve: Curves.easeOutBack,
+              )
+              .fadeIn(),
+    );
+  }
+
+  Widget _buildControlToggle() {
+    return Positioned(
+      top: 16,
+      right: 20,
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _useManualControls = !_useManualControls;
+            if (!_useManualControls && !_isCalibrated) {
+              _calibrateAccelerometer();
+            }
+          });
+          SharedPreferences.getInstance().then((prefs) {
+            prefs.setBool('use_manual_controls', _useManualControls);
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+          ),
+          child: Icon(
+            _useManualControls ? Icons.touch_app : Icons.screen_rotation,
+            color: Colors.white,
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScoreIndicator(GameProvider gameProvider) {
+    final correct = gameProvider.currentSession?.correctCount ?? 0;
+    final passed = gameProvider.currentSession?.passCount ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildScoreItem(
+            icon: Icons.check_circle,
+            count: correct,
+            color: AppTheme.successColor,
+          ),
+          const SizedBox(width: 32),
+          _buildScoreItem(
+            icon: Icons.skip_next,
+            count: passed,
+            color: AppTheme.warningColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreItem({
+    required IconData icon,
+    required int count,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            count.toString(),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -813,21 +1108,29 @@ class _GameplayScreenState extends State<GameplayScreen>
                       vertical: 24,
                     ),
                     decoration: BoxDecoration(
-                      color: _feedbackColor.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(20),
+                      color: _feedbackColor.withOpacity(0.95),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _feedbackColor.withOpacity(0.5),
+                          blurRadius: 40,
+                          spreadRadius: 10,
+                        ),
+                      ],
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (_feedbackIcon != null)
-                          Icon(_feedbackIcon, size: 60, color: Colors.white),
-                        const SizedBox(height: 8),
+                          Icon(_feedbackIcon, size: 56, color: Colors.white),
+                        const SizedBox(height: 12),
                         Text(
                           _feedbackText,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 32,
+                            fontSize: 28,
                             fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
                           ),
                         ),
                       ],
@@ -841,35 +1144,98 @@ class _GameplayScreenState extends State<GameplayScreen>
       },
     );
   }
+}
 
-  Widget _buildTiltIndicator() {
-    return Positioned(
-      bottom: 100,
-      left: 20,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.screen_rotation,
-              color: Colors.white.withOpacity(0.7),
-              size: 16,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              'Tilt: ${_currentTilt.toStringAsFixed(0)}°',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+// Custom painter for modern background
+class _ModernBackgroundPainter extends CustomPainter {
+  final double animation;
+  final Color color;
+
+  _ModernBackgroundPainter({required this.animation, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint =
+        Paint()
+          ..style = PaintingStyle.fill
+          ..strokeWidth = 2;
+
+    // Draw floating circles
+    for (int i = 0; i < 5; i++) {
+      final offset = Offset(
+        size.width * (0.2 + i * 0.15),
+        size.height * (0.3 + math.sin(animation * 2 * math.pi + i) * 0.1),
+      );
+
+      paint.color = Colors.white.withOpacity(0.03 + i * 0.01);
+      canvas.drawCircle(offset, 50 + i * 20, paint);
+    }
+
+    // Draw gradient lines
+    final path = Path();
+    for (int i = 0; i < 3; i++) {
+      path.reset();
+      final y = size.height * (0.2 + i * 0.3);
+      path.moveTo(0, y);
+
+      for (double x = 0; x <= size.width; x += 10) {
+        final normalizedX = x / size.width;
+        final waveY =
+            y + math.sin((normalizedX + animation) * math.pi * 2) * 20;
+        path.lineTo(x, waveY);
+      }
+
+      paint.color = Colors.white.withOpacity(0.02);
+      paint.style = PaintingStyle.stroke;
+      canvas.drawPath(path, paint);
+    }
   }
+
+  @override
+  bool shouldRepaint(_ModernBackgroundPainter oldDelegate) {
+    return oldDelegate.animation != animation;
+  }
+}
+
+// Custom painter for card pattern
+class _CardPatternPainter extends CustomPainter {
+  final Color color;
+
+  _CardPatternPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1;
+
+    // Draw geometric pattern
+    const spacing = 30.0;
+    for (double x = 0; x < size.width; x += spacing) {
+      for (double y = 0; y < size.height; y += spacing) {
+        canvas.drawCircle(Offset(x, y), 2, paint);
+
+        if (x + spacing < size.width) {
+          canvas.drawLine(
+            Offset(x, y),
+            Offset(x + spacing, y),
+            paint..color = color.withOpacity(0.5),
+          );
+        }
+
+        if (y + spacing < size.height) {
+          canvas.drawLine(
+            Offset(x, y),
+            Offset(x, y + spacing),
+            paint..color = color.withOpacity(0.5),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
