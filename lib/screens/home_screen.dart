@@ -1,10 +1,11 @@
-import 'dart:math';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../constants/app_theme.dart';
 import '../providers/deck_provider.dart';
 import '../providers/game_provider.dart';
@@ -27,6 +28,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final _audioService = AudioService();
   late AnimationController _floatingController;
   late AnimationController _pulseController;
+  late AnimationController _underlineController;
+  late Animation<double> _underlineAnimation;
   bool _hasSeenTutorial = false;
 
   @override
@@ -41,6 +44,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       duration: const Duration(seconds: 2),
       vsync: this,
     )..repeat();
+
+    _underlineController = AnimationController(
+      duration: const Duration(seconds: 8),
+      vsync: this,
+    )..repeat();
+
+    _underlineAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _underlineController, curve: Curves.linear),
+    );
 
     _checkFirstTimeUser();
   }
@@ -170,6 +182,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void dispose() {
     _floatingController.dispose();
     _pulseController.dispose();
+    _underlineController.dispose();
     super.dispose();
   }
 
@@ -238,15 +251,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 12),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [_buildLogo(), _buildSettingsButton()],
                             ),
-                            const SizedBox(height: 32),
-                            _buildWelcomeText(context),
-                            const SizedBox(height: 40),
+                            const SizedBox(height: 20),
+                            Flexible(child: _buildWelcomeText(context)),
+                            const SizedBox(height: 20),
                           ],
                         ),
                       ),
@@ -361,24 +375,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                'Ready to Play?',
-                style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 36,
-                  letterSpacing: -0.5,
-                  shadows: [
-                    Shadow(
-                      color: Colors.black.withOpacity(0.1),
-                      offset: const Offset(0, 2),
-                      blurRadius: 4,
-                    ),
-                  ],
-                ),
-                textAlign: TextAlign.center,
-              ).animate().fadeIn(duration: 800.ms).slideY(begin: 0.2),
-              const SizedBox(height: 8),
+              // Custom signature-style "Ready to Play?" with animated underline
+              _buildSignatureText(context),
+              const SizedBox(height: 12),
               Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -1583,6 +1582,195 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       context,
     ).showSnackBar(SnackBar(content: Text('Starting game with ${deck.name}!')));
   }
+
+  Widget _buildSignatureText(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none, // Allow content to overflow
+      children: [
+        // Main text with elegant cursive style
+        Padding(
+              padding: const EdgeInsets.only(
+                top: 5.0,
+              ), // Add padding to prevent top cropping
+              child: ShaderMask(
+                shaderCallback:
+                    (bounds) => LinearGradient(
+                      colors: [
+                        Colors.white,
+                        Colors.white.withOpacity(0.98),
+                        AppTheme.accentColor.withOpacity(0.95),
+                        AppTheme.secondaryColor.withOpacity(0.9),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      stops: const [0.0, 0.3, 0.7, 1.0],
+                    ).createShader(bounds),
+                child: Transform.rotate(
+                  angle: -0.015, // Subtle tilt for signature effect
+                  child: RichText(
+                    textAlign: TextAlign.center,
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Ready ',
+                          style: GoogleFonts.dancingScript(
+                            fontSize: 42,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 2.0,
+                            height: 1.2, // Adjusted height
+                            shadows: [
+                              Shadow(
+                                color: AppTheme.primaryColor.withOpacity(0.4),
+                                offset: const Offset(2, 3),
+                                blurRadius: 6,
+                              ),
+                              Shadow(
+                                color: Colors.black.withOpacity(0.15),
+                                offset: const Offset(1, 4),
+                                blurRadius: 10,
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'to ',
+                          style: GoogleFonts.satisfy(
+                            fontSize: 34,
+                            fontWeight: FontWeight.w400,
+                            letterSpacing: 1.5,
+                            height: 1.2,
+                            shadows: [
+                              Shadow(
+                                color: AppTheme.primaryColor.withOpacity(0.35),
+                                offset: const Offset(1.5, 2.5),
+                                blurRadius: 5,
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'Play',
+                          style: GoogleFonts.dancingScript(
+                            fontSize: 46,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 2.5,
+                            height: 1.1,
+                            shadows: [
+                              Shadow(
+                                color: AppTheme.secondaryColor.withOpacity(
+                                  0.45,
+                                ),
+                                offset: const Offset(2.5, 3),
+                                blurRadius: 7,
+                              ),
+                              Shadow(
+                                color: Colors.black.withOpacity(0.18),
+                                offset: const Offset(1.5, 4.5),
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextSpan(
+                          text: '?',
+                          style: GoogleFonts.kalam(
+                            fontSize: 48,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                            height: 1.0,
+                            shadows: [
+                              Shadow(
+                                color: AppTheme.accentColor.withOpacity(0.6),
+                                offset: const Offset(3, 3),
+                                blurRadius: 8,
+                              ),
+                              Shadow(
+                                color: AppTheme.warningColor.withOpacity(0.3),
+                                offset: const Offset(-1, -1),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            )
+            .animate()
+            .fadeIn(duration: 1200.ms, curve: Curves.easeOutQuart)
+            .slideY(begin: 0.4, end: 0, curve: Curves.easeOutBack)
+            .scale(
+              begin: const Offset(0.7, 0.7),
+              end: const Offset(1.0, 1.0),
+              duration: 1000.ms,
+              curve: Curves.easeOutBack,
+            ),
+
+        // Simple animated underline
+        Positioned(
+          bottom: -5,
+          child: AnimatedBuilder(
+            animation: _underlineAnimation,
+            builder: (context, child) {
+              return CustomPaint(
+                size: const Size(260, 15),
+                painter: _SimpleUnderlinePainter(
+                  progress: _underlineAnimation.value,
+                  color1: AppTheme.primaryColor,
+                  color2: AppTheme.secondaryColor,
+                  color3: AppTheme.accentColor,
+                ),
+              );
+            },
+          ),
+        ),
+
+        // Decorative flourish dots
+        Positioned(
+          right: -10,
+          top: 5,
+          child: Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: AppTheme.warningColor.withOpacity(0.8),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.warningColor.withOpacity(0.5),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+              )
+              .animate()
+              .scale(delay: 500.ms, duration: 1500.ms, curve: Curves.elasticOut)
+              .then()
+              .shimmer(duration: 2000.ms, delay: 1000.ms),
+        ),
+
+        // Small star decoration
+        Positioned(
+          left: -15,
+          bottom: 10,
+          child: Icon(
+                Icons.auto_awesome,
+                size: 16,
+                color: AppTheme.warningColor.withOpacity(0.7),
+              )
+              .animate()
+              .fadeIn(delay: 800.ms)
+              .rotate(duration: 3000.ms, begin: 0, end: 1)
+              .then()
+              .shimmer(duration: 2000.ms),
+        ),
+      ],
+    );
+  }
 }
 
 // Custom painter for subtle header pattern
@@ -1633,6 +1821,80 @@ class _HeaderPatternPainter extends CustomPainter {
   bool shouldRepaint(_HeaderPatternPainter oldDelegate) => true;
 }
 
+// Simple and smooth underline painter
+class _SimpleUnderlinePainter extends CustomPainter {
+  final double progress;
+  final Color color1;
+  final Color color2;
+  final Color color3;
+
+  _SimpleUnderlinePainter({
+    required this.progress,
+    required this.color1,
+    required this.color2,
+    required this.color3,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint =
+        Paint()
+          ..strokeWidth = 2.0
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round;
+
+    // Create a simple, smooth wave
+    final path = Path();
+
+    // Simple sine wave parameters
+    final waveHeight = 3.0;
+
+    // Draw smooth sine wave
+    for (double x = 0; x <= size.width; x += 1) {
+      final normalizedX = x / size.width;
+
+      // Simple sine wave with gentle motion
+      final y =
+          size.height / 2 +
+          math.sin((normalizedX * math.pi * 2 + progress * math.pi * 2)) *
+              waveHeight *
+              math.sin(normalizedX * math.pi); // Taper at ends
+
+      if (x == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    // Simple gradient that shifts smoothly
+    final gradientProgress = (math.sin(progress * math.pi * 2) + 1) / 2;
+    final currentColor =
+        Color.lerp(
+          Color.lerp(color1, color2, gradientProgress),
+          color3,
+          gradientProgress * 0.5,
+        )!;
+
+    // Draw main line with gradient color
+    paint.color = currentColor.withOpacity(0.9);
+    canvas.drawPath(path, paint);
+
+    // Add subtle glow
+    paint
+      ..color = currentColor.withOpacity(0.2)
+      ..strokeWidth = 5.0
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_SimpleUnderlinePainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
 // Geometric pattern painter for Quick Play card
 class _GeometricPatternPainter extends CustomPainter {
   final Animation<double> animation;
@@ -1666,8 +1928,8 @@ class _GeometricPatternPainter extends CustomPainter {
         final path = Path();
         for (int i = 0; i < 6; i++) {
           final angle = (i * 60 - 30) * 3.14159 / 180;
-          final px = x + hexSize * 0.5 * cos(angle);
-          final py = y + hexSize * 0.5 * sin(angle);
+          final px = x + hexSize * 0.5 * math.cos(angle);
+          final py = y + hexSize * 0.5 * math.sin(angle);
           if (i == 0) {
             path.moveTo(px, py);
           } else {
