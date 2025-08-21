@@ -4,8 +4,7 @@ class AnimatedGradientBackground extends StatefulWidget {
   final Widget child;
   final List<Color>? colors;
 
-  const AnimatedGradientBackground({Key? key, required this.child, this.colors})
-    : super(key: key);
+  const AnimatedGradientBackground({super.key, required this.child, this.colors});
 
   @override
   State<AnimatedGradientBackground> createState() =>

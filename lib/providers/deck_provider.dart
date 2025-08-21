@@ -1,26 +1,38 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'dart:async';
 import '../models/deck.dart';
 import '../constants/default_decks.dart';
+import '../services/deck_firebase_service.dart';
+import '../services/firebase_service.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class DeckProvider extends ChangeNotifier {
-  List<Deck> _decks = [];
+  final DeckFirebaseService _deckFirebaseService = DeckFirebaseService();
+  final FirebaseService _firebaseService = FirebaseService();
+
+  List<Deck> _defaultDecks = [];
   List<Deck> _customDecks = [];
   Set<String> _unlockedPremiumDeckIds = {};
   bool _isLoading = false;
+  bool _isInitialized = false;
 
-  List<Deck> get allDecks => [..._decks, ..._customDecks];
-  List<Deck> get defaultDecks => _decks;
+  // Streams
+  StreamSubscription? _defaultDecksSubscription;
+  StreamSubscription? _customDecksSubscription;
+
+  List<Deck> get allDecks => [..._defaultDecks, ..._customDecks];
+  List<Deck> get defaultDecks => _defaultDecks;
   List<Deck> get customDecks => _customDecks;
-  List<Deck> get freeDecks => _decks.where((d) => !d.isPremium).toList();
-  List<Deck> get premiumDecks => _decks.where((d) => d.isPremium).toList();
+  List<Deck> get freeDecks => _defaultDecks.where((d) => !d.isPremium).toList();
+  List<Deck> get premiumDecks =>
+      _defaultDecks.where((d) => d.isPremium).toList();
   List<Deck> get unlockedDecks =>
-      _decks
+      _defaultDecks
           .where((d) => !d.isPremium || _unlockedPremiumDeckIds.contains(d.id))
-          .toList();
+          .toList() +
+      _customDecks;
   bool get isLoading => _isLoading;
+  bool get isInitialized => _isInitialized;
 
   DeckProvider() {
     _initializeDecks();
@@ -30,8 +42,84 @@ class DeckProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    // Load default decks
-    _decks =
+    try {
+      // First, check if default decks exist in Firestore
+      final firebaseDefaultDecks = await _deckFirebaseService.getDefaultDecks();
+
+      if (firebaseDefaultDecks.isEmpty) {
+        // Initialize default decks in Firestore if they don't exist
+        debugPrint('Initializing default decks in Firestore...');
+        await _deckFirebaseService.initializeDefaultDecks(DefaultDecks.decks);
+
+        // Fetch again after initialization
+        _defaultDecks = await _deckFirebaseService.getDefaultDecks();
+      } else {
+        _defaultDecks = firebaseDefaultDecks;
+      }
+
+      // Set up real-time listeners
+      _setupRealtimeListeners();
+
+      // Load user-specific data
+      await _loadUserData();
+
+      _isInitialized = true;
+    } catch (e) {
+      debugPrint('Error initializing decks: $e');
+      // Fallback to local default decks if Firebase fails
+      _loadLocalDefaultDecks();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  void _setupRealtimeListeners() {
+    // Listen to default decks changes
+    _defaultDecksSubscription?.cancel();
+    _defaultDecksSubscription = _deckFirebaseService
+        .streamDefaultDecks()
+        .listen(
+          (decks) {
+            _defaultDecks = decks;
+            notifyListeners();
+          },
+          onError: (error) {
+            debugPrint('Error streaming default decks: $error');
+          },
+        );
+
+    // Listen to custom decks changes
+    _customDecksSubscription?.cancel();
+    _customDecksSubscription = _deckFirebaseService.streamCustomDecks().listen(
+      (decks) {
+        _customDecks = decks;
+        notifyListeners();
+      },
+      onError: (error) {
+        debugPrint('Error streaming custom decks: $error');
+      },
+    );
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      // Load custom decks
+      _customDecks = await _deckFirebaseService.getCustomDecks();
+
+      // Load unlocked premium decks
+      _unlockedPremiumDeckIds =
+          await _deckFirebaseService.getUnlockedPremiumDecks();
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading user data: $e');
+    }
+  }
+
+  void _loadLocalDefaultDecks() {
+    // Fallback to local default decks
+    _defaultDecks =
         DefaultDecks.decks.map((deckData) {
           return Deck(
             id: deckData['id'],
@@ -43,99 +131,41 @@ class DeckProvider extends ChangeNotifier {
             cards: List<String>.from(deckData['cards']),
           );
         }).toList();
-
-    // Load saved data
-    await _loadSavedData();
-
-    _isLoading = false;
-    notifyListeners();
-  }
-
-  Future<void> _loadSavedData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      // Load custom decks
-      final customDecksJson = prefs.getString('custom_decks');
-      if (customDecksJson != null) {
-        final List<dynamic> decoded = json.decode(customDecksJson);
-        _customDecks =
-            decoded.map((deckMap) {
-              return Deck(
-                id: deckMap['id'],
-                name: deckMap['name'],
-                description: deckMap['description'],
-                icon: IconData(deckMap['icon'], fontFamily: 'MaterialIcons'),
-                color: Color(deckMap['color']),
-                isCustom: true,
-                cards: List<String>.from(deckMap['cards']),
-                createdAt: DateTime.parse(deckMap['createdAt']),
-                updatedAt:
-                    deckMap['updatedAt'] != null
-                        ? DateTime.parse(deckMap['updatedAt'])
-                        : null,
-              );
-            }).toList();
-      }
-
-      // Load unlocked premium decks
-      final unlockedDecks = prefs.getStringList('unlocked_premium_decks');
-      if (unlockedDecks != null) {
-        _unlockedPremiumDeckIds = unlockedDecks.toSet();
-      }
-    } catch (e) {
-      debugPrint('Error loading saved data: $e');
-    }
-  }
-
-  Future<void> _saveCustomDecks() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final customDecksJson = json.encode(
-        _customDecks.map((deck) => deck.toMap()).toList(),
-      );
-      await prefs.setString('custom_decks', customDecksJson);
-    } catch (e) {
-      debugPrint('Error saving custom decks: $e');
-    }
-  }
-
-  Future<void> _saveUnlockedDecks() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(
-        'unlocked_premium_decks',
-        _unlockedPremiumDeckIds.toList(),
-      );
-    } catch (e) {
-      debugPrint('Error saving unlocked decks: $e');
-    }
   }
 
   // Create a custom deck
-  Future<void> createCustomDeck({
+  Future<bool> createCustomDeck({
     required String name,
     required String description,
     required List<String> cards,
     IconData? icon,
     Color? color,
   }) async {
-    final newDeck = Deck(
-      name: name,
-      description: description,
-      icon: icon ?? FontAwesomeIcons.solidStar,
-      color: color ?? Colors.purple,
-      isCustom: true,
-      cards: cards,
-    );
+    try {
+      final newDeck = Deck(
+        name: name,
+        description: description,
+        icon: icon ?? FontAwesomeIcons.solidStar,
+        color: color ?? Colors.purple,
+        isCustom: true,
+        cards: cards,
+      );
 
-    _customDecks.add(newDeck);
-    await _saveCustomDecks();
-    notifyListeners();
+      final deckId = await _deckFirebaseService.createCustomDeck(newDeck);
+
+      if (deckId != null) {
+        // The real-time listener will update the local list
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error creating custom deck: $e');
+      return false;
+    }
   }
 
   // Update a custom deck
-  Future<void> updateCustomDeck({
+  Future<bool> updateCustomDeck({
     required String deckId,
     String? name,
     String? description,
@@ -143,35 +173,66 @@ class DeckProvider extends ChangeNotifier {
     IconData? icon,
     Color? color,
   }) async {
-    final index = _customDecks.indexWhere((deck) => deck.id == deckId);
-    if (index == -1) return;
+    try {
+      final deck = getDeckById(deckId);
+      if (deck == null || !deck.isCustom) return false;
 
-    final deck = _customDecks[index];
-    _customDecks[index] = deck.copyWith(
-      name: name,
-      description: description,
-      cards: cards,
-      icon: icon,
-      color: color,
-      updatedAt: DateTime.now(),
-    );
+      final updatedDeck = deck.copyWith(
+        name: name,
+        description: description,
+        cards: cards,
+        icon: icon,
+        color: color,
+        updatedAt: DateTime.now(),
+      );
 
-    await _saveCustomDecks();
-    notifyListeners();
+      final success = await _deckFirebaseService.updateCustomDeck(
+        deckId,
+        updatedDeck,
+      );
+
+      if (success) {
+        // The real-time listener will update the local list
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error updating custom deck: $e');
+      return false;
+    }
   }
 
   // Delete a custom deck
-  Future<void> deleteCustomDeck(String deckId) async {
-    _customDecks.removeWhere((deck) => deck.id == deckId);
-    await _saveCustomDecks();
-    notifyListeners();
+  Future<bool> deleteCustomDeck(String deckId) async {
+    try {
+      final success = await _deckFirebaseService.deleteCustomDeck(deckId);
+
+      if (success) {
+        // The real-time listener will update the local list
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error deleting custom deck: $e');
+      return false;
+    }
   }
 
   // Unlock a premium deck
-  Future<void> unlockPremiumDeck(String deckId) async {
-    _unlockedPremiumDeckIds.add(deckId);
-    await _saveUnlockedDecks();
-    notifyListeners();
+  Future<bool> unlockPremiumDeck(String deckId) async {
+    try {
+      final success = await _deckFirebaseService.unlockPremiumDeck(deckId);
+
+      if (success) {
+        _unlockedPremiumDeckIds.add(deckId);
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error unlocking premium deck: $e');
+      return false;
+    }
   }
 
   // Check if a deck is unlocked
@@ -179,6 +240,7 @@ class DeckProvider extends ChangeNotifier {
     final deck = getDeckById(deckId);
     if (deck == null) return false;
     if (!deck.isPremium) return true;
+    if (deck.isCustom) return true;
     return _unlockedPremiumDeckIds.contains(deckId);
   }
 
@@ -198,43 +260,67 @@ class DeckProvider extends ChangeNotifier {
     final lowerQuery = query.toLowerCase();
     return allDecks.where((deck) {
       return deck.name.toLowerCase().contains(lowerQuery) ||
-          deck.description.toLowerCase().contains(lowerQuery);
+          deck.description.toLowerCase().contains(lowerQuery) ||
+          deck.cards.any((card) => card.toLowerCase().contains(lowerQuery));
     }).toList();
   }
 
-  // Get recent decks (for quick play)
+  // Get recent decks
   Future<List<String>> getRecentDeckIds() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getStringList('recent_deck_ids') ?? [];
+    try {
+      return await _deckFirebaseService.getRecentDeckIds();
+    } catch (e) {
+      debugPrint('Error getting recent deck IDs: $e');
+      return [];
+    }
   }
 
   // Add to recent decks
   Future<void> addToRecentDecks(String deckId) async {
-    final prefs = await SharedPreferences.getInstance();
+    try {
+      await _deckFirebaseService.addToRecentDecks(deckId);
+    } catch (e) {
+      debugPrint('Error adding to recent decks: $e');
+    }
+  }
+
+  // Get recent decks
+  Future<List<Deck>> getRecentDecks() async {
     final recentIds = await getRecentDeckIds();
+    final recentDecks = <Deck>[];
 
-    // Remove if already exists and add to front
-    recentIds.remove(deckId);
-    recentIds.insert(0, deckId);
-
-    // Keep only last 5
-    if (recentIds.length > 5) {
-      recentIds.removeRange(5, recentIds.length);
+    for (final id in recentIds) {
+      final deck = getDeckById(id);
+      if (deck != null) {
+        recentDecks.add(deck);
+      }
     }
 
-    await prefs.setStringList('recent_deck_ids', recentIds);
+    return recentDecks;
   }
 
-  // Remove all ads (for purchase)
-  Future<void> removeAds() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('ads_removed', true);
+  // Refresh data from Firebase
+  Future<void> refreshData() async {
+    _isLoading = true;
     notifyListeners();
+
+    try {
+      _defaultDecks = await _deckFirebaseService.getDefaultDecks();
+      _customDecks = await _deckFirebaseService.getCustomDecks();
+      _unlockedPremiumDeckIds =
+          await _deckFirebaseService.getUnlockedPremiumDecks();
+    } catch (e) {
+      debugPrint('Error refreshing data: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
-  // Check if ads are removed
-  Future<bool> areAdsRemoved() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('ads_removed') ?? false;
+  @override
+  void dispose() {
+    _defaultDecksSubscription?.cancel();
+    _customDecksSubscription?.cancel();
+    super.dispose();
   }
 }

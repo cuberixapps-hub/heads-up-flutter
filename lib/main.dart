@@ -4,10 +4,18 @@ import 'package:provider/provider.dart';
 import 'constants/app_theme.dart';
 import 'providers/deck_provider.dart';
 import 'providers/game_provider.dart';
+import 'services/firebase_service.dart';
 import 'utils/app_router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase
+  final firebaseService = FirebaseService();
+  await firebaseService.initialize();
+
+  // Sign in anonymously by default
+  await firebaseService.signInAnonymously();
 
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([

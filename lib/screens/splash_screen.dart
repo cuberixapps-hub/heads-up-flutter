@@ -3,10 +3,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_theme.dart';
-import 'dart:math' as math;
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -56,10 +55,10 @@ class _SplashScreenState extends State<SplashScreen>
     final prefs = await SharedPreferences.getInstance();
     final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
 
-    if (hasSeenOnboarding) {
-      context.go('/home');
-    } else {
+    if (!hasSeenOnboarding) {
       context.go('/onboarding');
+    } else {
+      context.go('/home');
     }
   }
 

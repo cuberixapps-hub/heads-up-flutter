@@ -1,56 +1,100 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import '../models/game_session.dart';
 import '../models/deck.dart';
+import '../services/game_firebase_service.dart';
+import '../services/firebase_service.dart';
 
 class GameProvider extends ChangeNotifier {
+  final GameFirebaseService _gameFirebaseService = GameFirebaseService();
+  final FirebaseService _firebaseService = FirebaseService();
+
   GameSession? _currentSession;
   Timer? _gameTimer;
   Duration _remainingTime = Duration.zero;
   bool _isGameActive = false;
   List<GameSession> _gameHistory = [];
+  Map<String, dynamic> _statistics = {};
 
-  // Settings
-  int _roundDuration = 60; // seconds
-  bool _soundEnabled = true;
-  bool _vibrationEnabled = true;
-  bool _kidFriendlyMode = false;
-  bool _showWordsAfterPass = true;
+  // Streams
+  StreamSubscription? _recentGamesSubscription;
+
+  // Settings (now from Firebase)
+  Map<String, dynamic> _settings = {
+    'roundDuration': 60,
+    'soundEnabled': true,
+    'vibrationEnabled': true,
+    'kidFriendlyMode': false,
+    'showWordsAfterPass': true,
+  };
 
   GameSession? get currentSession => _currentSession;
   Duration get remainingTime => _remainingTime;
   bool get isGameActive => _isGameActive;
   List<GameSession> get gameHistory => _gameHistory;
+  Map<String, dynamic> get statistics => _statistics;
 
   // Settings getters
-  int get roundDuration => _roundDuration;
-  bool get soundEnabled => _soundEnabled;
-  bool get vibrationEnabled => _vibrationEnabled;
-  bool get kidFriendlyMode => _kidFriendlyMode;
-  bool get showWordsAfterPass => _showWordsAfterPass;
+  int get roundDuration => _settings['roundDuration'] ?? 60;
+  bool get soundEnabled => _settings['soundEnabled'] ?? true;
+  bool get vibrationEnabled => _settings['vibrationEnabled'] ?? true;
+  bool get kidFriendlyMode => _settings['kidFriendlyMode'] ?? false;
+  bool get showWordsAfterPass => _settings['showWordsAfterPass'] ?? true;
 
   GameProvider() {
-    _loadSettings();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await _loadSettings();
+    await _loadStatistics();
+    await _loadGameHistory();
+    _setupRealtimeListeners();
+  }
+
+  void _setupRealtimeListeners() {
+    // Listen to recent games
+    _recentGamesSubscription?.cancel();
+    _recentGamesSubscription = _gameFirebaseService
+        .streamRecentGames(limit: 10)
+        .listen(
+          (games) {
+            if (games.isNotEmpty) {
+              _gameHistory = games;
+              notifyListeners();
+            }
+          },
+          onError: (error) {
+            debugPrint('Error streaming recent games: $error');
+          },
+        );
   }
 
   Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    _roundDuration = prefs.getInt('round_duration') ?? 60;
-    _soundEnabled = prefs.getBool('sound_enabled') ?? true;
-    _vibrationEnabled = prefs.getBool('vibration_enabled') ?? true;
-    _kidFriendlyMode = prefs.getBool('kid_friendly_mode') ?? false;
-    _showWordsAfterPass = prefs.getBool('show_words_after_pass') ?? true;
-    notifyListeners();
+    try {
+      _settings = await _gameFirebaseService.getGameSettings();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading settings from Firebase: $e');
+    }
   }
 
-  Future<void> _saveSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('round_duration', _roundDuration);
-    await prefs.setBool('sound_enabled', _soundEnabled);
-    await prefs.setBool('vibration_enabled', _vibrationEnabled);
-    await prefs.setBool('kid_friendly_mode', _kidFriendlyMode);
-    await prefs.setBool('show_words_after_pass', _showWordsAfterPass);
+  Future<void> _loadStatistics() async {
+    try {
+      _statistics = await _gameFirebaseService.getUserStatistics();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading statistics: $e');
+    }
+  }
+
+  Future<void> _loadGameHistory() async {
+    try {
+      _gameHistory = await _gameFirebaseService.getGameHistory(limit: 50);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading game history: $e');
+    }
   }
 
   // Start a new game
@@ -62,15 +106,27 @@ class GameProvider extends ChangeNotifier {
   }) {
     _currentSession = GameSession.start(
       deck: deck,
-      roundDuration: Duration(seconds: _roundDuration),
+      roundDuration: Duration(seconds: roundDuration),
       isTeamMode: isTeamMode,
       teamNames: teamNames,
       totalRounds: totalRounds,
     );
 
     _isGameActive = true;
-    _remainingTime = Duration(seconds: _roundDuration);
+    _remainingTime = Duration(seconds: roundDuration);
     _startTimer();
+
+    // Log event to Firebase Analytics
+    _firebaseService.logEvent(
+      'game_started',
+      parameters: {
+        'deck_id': deck.id,
+        'deck_name': deck.name,
+        'is_team_mode': isTeamMode,
+        'total_rounds': totalRounds,
+      },
+    );
+
     notifyListeners();
   }
 
@@ -126,34 +182,62 @@ class GameProvider extends ChangeNotifier {
 
     if (_currentSession!.isPaused) {
       _gameTimer?.cancel();
+      _firebaseService.logEvent('game_paused');
     } else {
       _startTimer();
+      _firebaseService.logEvent('game_resumed');
     }
 
     notifyListeners();
   }
 
   // End the current round
-  void _endRound() {
+  Future<void> _endRound() async {
     if (_currentSession == null) return;
 
     _gameTimer?.cancel();
     _isGameActive = false;
     _currentSession = _currentSession!.end();
 
-    // Add to history
+    // Save to Firebase
+    await _saveGameSession();
+
+    // Update local history
     _gameHistory.insert(0, _currentSession!);
     if (_gameHistory.length > 50) {
       _gameHistory.removeRange(50, _gameHistory.length);
     }
 
-    _saveGameHistory();
+    // Update statistics
+    await _updateStatistics();
+
     notifyListeners();
   }
 
+  // Save game session to Firebase
+  Future<void> _saveGameSession() async {
+    if (_currentSession == null) return;
+
+    try {
+      await _gameFirebaseService.saveGameSession(_currentSession!);
+    } catch (e) {
+      debugPrint('Error saving game session: $e');
+    }
+  }
+
+  // Update statistics
+  Future<void> _updateStatistics() async {
+    try {
+      _statistics = await _gameFirebaseService.getUserStatistics();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error updating statistics: $e');
+    }
+  }
+
   // End game manually
-  void endGame() {
-    _endRound();
+  Future<void> endGame() async {
+    await _endRound();
   }
 
   // Move to next team (for team mode)
@@ -161,9 +245,11 @@ class GameProvider extends ChangeNotifier {
     if (_currentSession == null || !_currentSession!.isTeamMode) return;
 
     _currentSession = _currentSession!.nextTeam();
-    _remainingTime = Duration(seconds: _roundDuration);
+    _remainingTime = Duration(seconds: roundDuration);
     _isGameActive = true;
     _startTimer();
+
+    _firebaseService.logEvent('team_switched');
     notifyListeners();
   }
 
@@ -179,70 +265,116 @@ class GameProvider extends ChangeNotifier {
     );
   }
 
-  // Save game history
-  Future<void> _saveGameHistory() async {
-    // TODO: Implement saving game history to SharedPreferences
-    // This would involve serializing the game sessions
-  }
-
   // Update settings
   Future<void> updateRoundDuration(int seconds) async {
-    _roundDuration = seconds;
+    _settings['roundDuration'] = seconds;
     await _saveSettings();
     notifyListeners();
   }
 
   Future<void> toggleSound() async {
-    _soundEnabled = !_soundEnabled;
+    _settings['soundEnabled'] = !(_settings['soundEnabled'] ?? true);
     await _saveSettings();
     notifyListeners();
   }
 
   Future<void> toggleVibration() async {
-    _vibrationEnabled = !_vibrationEnabled;
+    _settings['vibrationEnabled'] = !(_settings['vibrationEnabled'] ?? true);
     await _saveSettings();
     notifyListeners();
   }
 
   Future<void> toggleKidFriendlyMode() async {
-    _kidFriendlyMode = !_kidFriendlyMode;
+    _settings['kidFriendlyMode'] = !(_settings['kidFriendlyMode'] ?? false);
     await _saveSettings();
     notifyListeners();
   }
 
   Future<void> toggleShowWordsAfterPass() async {
-    _showWordsAfterPass = !_showWordsAfterPass;
+    _settings['showWordsAfterPass'] =
+        !(_settings['showWordsAfterPass'] ?? true);
     await _saveSettings();
     notifyListeners();
   }
 
+  Future<void> _saveSettings() async {
+    try {
+      await _gameFirebaseService.saveGameSettings(_settings);
+    } catch (e) {
+      debugPrint('Error saving settings: $e');
+    }
+  }
+
+  // Get global leaderboard
+  Future<List<Map<String, dynamic>>> getGlobalLeaderboard({
+    int limit = 100,
+  }) async {
+    try {
+      return await _gameFirebaseService.getGlobalLeaderboard(limit: limit);
+    } catch (e) {
+      debugPrint('Error getting global leaderboard: $e');
+      return [];
+    }
+  }
+
+  // Get deck-specific leaderboard
+  Future<List<Map<String, dynamic>>> getDeckLeaderboard(
+    String deckId, {
+    int limit = 50,
+  }) async {
+    try {
+      return await _gameFirebaseService.getDeckLeaderboard(
+        deckId,
+        limit: limit,
+      );
+    } catch (e) {
+      debugPrint('Error getting deck leaderboard: $e');
+      return [];
+    }
+  }
+
+  // Refresh all data from Firebase
+  Future<void> refreshData() async {
+    await _loadSettings();
+    await _loadStatistics();
+    await _loadGameHistory();
+  }
+
   // Get statistics
   Map<String, dynamic> getStatistics() {
-    int totalGames = _gameHistory.length;
-    int totalCorrect = 0;
-    int totalPassed = 0;
-    int highScore = 0;
+    return _statistics;
+  }
 
-    for (final session in _gameHistory) {
-      totalCorrect += session.correctCount;
-      totalPassed += session.passCount;
-      if (session.correctCount > highScore) {
-        highScore = session.correctCount;
-      }
-    }
+  // Calculate achievement progress
+  Map<String, double> getAchievementProgress() {
+    final stats = _statistics;
+    final achievements = <String, double>{};
 
-    return {
-      'totalGames': totalGames,
-      'totalCorrect': totalCorrect,
-      'totalPassed': totalPassed,
-      'highScore': highScore,
-      'averageScore': totalGames > 0 ? totalCorrect / totalGames : 0,
-    };
+    // Games played achievement
+    final totalGames = stats['totalGames'] ?? 0;
+    achievements['rookie'] = (totalGames / 10).clamp(0.0, 1.0);
+    achievements['veteran'] = (totalGames / 50).clamp(0.0, 1.0);
+    achievements['master'] = (totalGames / 100).clamp(0.0, 1.0);
+
+    // High score achievements
+    final highScore = stats['highScore'] ?? 0;
+    achievements['scorer'] = (highScore / 10).clamp(0.0, 1.0);
+    achievements['highScorer'] = (highScore / 25).clamp(0.0, 1.0);
+    achievements['champion'] = (highScore / 50).clamp(0.0, 1.0);
+
+    // Total correct achievements
+    final totalCorrect = stats['totalCorrect'] ?? 0;
+    achievements['accurate'] = (totalCorrect / 100).clamp(0.0, 1.0);
+    achievements['precise'] = (totalCorrect / 500).clamp(0.0, 1.0);
+    achievements['perfect'] = (totalCorrect / 1000).clamp(0.0, 1.0);
+
+    return achievements;
   }
 
   @override
   void dispose() {
     _gameTimer?.cancel();
+    _recentGamesSubscription?.cancel();
     super.dispose();
   }
 }

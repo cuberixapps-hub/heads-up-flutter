@@ -13,7 +13,7 @@ import 'gameplay_screen.dart';
 import 'dart:ui';
 
 class CategorySelectionScreen extends StatefulWidget {
-  const CategorySelectionScreen({Key? key}) : super(key: key);
+  const CategorySelectionScreen({super.key});
 
   @override
   State<CategorySelectionScreen> createState() =>

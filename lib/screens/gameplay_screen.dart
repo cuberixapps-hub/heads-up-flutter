@@ -14,7 +14,7 @@ import 'results_screen.dart';
 class GameplayScreen extends StatefulWidget {
   final Deck deck;
 
-  const GameplayScreen({Key? key, required this.deck}) : super(key: key);
+  const GameplayScreen({super.key, required this.deck});
 
   @override
   State<GameplayScreen> createState() => _GameplayScreenState();

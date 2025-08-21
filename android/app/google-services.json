@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "169350826692",
+    "project_id": "heads-up-game-48f14",
+    "storage_bucket": "heads-up-game-48f14.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:169350826692:android:cc2daaa406b9ebc32fd791",
+        "android_client_info": {
+          "package_name": "com.headsup.heads_up_game"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1C_hCbUz0fAf0HjnZcfw1yN5cmkNPflM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

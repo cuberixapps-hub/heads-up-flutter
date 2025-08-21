@@ -13,7 +13,7 @@ import 'category_selection_screen.dart';
 import 'gameplay_screen.dart';
 
 class ResultsScreen extends StatefulWidget {
-  const ResultsScreen({Key? key}) : super(key: key);
+  const ResultsScreen({super.key});
 
   @override
   State<ResultsScreen> createState() => _ResultsScreenState();
