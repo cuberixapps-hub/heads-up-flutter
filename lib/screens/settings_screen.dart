@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -183,47 +184,51 @@ class _SettingsScreenState extends State<SettingsScreen>
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const SizedBox(height: 40),
+                            const Spacer(),
                             Container(
-                                  padding: const EdgeInsets.all(12),
+                                  padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
                                     color: Colors.white.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(16),
+                                    borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Icon(
                                     Icons.settings_rounded,
-                                    size: 32,
+                                    size: 36,
                                     color: Colors.white,
                                   ),
                                 )
                                 .animate()
                                 .fadeIn(duration: 600.ms)
                                 .scale(delay: 200.ms),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 16),
                             Text(
                                   'Settings',
                                   style: Theme.of(
                                     context,
-                                  ).textTheme.headlineSmall?.copyWith(
+                                  ).textTheme.headlineMedium?.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
                                   ),
+                                  textAlign: TextAlign.center,
                                 )
                                 .animate()
                                 .fadeIn(delay: 100.ms, duration: 600.ms)
                                 .slideY(begin: 0.2, end: 0),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 8),
                             Text(
                               'Customize your experience',
                               style: Theme.of(
                                 context,
-                              ).textTheme.bodySmall?.copyWith(
+                              ).textTheme.bodyMedium?.copyWith(
                                 color: Colors.white.withOpacity(0.9),
-                                fontSize: 13,
+                                fontSize: 14,
                               ),
+                              textAlign: TextAlign.center,
                             ).animate().fadeIn(delay: 200.ms, duration: 600.ms),
+                            const Spacer(),
                           ],
                         ),
                       ),
@@ -366,23 +371,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                   _buildCard([
                     _buildInfoTile('Version', '1.0.0', Icons.verified_rounded),
                     _buildDivider(),
-                    _buildLinkTile(
-                      'Privacy Policy',
-                      Icons.privacy_tip_rounded,
-                      () => _launchUrl('https://example.com/privacy'),
-                    ),
-                    _buildDivider(),
-                    _buildLinkTile(
-                      'Terms of Service',
-                      Icons.description_rounded,
-                      () => _launchUrl('https://example.com/terms'),
-                    ),
-                    _buildDivider(),
-                    _buildLinkTile(
-                      'Rate Us',
-                      Icons.star_rounded,
-                      () => _launchUrl('https://example.com/rate'),
-                    ),
+                    _buildLinkTile('Rate Us', Icons.star_rounded, _rateApp),
                   ]),
                   const SizedBox(height: 40),
                 ],
@@ -671,5 +660,28 @@ class _SettingsScreenState extends State<SettingsScreen>
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     }
+  }
+
+  void _rateApp() {
+    _hapticService.mediumImpact();
+
+    // App Store ID for iOS (you'll need to replace with your actual ID)
+    const String appStoreId = 'YOUR_APP_STORE_ID';
+    // Package name for Android (you'll need to replace with your actual package name)
+    const String androidPackageName = 'com.headsup.heads_up_game';
+
+    final String url;
+    if (Platform.isIOS) {
+      // iOS App Store URL
+      url = 'https://apps.apple.com/app/id$appStoreId?action=write-review';
+    } else if (Platform.isAndroid) {
+      // Android Play Store URL
+      url = 'https://play.google.com/store/apps/details?id=$androidPackageName';
+    } else {
+      // Fallback for other platforms
+      return;
+    }
+
+    _launchUrl(url);
   }
 }
