@@ -1,4 +1,3 @@
-import React from 'react';
 import * as FaIcons from 'react-icons/fa';
 import * as MdIcons from 'react-icons/md';
 import * as IoIcons from 'react-icons/io5';
@@ -6,19 +5,19 @@ import * as BiIcons from 'react-icons/bi';
 import * as GiIcons from 'react-icons/gi';
 import * as AiIcons from 'react-icons/ai';
 
-export type IconType = React.ComponentType<{ size?: number; color?: string }>;
-
-export interface IconInfo {
-  icon: IconType;
+// Define IconType as any for now to avoid import issues
+export type IconInfo = {
+  icon: any;
   name: string;
   codePoint?: number;
   fontFamily?: string;
-}
+  fontPackage?: string;
+};
 
-export interface IconCategory {
+export type IconCategory = {
   name: string;
   icons: IconInfo[];
-}
+};
 
 export const iconCategories: IconCategory[] = [
   {

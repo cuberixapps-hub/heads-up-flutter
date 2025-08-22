@@ -187,10 +187,25 @@ class FirebaseService {
   // Log custom event
   Future<void> logEvent(String name, {Map<String, dynamic>? parameters}) async {
     try {
-      // Convert Map<String, dynamic> to Map<String, Object>? for Firebase Analytics
-      final Map<String, Object>? analyticsParams = parameters?.map(
-        (key, value) => MapEntry(key, value as Object),
-      );
+      // Convert parameters to Firebase Analytics compatible format
+      // Firebase Analytics only accepts String, num (int/double) as values
+      final Map<String, Object>? analyticsParams = parameters?.map((
+        key,
+        value,
+      ) {
+        // Convert booleans to integers (0/1)
+        if (value is bool) {
+          return MapEntry(key, value ? 1 : 0);
+        }
+        // Keep strings and numbers as is
+        else if (value is String || value is num) {
+          return MapEntry(key, value as Object);
+        }
+        // Convert other types to string
+        else {
+          return MapEntry(key, value.toString());
+        }
+      });
 
       await _analytics.logEvent(name: name, parameters: analyticsParams);
     } catch (e) {

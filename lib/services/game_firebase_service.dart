@@ -238,6 +238,7 @@ class GameFirebaseService {
     try {
       await _userRef.update({'gameSettings': settings});
 
+      // Log the event (Firebase service will handle type conversion)
       await _firebaseService.logEvent('settings_updated', parameters: settings);
     } catch (e) {
       debugPrint('Error saving game settings: $e');

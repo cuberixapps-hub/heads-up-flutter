@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/deck.dart';
+import '../utils/icon_mapper.dart';
 import 'firebase_service.dart';
 
 class DeckFirebaseService {
@@ -294,9 +295,9 @@ class DeckFirebaseService {
       id: id,
       name: data['name'] ?? '',
       description: data['description'] ?? '',
-      icon: IconData(
-        data['iconCodePoint'] ?? Icons.category.codePoint,
-        fontFamily: data['iconFontFamily'] ?? 'MaterialIcons',
+      icon: IconMapper.mapIcon(
+        codePoint: data['iconCodePoint'],
+        fontFamily: data['iconFontFamily'],
         fontPackage: data['iconFontPackage'],
       ),
       color: Color(data['colorValue'] ?? Colors.blue.value),

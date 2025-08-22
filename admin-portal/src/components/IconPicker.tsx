@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search } from 'lucide-react';
-import { iconCategories, IconInfo } from '../data/icons';
+import { iconCategories, type IconInfo } from '../data/icons';
 import '../styles/IconPicker.css';
 
 interface IconPickerProps {

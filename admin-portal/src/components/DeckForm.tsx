@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { IconPicker } from './IconPicker';
-import { IconInfo } from '../data/icons';
+import { type IconInfo } from '../data/icons';
 import { Plus, X, Sparkles, Palette, Save, ArrowLeft } from 'lucide-react';
 import * as FaIcons from 'react-icons/fa';
 import '../styles/DeckForm.css';
@@ -84,17 +84,21 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
 
         setIsLoading(true);
 
-        const deckData = {
+        const deckData: any = {
             name: name.trim(),
             description: description.trim(),
             cards,
             iconCodePoint: selectedIcon?.codePoint || 0xf005,
             iconFontFamily: selectedIcon?.fontFamily || 'FontAwesomeIcons',
-            iconFontPackage: selectedIcon?.fontPackage,
             colorValue: selectedColor,
             isPremium,
             updatedAt: serverTimestamp(),
         };
+
+        // Only add iconFontPackage if it exists
+        if (selectedIcon?.fontPackage) {
+            deckData.iconFontPackage = selectedIcon.fontPackage;
+        }
 
         try {
             if (deck?.id) {

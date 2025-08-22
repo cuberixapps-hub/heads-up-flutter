@@ -8,7 +8,7 @@ const firebaseConfig = {
   projectId: "heads-up-game-48f14",
   storageBucket: "heads-up-game-48f14.firebasestorage.app",
   messagingSenderId: "169350826692",
-  appId: "1:169350826692:web:YOUR_WEB_APP_ID" // You'll need to add a web app in Firebase Console
+  appId: "1:169350826692:web:headsupwebapp" // Using a placeholder web app ID
 };
 
 const app = initializeApp(firebaseConfig);

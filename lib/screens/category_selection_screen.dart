@@ -372,53 +372,57 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
                                               provider.customDecks.isNotEmpty;
                                           return Container(
                                             alignment: Alignment.center,
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                Icon(
-                                                  Icons.star_rounded,
-                                                  size: 16,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Text('Custom'),
-                                                if (hasCustom) ...[
+                                            child: FittedBox(
+                                              fit: BoxFit.scaleDown,
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    Icons.star_rounded,
+                                                    size: 16,
+                                                  ),
                                                   const SizedBox(width: 4),
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 5,
-                                                          vertical: 1,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color:
-                                                          _tabController
-                                                                      .index ==
-                                                                  2
-                                                              ? Colors.white
-                                                                  .withOpacity(
-                                                                    0.2,
-                                                                  )
-                                                              : Colors.grey
-                                                                  .withOpacity(
-                                                                    0.1,
-                                                                  ),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
+                                                  Text('Custom'),
+                                                  if (hasCustom) ...[
+                                                    const SizedBox(width: 4),
+                                                    Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 5,
+                                                            vertical: 1,
                                                           ),
-                                                    ),
-                                                    child: Text(
-                                                      '${provider.customDecks.length}',
-                                                      style: TextStyle(
-                                                        fontSize: 10,
-                                                        fontWeight:
-                                                            FontWeight.w600,
+                                                      decoration: BoxDecoration(
+                                                        color:
+                                                            _tabController
+                                                                        .index ==
+                                                                    2
+                                                                ? Colors.white
+                                                                    .withOpacity(
+                                                                      0.2,
+                                                                    )
+                                                                : Colors.grey
+                                                                    .withOpacity(
+                                                                      0.1,
+                                                                    ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              8,
+                                                            ),
+                                                      ),
+                                                      child: Text(
+                                                        '${provider.customDecks.length}',
+                                                        style: TextStyle(
+                                                          fontSize: 10,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
                                                       ),
                                                     ),
-                                                  ),
+                                                  ],
                                                 ],
-                                              ],
+                                              ),
                                             ),
                                           );
                                         },
@@ -1701,9 +1705,6 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
               deck: deck,
               isTeamMode: widget.isTeamMode,
               teamNames: widget.teamNames,
-              teamColors: widget.teamColors,
-              isTournamentMode: widget.isTournamentMode ?? false,
-              tournamentType: widget.tournamentType,
             ),
       ),
     );

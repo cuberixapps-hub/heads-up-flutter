@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
+import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import type { User } from 'firebase/auth';
 import { auth } from './config/firebase';
 import { DeckList } from './components/DeckList';
 import { DeckForm } from './components/DeckForm';
