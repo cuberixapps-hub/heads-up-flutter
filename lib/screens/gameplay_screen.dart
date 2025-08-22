@@ -684,10 +684,7 @@ class _GameplayScreenState extends State<GameplayScreen>
             ),
           ],
         ),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Icon(icon, color: Colors.white, size: 24),
-        ),
+        child: Center(child: Icon(icon, color: Colors.white, size: 24)),
       ),
     );
   }
@@ -717,119 +714,119 @@ class _GameplayScreenState extends State<GameplayScreen>
               ),
             ],
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(32),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withOpacity(0.95),
-                      Colors.white.withOpacity(0.9),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(32),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.5),
-                    width: 1,
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    // Decorative elements
-                    Positioned(
-                      top: -50,
-                      right: -50,
-                      child: Container(
-                        width: 200,
-                        height: 200,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              widget.deck.color.withOpacity(0.1),
-                              widget.deck.color.withOpacity(0.0),
-                            ],
-                          ),
-                        ),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withOpacity(0.95),
+                  Colors.white.withOpacity(0.9),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.5),
+                width: 1,
+              ),
+            ),
+            child: Stack(
+              children: [
+                // Decorative elements
+                Positioned(
+                  top: -50,
+                  right: -50,
+                  child: Container(
+                    width: 200,
+                    height: 200,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          widget.deck.color.withOpacity(0.1),
+                          widget.deck.color.withOpacity(0.0),
+                        ],
                       ),
                     ),
-                    // Main content
-                    Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Category badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 8,
+                  ),
+                ),
+                // Main content
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Category badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: widget.deck.color.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: widget.deck.color.withOpacity(0.2),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              widget.deck.icon,
+                              size: 16,
+                              color: widget.deck.color,
                             ),
-                            decoration: BoxDecoration(
-                              color: widget.deck.color.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: widget.deck.color.withOpacity(0.2),
-                                width: 1,
+                            const SizedBox(width: 8),
+                            Text(
+                              widget.deck.name.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: widget.deck.color,
+                                letterSpacing: 1.5,
                               ),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  widget.deck.icon,
-                                  size: 16,
-                                  color: widget.deck.color,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  widget.deck.name.toUpperCase(),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: widget.deck.color,
-                                    letterSpacing: 1.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                          // Word with gradient
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 32),
-                            child: ShaderMask(
-                              shaderCallback:
-                                  (bounds) => LinearGradient(
-                                    colors: [
-                                      widget.deck.color,
-                                      widget.deck.color.withOpacity(0.7),
-                                    ],
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                  ).createShader(bounds),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      // Word with gradient
+                      Flexible(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: ShaderMask(
+                            shaderCallback:
+                                (bounds) => LinearGradient(
+                                  colors: [
+                                    widget.deck.color,
+                                    widget.deck.color.withOpacity(0.7),
+                                  ],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                ).createShader(bounds),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
                               child: Text(
                                 word,
                                 style: const TextStyle(
                                   fontSize: 48,
                                   fontWeight: FontWeight.w900,
                                   color: Colors.white,
-                                  height: 1.1,
-                                  letterSpacing: -1,
+                                  height: 1.2,
                                 ),
                                 textAlign: TextAlign.center,
+                                maxLines: 3,
+                                overflow: TextOverflow.visible,
                               ),
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         );
@@ -970,24 +967,21 @@ class _GameplayScreenState extends State<GameplayScreen>
                     ),
                   ],
                 ),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(icon, color: Colors.white, size: 44),
-                      const SizedBox(height: 8),
-                      Text(
-                        label,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                        ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, color: Colors.white, size: 44),
+                    const SizedBox(height: 8),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               )
               .animate()
