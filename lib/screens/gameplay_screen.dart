@@ -437,17 +437,95 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   Widget _buildAnimatedBackground() {
-    return AnimatedBuilder(
-      animation: _backgroundAnimController,
-      builder: (context, child) {
-        return CustomPaint(
+    return Stack(
+      children: [
+        // Animated gradient mesh
+        AnimatedBuilder(
+          animation: _backgroundAnimController,
+          builder: (context, child) {
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment(
+                    -1 +
+                        math.sin(
+                              _backgroundAnimController.value * math.pi * 2,
+                            ) *
+                            0.3,
+                    -1 +
+                        math.cos(
+                              _backgroundAnimController.value * math.pi * 2,
+                            ) *
+                            0.3,
+                  ),
+                  end: Alignment(
+                    1 +
+                        math.sin(
+                              _backgroundAnimController.value * math.pi * 2 +
+                                  math.pi,
+                            ) *
+                            0.3,
+                    1 +
+                        math.cos(
+                              _backgroundAnimController.value * math.pi * 2 +
+                                  math.pi,
+                            ) *
+                            0.3,
+                  ),
+                  colors: [
+                    widget.deck.color.withOpacity(0.6),
+                    widget.deck.color.withOpacity(0.4),
+                    widget.deck.color.withOpacity(0.3),
+                    widget.deck.color.withOpacity(0.5),
+                  ],
+                  stops: const [0.0, 0.3, 0.6, 1.0],
+                ),
+              ),
+            );
+          },
+        ),
+        // Floating orbs with smooth animation
+        ...List.generate(3, (index) {
+          return AnimatedBuilder(
+            animation: _backgroundAnimController,
+            builder: (context, child) {
+              final progress =
+                  (_backgroundAnimController.value + index * 0.33) % 1.0;
+              final size = MediaQuery.of(context).size;
+              final baseX = size.width * (0.2 + index * 0.3);
+              final baseY = size.height * (0.3 + index * 0.2);
+
+              return Positioned(
+                left: baseX + math.sin(progress * math.pi * 2) * 50 - 100,
+                top: baseY + math.cos(progress * math.pi * 2) * 80 - 100,
+                child: Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.white.withOpacity(0.15 * (1 - progress * 0.5)),
+                        Colors.white.withOpacity(0.05 * (1 - progress * 0.5)),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.5, 1.0],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        }),
+        // Modern geometric pattern
+        CustomPaint(
           size: MediaQuery.of(context).size,
-          painter: _ModernBackgroundPainter(
+          painter: _ElegantBackgroundPainter(
             animation: _backgroundAnimController.value,
             color: widget.deck.color,
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 
@@ -1141,6 +1219,134 @@ class _GameplayScreenState extends State<GameplayScreen>
 }
 
 // Custom painter for modern background
+class _ElegantBackgroundPainter extends CustomPainter {
+  final double animation;
+  final Color color;
+
+  _ElegantBackgroundPainter({required this.animation, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint =
+        Paint()
+          ..style = PaintingStyle.fill
+          ..strokeWidth = 1;
+
+    // Draw animated wave patterns
+    for (int layer = 0; layer < 3; layer++) {
+      final path = Path();
+      final waveHeight = 30.0 - (layer * 10);
+      final opacity = 0.05 - (layer * 0.015);
+
+      path.moveTo(0, size.height * (0.3 + layer * 0.2));
+
+      for (double x = 0; x <= size.width; x += 5) {
+        final normalizedX = x / size.width;
+        final baseY = size.height * (0.3 + layer * 0.2);
+        final waveY =
+            baseY +
+            math.sin((normalizedX * 3 + animation * 2) * math.pi) * waveHeight +
+            math.sin((normalizedX * 5 + animation * 3) * math.pi) *
+                (waveHeight / 2);
+
+        if (x == 0) {
+          path.moveTo(x, waveY);
+        } else {
+          path.lineTo(x, waveY);
+        }
+      }
+
+      path.lineTo(size.width, size.height);
+      path.lineTo(0, size.height);
+      path.close();
+
+      paint.shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.white.withOpacity(opacity),
+          Colors.white.withOpacity(opacity * 0.5),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+      canvas.drawPath(path, paint);
+    }
+
+    // Draw subtle grid pattern
+    paint.shader = null;
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = 0.5;
+
+    final gridSize = 60.0;
+    final gridOpacity = 0.03 + math.sin(animation * math.pi * 2) * 0.01;
+    paint.color = Colors.white.withOpacity(gridOpacity);
+
+    // Vertical lines
+    for (double x = 0; x < size.width; x += gridSize) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+
+    // Horizontal lines
+    for (double y = 0; y < size.height; y += gridSize) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+
+    // Draw corner accents
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = 2;
+    paint.color = Colors.white.withOpacity(0.1);
+
+    final cornerLength = 40.0;
+
+    // Top left
+    canvas.drawLine(Offset(0, cornerLength), Offset(0, 0), paint);
+    canvas.drawLine(Offset(0, 0), Offset(cornerLength, 0), paint);
+
+    // Top right
+    canvas.drawLine(
+      Offset(size.width - cornerLength, 0),
+      Offset(size.width, 0),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(size.width, 0),
+      Offset(size.width, cornerLength),
+      paint,
+    );
+
+    // Bottom left
+    canvas.drawLine(
+      Offset(0, size.height - cornerLength),
+      Offset(0, size.height),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(0, size.height),
+      Offset(cornerLength, size.height),
+      paint,
+    );
+
+    // Bottom right
+    canvas.drawLine(
+      Offset(size.width - cornerLength, size.height),
+      Offset(size.width, size.height),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(size.width, size.height - cornerLength),
+      Offset(size.width, size.height),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ElegantBackgroundPainter oldDelegate) {
+    return oldDelegate.animation != animation;
+  }
+}
+
 class _ModernBackgroundPainter extends CustomPainter {
   final double animation;
   final Color color;
