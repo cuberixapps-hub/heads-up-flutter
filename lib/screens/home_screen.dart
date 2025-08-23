@@ -11,7 +11,10 @@ import '../providers/deck_provider.dart';
 import '../providers/game_provider.dart';
 import '../services/haptic_service.dart';
 import '../services/audio_service.dart';
+import '../services/daily_deck_service.dart';
+import '../models/daily_deck.dart';
 import 'category_selection_screen.dart';
+import 'gameplay_screen.dart';
 import 'tutorial_screen.dart';
 import 'team_setup_screen.dart';
 import 'custom_deck_management_screen.dart';
@@ -23,18 +26,24 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final _hapticService = HapticService();
   final _audioService = AudioService();
+  final _dailyDeckService = DailyDeckService();
   late AnimationController _floatingController;
   late AnimationController _pulseController;
   late AnimationController _underlineController;
   late Animation<double> _underlineAnimation;
   bool _hasSeenTutorial = false;
+  DailyDeck? _todaysDeck;
+  bool _hasPlayedDaily = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
     _floatingController = AnimationController(
       duration: const Duration(seconds: 4),
       vsync: this,
@@ -55,6 +64,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
 
     _checkFirstTimeUser();
+    _loadDailyDeck();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Refresh daily deck when app resumes
+      print('🔄 App resumed - refreshing daily deck');
+      _loadDailyDeck();
+    }
   }
 
   Future<void> _checkFirstTimeUser() async {
@@ -68,6 +87,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _showTutorialSuggestion();
         }
       });
+    }
+  }
+
+  Future<void> _loadDailyDeck() async {
+    try {
+      print('🔍 Loading daily deck...');
+
+      // For debugging: Clear played status to test the feature
+      // Uncomment the line below to reset the played status
+      // await _dailyDeckService.clearPlayedStatus();
+
+      final deck = await _dailyDeckService.getTodaysDeck();
+      final hasPlayed = await _dailyDeckService.hasPlayedToday();
+
+      print(
+        '📅 Daily deck loaded: ${deck != null ? deck.title : "No deck found"}',
+      );
+      print('✅ Has played today: $hasPlayed');
+
+      if (mounted) {
+        setState(() {
+          _todaysDeck = deck;
+          _hasPlayedDaily = hasPlayed;
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading daily deck: $e');
     }
   }
 
@@ -222,6 +268,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _floatingController.dispose();
     _pulseController.dispose();
     _underlineController.dispose();
@@ -254,104 +301,121 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          // Elegant Modern App Bar with clean design
-          SliverAppBar(
-            expandedHeight: 240,
-            floating: true,
-            pinned: true,
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AppTheme.primaryColor,
-                      AppTheme.primaryColor.withOpacity(0.95),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          print('🔄 Manual refresh triggered');
+          await _loadDailyDeck();
+        },
+        color: AppTheme.primaryColor,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          slivers: [
+            // Elegant Modern App Bar with clean design
+            SliverAppBar(
+              expandedHeight: 240,
+              floating: true,
+              pinned: true,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              flexibleSpace: FlexibleSpaceBar(
+                background: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        AppTheme.primaryColor,
+                        AppTheme.primaryColor.withOpacity(0.95),
+                      ],
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      // Subtle pattern overlay
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: _HeaderPatternPainter(
+                            animation: _pulseController,
+                          ),
+                        ),
+                      ),
+                      // Bottom curve
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: AppTheme.backgroundColor,
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(40),
+                              topRight: Radius.circular(40),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.primaryColor.withOpacity(0.2),
+                                blurRadius: 10,
+                                offset: const Offset(0, -5),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Content
+                      SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  _buildLogo(),
+                                  _buildSettingsButton(),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              Flexible(child: _buildWelcomeText(context)),
+                              const SizedBox(height: 20),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                child: Stack(
-                  children: [
-                    // Subtle pattern overlay
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: _HeaderPatternPainter(
-                          animation: _pulseController,
-                        ),
-                      ),
-                    ),
-                    // Bottom curve
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      child: Container(
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: AppTheme.backgroundColor,
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(40),
-                            topRight: Radius.circular(40),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.primaryColor.withOpacity(0.2),
-                              blurRadius: 10,
-                              offset: const Offset(0, -5),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    // Content
-                    SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [_buildLogo(), _buildSettingsButton()],
-                            ),
-                            const SizedBox(height: 20),
-                            Flexible(child: _buildWelcomeText(context)),
-                            const SizedBox(height: 20),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ),
-          ),
 
-          // Main Content
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                _buildQuickPlayCard(context),
-                const SizedBox(height: 8),
-                _buildFeatureGrid(context),
-                const SizedBox(height: 24),
-                _buildStatsCard(context),
-                const SizedBox(height: 24),
-                _buildRecentDecksSection(context),
-                const SizedBox(height: 40),
-              ]),
+            // Main Content
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  _buildQuickPlayCard(context),
+                  const SizedBox(height: 16),
+                  if (_todaysDeck != null) ...[
+                    _buildDailyHeadsUpCard(context),
+                    const SizedBox(height: 16),
+                  ],
+                  _buildFeatureGrid(context),
+                  const SizedBox(height: 24),
+                  _buildStatsCard(context),
+                  const SizedBox(height: 24),
+                  _buildRecentDecksSection(context),
+                  const SizedBox(height: 40),
+                ]),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -805,6 +869,331 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDailyHeadsUpCard(BuildContext context) {
+    final deck = _todaysDeck!;
+
+    return AnimatedBuilder(
+          animation: _floatingController,
+          builder: (context, child) {
+            return Transform.translate(
+              offset: Offset(0, _floatingController.value * 3 - 1.5),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(deck.color),
+                      Color(deck.color).withOpacity(0.85),
+                      AppTheme.accentColor.withOpacity(0.6),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(deck.color).withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Stack(
+                    children: [
+                      // Daily pattern overlay
+                      Positioned(
+                        top: -30,
+                        right: -30,
+                        child: Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                Colors.white.withOpacity(0.2),
+                                Colors.white.withOpacity(0.05),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Calendar icon pattern
+                      Positioned(
+                        bottom: -20,
+                        left: -20,
+                        child: Icon(
+                          Icons.calendar_today_rounded,
+                          size: 80,
+                          color: Colors.white.withOpacity(0.1),
+                        ),
+                      ),
+                      // Content
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap:
+                              _hasPlayedDaily
+                                  ? null
+                                  : () {
+                                    _hapticService.mediumImpact();
+                                    _audioService.playClick();
+                                    _playDailyDeck(context, deck);
+                                  },
+                          borderRadius: BorderRadius.circular(24),
+                          splashColor: Colors.white.withOpacity(0.2),
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Header with badge
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.25),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.local_fire_department_rounded,
+                                            color: Colors.white,
+                                            size: 16,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'DAILY CHALLENGE',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    if (_hasPlayedDaily)
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withOpacity(0.3),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          Icons.check_rounded,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      )
+                                    else
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.amber.withOpacity(0.3),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'NEW',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                // Title and description
+                                Text(
+                                  deck.title,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800,
+                                    height: 1.1,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  deck.description,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.9),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 16),
+                                // Stats row
+                                Row(
+                                  children: [
+                                    _buildDailyStat(
+                                      Icons.style_rounded,
+                                      '${deck.cards.length}',
+                                      'Cards',
+                                    ),
+                                    const SizedBox(width: 24),
+                                    _buildDailyStat(
+                                      Icons.timer_rounded,
+                                      '60s',
+                                      'Timer',
+                                    ),
+                                    const SizedBox(width: 24),
+                                    _buildDailyStat(
+                                      Icons.star_rounded,
+                                      '+50',
+                                      'Points',
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                // Play button or completed status
+                                Container(
+                                  width: double.infinity,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color:
+                                        _hasPlayedDaily
+                                            ? Colors.white.withOpacity(0.2)
+                                            : Colors.white.withOpacity(0.95),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap:
+                                          _hasPlayedDaily
+                                              ? null
+                                              : () {
+                                                _hapticService.mediumImpact();
+                                                _audioService.playClick();
+                                                _playDailyDeck(context, deck);
+                                              },
+                                      borderRadius: BorderRadius.circular(14),
+                                      child: Center(
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              _hasPlayedDaily
+                                                  ? Icons.check_circle_rounded
+                                                  : Icons.play_arrow_rounded,
+                                              color:
+                                                  _hasPlayedDaily
+                                                      ? Colors.white
+                                                          .withOpacity(0.7)
+                                                      : Color(deck.color),
+                                              size: 22,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              _hasPlayedDaily
+                                                  ? 'Completed Today'
+                                                  : 'Play Now',
+                                              style: TextStyle(
+                                                color:
+                                                    _hasPlayedDaily
+                                                        ? Colors.white
+                                                            .withOpacity(0.7)
+                                                        : Color(deck.color),
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        )
+        .animate()
+        .fadeIn(delay: 300.ms, duration: 800.ms)
+        .scale(begin: const Offset(0.95, 0.95), curve: Curves.easeOutBack);
+  }
+
+  Widget _buildDailyStat(IconData icon, String value, String label) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.white.withOpacity(0.8), size: 18),
+        const SizedBox(width: 6),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _playDailyDeck(BuildContext context, DailyDeck dailyDeck) async {
+    final gameProvider = context.read<GameProvider>();
+    final regularDeck = _dailyDeckService.convertToRegularDeck(dailyDeck);
+
+    // Start the game (uses default 60 seconds)
+    gameProvider.startGame(deck: regularDeck, isTeamMode: false);
+
+    // Mark as played with the deck ID
+    await _dailyDeckService.markAsPlayed(dailyDeck.id);
+    setState(() {
+      _hasPlayedDaily = true;
+    });
+
+    // Navigate to gameplay screen with the deck
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => GameplayScreen(deck: regularDeck, isTeamMode: false),
+      ),
     );
   }
 

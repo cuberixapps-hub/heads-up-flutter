@@ -4,6 +4,7 @@ import type { User } from 'firebase/auth';
 import { auth } from './config/firebase';
 import { DeckList } from './components/DeckList';
 import { DeckForm } from './components/DeckForm';
+import { DailyDeckManager } from './components/DailyDeckManager';
 import './App.css';
 
 interface Deck {
@@ -23,8 +24,9 @@ interface Deck {
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<'list' | 'form'>('list');
+  const [currentView, setCurrentView] = useState<'list' | 'form' | 'daily'>('list');
   const [editingDeck, setEditingDeck] = useState<Deck | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<'decks' | 'daily'>('decks');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -100,15 +102,45 @@ function App() {
       </header>
 
       <main className="app-main">
-        {currentView === 'list' ? (
-          <DeckList onEdit={handleEdit} onCreate={handleCreate} />
-        ) : (
-          <DeckForm
-            deck={editingDeck}
-            onSave={handleSave}
-            onCancel={handleCancel}
-          />
-        )}
+        <div className="tabs-container">
+          <div className="tabs">
+            <button
+              className={`tab ${activeTab === 'decks' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('decks');
+                setCurrentView('list');
+              }}
+            >
+              <span className="tab-icon">🎮</span>
+              Regular Decks
+            </button>
+            <button
+              className={`tab ${activeTab === 'daily' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('daily');
+                setCurrentView('daily');
+              }}
+            >
+              <span className="tab-icon">📅</span>
+              Daily Heads Up
+            </button>
+          </div>
+        </div>
+
+        <div className="tab-content">
+          {activeTab === 'decks' && (
+            currentView === 'list' ? (
+              <DeckList onEdit={handleEdit} onCreate={handleCreate} />
+            ) : (
+              <DeckForm
+                deck={editingDeck}
+                onSave={handleSave}
+                onCancel={handleCancel}
+              />
+            )
+          )}
+          {activeTab === 'daily' && <DailyDeckManager />}
+        </div>
       </main>
     </div>
   );
