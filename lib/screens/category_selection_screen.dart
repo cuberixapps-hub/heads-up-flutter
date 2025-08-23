@@ -87,6 +87,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
             pinned: true,
             backgroundColor: AppTheme.primaryColor,
             elevation: 0,
+            scrolledUnderElevation: 0,
             automaticallyImplyLeading: false,
             title: SafeArea(
               child: Row(
@@ -207,238 +208,127 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
               ),
             ),
             bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(80),
+              preferredSize: const Size.fromHeight(70),
               child: Container(
                 color: AppTheme.backgroundColor,
                 child: Column(
                   children: [
-                    const SizedBox(height: 16),
-                    // Modern segmented tab bar
-                    AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          margin: const EdgeInsets.symmetric(horizontal: 24),
+                    const SizedBox(height: 12),
+                    // Modern minimal tab bar
+                    Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 20),
+                          height: 46,
                           child: Stack(
                             children: [
                               // Background track
                               Container(
-                                height: 48,
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: Colors.grey.shade50,
+                                  borderRadius: BorderRadius.circular(23),
+                                  border: Border.all(
+                                    color: Colors.grey.shade200,
+                                    width: 1,
+                                  ),
                                 ),
                               ),
-                              // Custom tab bar
-                              SizedBox(
-                                height: 48,
-                                child: TabBar(
-                                  controller: _tabController,
-                                  indicator: BoxDecoration(
-                                    color: AppTheme.primaryColor,
-                                    borderRadius: BorderRadius.circular(10),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppTheme.primaryColor
-                                            .withOpacity(0.3),
-                                        blurRadius: 12,
-                                        offset: const Offset(0, 3),
-                                      ),
-                                    ],
-                                  ),
-                                  indicatorSize: TabBarIndicatorSize.tab,
-                                  indicatorPadding: const EdgeInsets.all(4),
-                                  labelColor: Colors.white,
-                                  unselectedLabelColor: AppTheme.textSecondary,
-                                  labelStyle: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14,
-                                  ),
-                                  unselectedLabelStyle: const TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 14,
-                                  ),
-                                  splashBorderRadius: BorderRadius.circular(10),
-                                  tabs: [
-                                    Tab(
-                                      child: Consumer<DeckProvider>(
-                                        builder: (context, provider, _) {
-                                          return Container(
-                                            alignment: Alignment.center,
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                Icon(
-                                                  Icons.dashboard_rounded,
-                                                  size: 16,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Text('All'),
-                                                const SizedBox(width: 4),
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 5,
-                                                        vertical: 1,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        _tabController.index ==
-                                                                0
-                                                            ? Colors.white
-                                                                .withOpacity(
-                                                                  0.2,
-                                                                )
-                                                            : Colors.grey
-                                                                .withOpacity(
-                                                                  0.1,
-                                                                ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
-                                                        ),
-                                                  ),
-                                                  child: Text(
-                                                    '${provider.allDecks.length}',
-                                                    style: TextStyle(
-                                                      fontSize: 10,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
+                              // Custom tab implementation
+                              Consumer<DeckProvider>(
+                                builder: (context, provider, _) {
+                                  return LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final tabWidth = constraints.maxWidth / 3;
+                                      return Stack(
+                                        children: [
+                                          // Animated indicator
+                                          AnimatedPositioned(
+                                            duration: const Duration(
+                                              milliseconds: 300,
                                             ),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                    Tab(
-                                      child: Consumer<DeckProvider>(
-                                        builder: (context, provider, _) {
-                                          return Container(
-                                            alignment: Alignment.center,
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                Icon(
-                                                  Icons.lock_open_rounded,
-                                                  size: 16,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Text('Free'),
-                                                const SizedBox(width: 4),
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 5,
-                                                        vertical: 1,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        _tabController.index ==
-                                                                1
-                                                            ? Colors.white
-                                                                .withOpacity(
-                                                                  0.2,
-                                                                )
-                                                            : Colors.grey
-                                                                .withOpacity(
-                                                                  0.1,
-                                                                ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
-                                                        ),
+                                            curve: Curves.easeInOutCubic,
+                                            left:
+                                                _tabController.index *
+                                                    tabWidth +
+                                                3,
+                                            top: 3,
+                                            bottom: 3,
+                                            width: tabWidth - 6,
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: AppTheme.primaryColor
+                                                        .withOpacity(0.15),
+                                                    blurRadius: 10,
+                                                    offset: const Offset(0, 2),
                                                   ),
-                                                  child: Text(
-                                                    '${provider.freeDecks.length}',
-                                                    style: TextStyle(
-                                                      fontSize: 10,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                    Tab(
-                                      child: Consumer<DeckProvider>(
-                                        builder: (context, provider, _) {
-                                          final hasCustom =
-                                              provider.customDecks.isNotEmpty;
-                                          return Container(
-                                            alignment: Alignment.center,
-                                            child: FittedBox(
-                                              fit: BoxFit.scaleDown,
-                                              child: Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(
-                                                    Icons.star_rounded,
-                                                    size: 16,
-                                                  ),
-                                                  const SizedBox(width: 4),
-                                                  Text('Custom'),
-                                                  if (hasCustom) ...[
-                                                    const SizedBox(width: 4),
-                                                    Container(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 5,
-                                                            vertical: 1,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color:
-                                                            _tabController
-                                                                        .index ==
-                                                                    2
-                                                                ? Colors.white
-                                                                    .withOpacity(
-                                                                      0.2,
-                                                                    )
-                                                                : Colors.grey
-                                                                    .withOpacity(
-                                                                      0.1,
-                                                                    ),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              8,
-                                                            ),
-                                                      ),
-                                                      child: Text(
-                                                        '${provider.customDecks.length}',
-                                                        style: TextStyle(
-                                                          fontSize: 10,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
                                                 ],
                                               ),
                                             ),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                          ),
+                                          // Tab items
+                                          Row(
+                                            children: [
+                                              _buildModernTab(
+                                                icon: Icons.grid_view_rounded,
+                                                label: 'All',
+                                                count: provider.allDecks.length,
+                                                index: 0,
+                                                isSelected:
+                                                    _tabController.index == 0,
+                                                onTap:
+                                                    () => _tabController
+                                                        .animateTo(0),
+                                              ),
+                                              _buildModernTab(
+                                                icon:
+                                                    Icons.card_giftcard_rounded,
+                                                label: 'Free',
+                                                count:
+                                                    provider.freeDecks.length,
+                                                index: 1,
+                                                isSelected:
+                                                    _tabController.index == 1,
+                                                onTap:
+                                                    () => _tabController
+                                                        .animateTo(1),
+                                              ),
+                                              _buildModernTab(
+                                                icon: Icons.palette_rounded,
+                                                label: 'Custom',
+                                                count:
+                                                    provider.customDecks.length,
+                                                index: 2,
+                                                isSelected:
+                                                    _tabController.index == 2,
+                                                onTap:
+                                                    () => _tabController
+                                                        .animateTo(2),
+                                                showBadge:
+                                                    provider
+                                                        .customDecks
+                                                        .isNotEmpty,
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                },
                               ),
                             ],
                           ),
                         )
                         .animate()
                         .fadeIn(delay: 200.ms, duration: 400.ms)
-                        .slideY(begin: 0.1, curve: Curves.easeOutCubic),
-                    const SizedBox(height: 16),
+                        .scale(
+                          begin: const Offset(0.95, 0.95),
+                          curve: Curves.easeOutCubic,
+                        ),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
@@ -466,7 +356,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
 
   Widget _buildSearchBar() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      margin: const EdgeInsets.fromLTRB(20, 8, 20, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -740,6 +630,147 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
         ],
       ),
     ).animate().fadeIn(delay: 200.ms, duration: 400.ms).slideY(begin: 0.03);
+  }
+
+  Widget _buildModernTab({
+    required IconData icon,
+    required String label,
+    required int count,
+    required int index,
+    required bool isSelected,
+    required VoidCallback onTap,
+    bool showBadge = true,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Container(
+          color: Colors.transparent,
+          child: Center(
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: isSelected ? 1 : 0),
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Animated icon with glow effect
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Glow effect for selected state
+                        if (isSelected)
+                          Container(
+                            width: 24 + (value * 4),
+                            height: 24 + (value * 4),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  AppTheme.primaryColor.withOpacity(
+                                    0.2 * value,
+                                  ),
+                                  AppTheme.primaryColor.withOpacity(0),
+                                ],
+                              ),
+                            ),
+                          ),
+                        // Icon
+                        Transform.scale(
+                          scale: 1 + (value * 0.1),
+                          child: Icon(
+                            icon,
+                            size: 20,
+                            color: Color.lerp(
+                              Colors.grey.shade500,
+                              AppTheme.primaryColor,
+                              value,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 8),
+                    // Label with animated weight
+                    AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 300),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: Color.lerp(
+                          Colors.grey.shade600,
+                          AppTheme.primaryColor,
+                          value,
+                        ),
+                        letterSpacing: isSelected ? 0.3 : 0,
+                      ),
+                      child: Text(label),
+                    ),
+                    // Count badge with spring animation
+                    if (showBadge && count > 0) ...[
+                      const SizedBox(width: 6),
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: 1),
+                        duration: Duration(milliseconds: 600 + (index * 100)),
+                        curve: Curves.elasticOut,
+                        builder: (context, bounceValue, child) {
+                          return Transform.scale(
+                            scale: bounceValue,
+                            child: Container(
+                              constraints: const BoxConstraints(minWidth: 20),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient:
+                                    isSelected
+                                        ? LinearGradient(
+                                          colors: [
+                                            AppTheme.primaryColor.withOpacity(
+                                              0.9,
+                                            ),
+                                            AppTheme.primaryColor,
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        )
+                                        : null,
+                                color: isSelected ? null : Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                count.toString(),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color:
+                                      isSelected
+                                          ? Colors.white
+                                          : Colors.grey.shade700,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildModernFilterChip(
