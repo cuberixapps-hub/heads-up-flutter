@@ -71,27 +71,34 @@ class _TutorialHintOverlayState extends State<TutorialHintOverlay>
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
-                width: _isExpanded ? 280 : 50,
-                height: _isExpanded ? 200 : 50,
+                width: _isExpanded ? 300 : 56,
+                height: _isExpanded ? 220 : 56,
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.8),
-                  borderRadius: BorderRadius.circular(_isExpanded ? 20 : 25),
-                  border: Border.all(
-                    color: AppTheme.primaryColor.withOpacity(0.5),
-                    width: 2,
-                  ),
+                  color:
+                      _isExpanded
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.95),
+                  borderRadius: BorderRadius.circular(_isExpanded ? 20 : 28),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.primaryColor.withOpacity(0.3),
+                      color: AppTheme.primaryColor.withOpacity(0.15),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
                       blurRadius: 10,
-                      offset: const Offset(0, 5),
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child:
-                    _isExpanded
-                        ? _buildExpandedContent()
-                        : _buildCollapsedContent(),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(_isExpanded ? 20 : 28),
+                  child:
+                      _isExpanded
+                          ? _buildExpandedContent()
+                          : _buildCollapsedContent(),
+                ),
               ),
             ),
           );
@@ -102,85 +109,121 @@ class _TutorialHintOverlayState extends State<TutorialHintOverlay>
 
   Widget _buildCollapsedContent() {
     return Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: AppTheme.primaryColor,
+        shape: BoxShape.circle,
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Pulsing background
+          Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+              )
+              .animate(onPlay: (controller) => controller.repeat())
+              .scale(
+                begin: const Offset(0.8, 0.8),
+                end: const Offset(1.1, 1.1),
+                duration: 2000.ms,
+              )
+              .fadeOut(begin: 0.8, duration: 2000.ms),
+
+          // Icon
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
             ),
-            shape: BoxShape.circle,
+            child: const Icon(
+              Icons.tips_and_updates_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
           ),
-          child: const Icon(
-            FontAwesomeIcons.question,
-            color: Colors.white,
-            size: 20,
-          ),
-        )
-        .animate(onPlay: (controller) => controller.repeat())
-        .shimmer(duration: 2000.ms, delay: 1000.ms);
+        ],
+      ),
+    );
   }
 
   Widget _buildExpandedContent() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
+    return Container(
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
+          // Header
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.primaryGradient,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      FontAwesomeIcons.lightbulb,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Quick Tips',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.tips_and_updates_rounded,
+                  color: AppTheme.primaryColor,
+                  size: 20,
+                ),
               ),
-              IconButton(
-                onPressed: widget.onDismiss,
-                icon: const Icon(Icons.close_rounded),
-                color: Colors.white.withOpacity(0.7),
-                iconSize: 20,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Quick Tips',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: widget.onDismiss,
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.close_rounded,
+                    color: AppTheme.textSecondary,
+                    size: 18,
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+
+          const SizedBox(height: 20),
+
+          // Tips
           _buildHintItem(
             Icons.arrow_downward_rounded,
             'Tilt DOWN',
             'When you guess correctly',
             AppTheme.successColor,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           _buildHintItem(
             Icons.arrow_upward_rounded,
             'Tilt UP',
             'To skip a difficult word',
             AppTheme.warningColor,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           _buildHintItem(
             Icons.timer_rounded,
             '60 Seconds',
@@ -198,41 +241,51 @@ class _TutorialHintOverlayState extends State<TutorialHintOverlay>
     String subtitle,
     Color color,
   ) {
-    return Row(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(8),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2), width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 20),
           ),
-          child: Icon(icon, color: color, size: 18),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.7),
-                  fontSize: 11,
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                    height: 1.2,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
