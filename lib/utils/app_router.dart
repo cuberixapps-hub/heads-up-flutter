@@ -12,7 +12,7 @@ import '../screens/custom_deck_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
-    initialLocation: '/home', // Skip splash for now
+    initialLocation: '/onboarding', // Start with onboarding for testing
     routes: [
       GoRoute(
         path: '/splash',
