@@ -7,6 +7,7 @@ class Deck {
   final String description;
   final IconData icon;
   final Color color;
+  final String? imageUrl;
   final bool isPremium;
   final bool isCustom;
   final List<String> cards;
@@ -19,6 +20,7 @@ class Deck {
     required this.description,
     required this.icon,
     required this.color,
+    this.imageUrl,
     this.isPremium = false,
     this.isCustom = false,
     required this.cards,
@@ -34,6 +36,7 @@ class Deck {
       description: map['description'] as String,
       icon: map['icon'] as IconData,
       color: map['color'] as Color,
+      imageUrl: map['imageUrl'] as String?,
       isPremium: map['isPremium'] as bool? ?? false,
       isCustom: map['isCustom'] as bool? ?? false,
       cards: List<String>.from(map['cards'] as List),
@@ -56,6 +59,7 @@ class Deck {
       'icon': icon.codePoint,
       'color':
           '0x${color.value.toRadixString(16).padLeft(8, '0').toUpperCase()}',
+      'imageUrl': imageUrl,
       'isPremium': isPremium,
       'isCustom': isCustom,
       'cards': cards,
@@ -70,6 +74,7 @@ class Deck {
     String? description,
     IconData? icon,
     Color? color,
+    String? imageUrl,
     bool? isPremium,
     bool? isCustom,
     List<String>? cards,
@@ -82,6 +87,7 @@ class Deck {
       description: description ?? this.description,
       icon: icon ?? this.icon,
       color: color ?? this.color,
+      imageUrl: imageUrl ?? this.imageUrl,
       isPremium: isPremium ?? this.isPremium,
       isCustom: isCustom ?? this.isCustom,
       cards: cards ?? this.cards,

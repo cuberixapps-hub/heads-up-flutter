@@ -267,6 +267,7 @@ class DeckFirebaseService {
           'iconFontFamily':
               (deckData['icon'] as IconData).fontFamily ?? 'MaterialIcons',
           'colorValue': (deckData['color'] as Color).value,
+          'imageUrl': deckData['imageUrl'] as String?,
           'isPremium': deckData['isPremium'] ?? false,
           'cards': deckData['cards'],
           'createdAt': FieldValue.serverTimestamp(),
@@ -301,6 +302,7 @@ class DeckFirebaseService {
         fontPackage: data['iconFontPackage'],
       ),
       color: Color(data['colorValue'] ?? Colors.blue.value),
+      imageUrl: data['imageUrl'] as String?,
       isPremium: data['isPremium'] ?? false,
       isCustom: isCustom,
       cards: List<String>.from(data['cards'] ?? []),
@@ -318,6 +320,7 @@ class DeckFirebaseService {
       'iconFontFamily': deck.icon.fontFamily ?? 'MaterialIcons',
       'iconFontPackage': deck.icon.fontPackage,
       'colorValue': deck.color.value,
+      'imageUrl': deck.imageUrl,
       'isPremium': deck.isPremium,
       'cards': deck.cards,
       'createdAt': deck.createdAt,

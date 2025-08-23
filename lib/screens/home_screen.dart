@@ -900,15 +900,25 @@ class _HomeScreenState extends State<HomeScreen>
               offset: Offset(0, _floatingController.value * 3 - 1.5),
               child: Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(deck.color),
-                      Color(deck.color).withOpacity(0.85),
-                      AppTheme.accentColor.withOpacity(0.6),
-                    ],
-                  ),
+                  gradient:
+                      deck.imageUrl == null
+                          ? LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(deck.color),
+                              Color(deck.color).withOpacity(0.85),
+                              AppTheme.accentColor.withOpacity(0.6),
+                            ],
+                          )
+                          : null,
+                  image:
+                      deck.imageUrl != null
+                          ? DecorationImage(
+                            image: NetworkImage(deck.imageUrl!),
+                            fit: BoxFit.cover,
+                          )
+                          : null,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
@@ -922,34 +932,51 @@ class _HomeScreenState extends State<HomeScreen>
                   borderRadius: BorderRadius.circular(24),
                   child: Stack(
                     children: [
-                      // Daily pattern overlay
-                      Positioned(
-                        top: -30,
-                        right: -30,
-                        child: Container(
-                          width: 120,
-                          height: 120,
+                      // Gradient overlay for images
+                      if (deck.imageUrl != null)
+                        Container(
                           decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: RadialGradient(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
                               colors: [
-                                Colors.white.withOpacity(0.2),
-                                Colors.white.withOpacity(0.05),
+                                Colors.black.withOpacity(0.3),
+                                Colors.black.withOpacity(0.6),
                               ],
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                        ),
+                      // Daily pattern overlay (only for non-image decks)
+                      if (deck.imageUrl == null) ...[
+                        Positioned(
+                          top: -30,
+                          right: -30,
+                          child: Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  Colors.white.withOpacity(0.2),
+                                  Colors.white.withOpacity(0.05),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      // Calendar icon pattern
-                      Positioned(
-                        bottom: -20,
-                        left: -20,
-                        child: Icon(
-                          Icons.calendar_today_rounded,
-                          size: 80,
-                          color: Colors.white.withOpacity(0.1),
+                        // Calendar icon pattern
+                        Positioned(
+                          bottom: -20,
+                          left: -20,
+                          child: Icon(
+                            Icons.calendar_today_rounded,
+                            size: 80,
+                            color: Colors.white.withOpacity(0.1),
+                          ),
                         ),
-                      ),
+                      ],
                       // Content
                       Material(
                         color: Colors.transparent,

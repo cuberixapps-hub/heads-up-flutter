@@ -152,6 +152,7 @@ class DailyDeckService {
       cards: dailyDeck.cards.map((card) => card.word).toList(),
       color: Color(dailyDeck.color),
       icon: _getIconFromName(dailyDeck.iconName),
+      imageUrl: dailyDeck.imageUrl,
       isCustom: false,
       createdAt: dailyDeck.createdAt,
     );
@@ -204,6 +205,7 @@ class DailyDeckService {
                 .toList(),
         'color': deck.color,
         'iconName': deck.iconName,
+        'imageUrl': deck.imageUrl,
         'isActive': deck.isActive,
         'createdAt': deck.createdAt.toIso8601String(),
         'expiresAt': deck.expiresAt?.toIso8601String(),
@@ -243,6 +245,7 @@ class DailyDeckService {
                 .toList(),
         color: deckData['color'],
         iconName: deckData['iconName'],
+        imageUrl: deckData['imageUrl'] as String?,
         isActive: deckData['isActive'],
         createdAt: DateTime.parse(deckData['createdAt']),
         expiresAt:

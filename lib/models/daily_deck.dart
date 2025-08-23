@@ -9,6 +9,7 @@ class DailyDeck {
   final List<Card> cards;
   final int color; // Store as int for Firebase
   final String iconName;
+  final String? imageUrl;
   final bool isActive;
   final DateTime createdAt;
   final DateTime? expiresAt;
@@ -21,6 +22,7 @@ class DailyDeck {
     required this.cards,
     required this.color,
     required this.iconName,
+    this.imageUrl,
     this.isActive = true,
     required this.createdAt,
     this.expiresAt,
@@ -46,6 +48,7 @@ class DailyDeck {
           [],
       color: data['color'] ?? 0xFF4CAF50,
       iconName: data['iconName'] ?? 'calendar_today',
+      imageUrl: data['imageUrl'] as String?,
       isActive: data['isActive'] ?? true,
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       expiresAt:
@@ -72,6 +75,7 @@ class DailyDeck {
               .toList(),
       'color': color,
       'iconName': iconName,
+      'imageUrl': imageUrl,
       'isActive': isActive,
       'createdAt': Timestamp.fromDate(createdAt),
       'expiresAt': expiresAt != null ? Timestamp.fromDate(expiresAt!) : null,

@@ -25,6 +25,7 @@ interface DailyDeck {
     }>;
     color: number;
     iconName: string;
+    imageUrl?: string;
     isActive: boolean;
     createdAt: Date;
     expiresAt?: Date;
@@ -41,6 +42,7 @@ export const DailyDeckManager: React.FC = () => {
         cards: [],
         color: 0xFF4CAF50,
         iconName: 'calendar_today',
+        imageUrl: '',
         isActive: true,
     });
     const [newCard, setNewCard] = useState({ word: '', category: '', difficulty: 1 });
@@ -105,6 +107,7 @@ export const DailyDeckManager: React.FC = () => {
                 cards: [],
                 color: 0xFF4CAF50,
                 iconName: 'calendar_today',
+                imageUrl: '',
                 isActive: true,
             });
             setSelectedDate(new Date().toISOString().split('T')[0]);
@@ -226,6 +229,35 @@ export const DailyDeckManager: React.FC = () => {
                                     rows={3}
                                     required
                                 />
+                            </div>
+
+                            <div className="form-group">
+                                <label>Image URL</label>
+                                <input
+                                    type="url"
+                                    value={formData.imageUrl || ''}
+                                    onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                                    placeholder="https://example.com/image.jpg (optional)"
+                                />
+                                {formData.imageUrl && (
+                                    <div style={{ marginTop: '10px' }}>
+                                        <img
+                                            src={formData.imageUrl}
+                                            alt="Daily deck preview"
+                                            style={{
+                                                width: '100%',
+                                                maxWidth: '200px',
+                                                height: '120px',
+                                                objectFit: 'cover',
+                                                borderRadius: '8px',
+                                                border: '1px solid #e0e0e0'
+                                            }}
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).style.display = 'none';
+                                            }}
+                                        />
+                                    </div>
+                                )}
                             </div>
 
                             <div className="form-group">

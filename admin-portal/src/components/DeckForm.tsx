@@ -16,6 +16,7 @@ interface Deck {
     iconFontFamily: string;
     iconFontPackage?: string;
     colorValue: number;
+    imageUrl?: string;
     isPremium: boolean;
     createdAt?: any;
     updatedAt?: any;
@@ -52,6 +53,7 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
         fontFamily: deck?.iconFontFamily || 'FontAwesomeIcons'
     });
     const [selectedColor, setSelectedColor] = useState(deck?.colorValue || 0xFF9C27B0);
+    const [imageUrl, setImageUrl] = useState(deck?.imageUrl || '');
     const [isPremium, setIsPremium] = useState(deck?.isPremium || false);
     const [showIconPicker, setShowIconPicker] = useState(false);
     const [showColorPicker, setShowColorPicker] = useState(false);
@@ -91,6 +93,7 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
             iconCodePoint: selectedIcon?.codePoint || 0xf005,
             iconFontFamily: selectedIcon?.fontFamily || 'FontAwesomeIcons',
             colorValue: selectedColor,
+            imageUrl: imageUrl.trim() || null,
             isPremium,
             updatedAt: serverTimestamp(),
         };
@@ -226,6 +229,36 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
                             placeholder="Describe your deck (optional)"
                             rows={3}
                         />
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="imageUrl">Image URL</label>
+                        <input
+                            type="url"
+                            id="imageUrl"
+                            value={imageUrl}
+                            onChange={(e) => setImageUrl(e.target.value)}
+                            placeholder="https://example.com/image.jpg (optional)"
+                        />
+                        {imageUrl && (
+                            <div className="image-preview" style={{ marginTop: '10px' }}>
+                                <img
+                                    src={imageUrl}
+                                    alt="Deck preview"
+                                    style={{
+                                        width: '100%',
+                                        maxWidth: '200px',
+                                        height: '120px',
+                                        objectFit: 'cover',
+                                        borderRadius: '8px',
+                                        border: '1px solid #e0e0e0'
+                                    }}
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                    }}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     <div className="form-group">

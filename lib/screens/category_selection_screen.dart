@@ -840,61 +840,90 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Top colored section with icon
+                            // Top section with image or colored background
                             Container(
                               height: 120,
                               decoration: BoxDecoration(
                                 color: deck.color,
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    deck.color,
-                                    deck.color.withOpacity(0.85),
-                                  ],
-                                ),
+                                gradient:
+                                    deck.imageUrl == null
+                                        ? LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            deck.color,
+                                            deck.color.withOpacity(0.85),
+                                          ],
+                                        )
+                                        : null,
+                                image:
+                                    deck.imageUrl != null
+                                        ? DecorationImage(
+                                          image: NetworkImage(deck.imageUrl!),
+                                          fit: BoxFit.cover,
+                                        )
+                                        : null,
                               ),
                               child: Stack(
                                 children: [
-                                  // Decorative circles
-                                  Positioned(
-                                    top: -20,
-                                    right: -20,
-                                    child: Container(
-                                      width: 80,
-                                      height: 80,
+                                  // Gradient overlay for images
+                                  if (deck.imageUrl != null)
+                                    Container(
                                       decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: Colors.white.withOpacity(0.1),
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [
+                                            Colors.transparent,
+                                            Colors.black.withOpacity(0.4),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  Positioned(
-                                    bottom: -30,
-                                    left: -15,
-                                    child: Container(
-                                      width: 60,
-                                      height: 60,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: Colors.black.withOpacity(0.05),
+                                  // Decorative circles (only for non-image decks)
+                                  if (deck.imageUrl == null) ...[
+                                    Positioned(
+                                      top: -20,
+                                      right: -20,
+                                      child: Container(
+                                        width: 80,
+                                        height: 80,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Colors.white.withOpacity(0.1),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  // Icon
+                                    Positioned(
+                                      bottom: -30,
+                                      left: -15,
+                                      child: Container(
+                                        width: 60,
+                                        height: 60,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Colors.black.withOpacity(0.05),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  // Icon badge
                                   Center(
                                     child: Container(
-                                      width: 56,
-                                      height: 56,
+                                      width: deck.imageUrl != null ? 48 : 56,
+                                      height: deck.imageUrl != null ? 48 : 56,
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.95),
+                                        color: Colors.white.withOpacity(
+                                          deck.imageUrl != null ? 0.9 : 0.95,
+                                        ),
                                         borderRadius: BorderRadius.circular(12),
                                         boxShadow: [
                                           BoxShadow(
                                             color: Colors.black.withOpacity(
-                                              0.1,
+                                              deck.imageUrl != null ? 0.2 : 0.1,
                                             ),
-                                            blurRadius: 8,
+                                            blurRadius:
+                                                deck.imageUrl != null ? 12 : 8,
                                             offset: const Offset(0, 2),
                                           ),
                                         ],
@@ -903,7 +932,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
                                         child: FaIcon(
                                           deck.icon,
                                           color: deck.color,
-                                          size: 26,
+                                          size: deck.imageUrl != null ? 22 : 26,
                                         ),
                                       ),
                                     ),
