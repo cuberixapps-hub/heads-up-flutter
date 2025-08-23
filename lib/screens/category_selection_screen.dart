@@ -232,88 +232,107 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
                                 ),
                               ),
                               // Custom tab implementation
-                              Consumer<DeckProvider>(
-                                builder: (context, provider, _) {
-                                  return LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      final tabWidth = constraints.maxWidth / 3;
-                                      return Stack(
-                                        children: [
-                                          // Animated indicator
-                                          AnimatedPositioned(
-                                            duration: const Duration(
-                                              milliseconds: 300,
-                                            ),
-                                            curve: Curves.easeInOutCubic,
-                                            left:
-                                                _tabController.index *
-                                                    tabWidth +
-                                                3,
-                                            top: 3,
-                                            bottom: 3,
-                                            width: tabWidth - 6,
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                color: Colors.white,
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: AppTheme.primaryColor
-                                                        .withOpacity(0.15),
-                                                    blurRadius: 10,
-                                                    offset: const Offset(0, 2),
+                              AnimatedBuilder(
+                                animation: _tabController.animation!,
+                                builder: (context, child) {
+                                  return Consumer<DeckProvider>(
+                                    builder: (context, provider, _) {
+                                      return LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          final tabWidth =
+                                              constraints.maxWidth / 3;
+                                          final animValue =
+                                              _tabController.animation!.value;
+                                          return Stack(
+                                            children: [
+                                              // Animated indicator
+                                              Positioned(
+                                                left: animValue * tabWidth + 3,
+                                                top: 3,
+                                                bottom: 3,
+                                                width: tabWidth - 6,
+                                                child: Container(
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          20,
+                                                        ),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: AppTheme
+                                                            .primaryColor
+                                                            .withOpacity(0.15),
+                                                        blurRadius: 10,
+                                                        offset: const Offset(
+                                                          0,
+                                                          2,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                              // Tab items
+                                              Row(
+                                                children: [
+                                                  _buildModernTab(
+                                                    icon:
+                                                        Icons.grid_view_rounded,
+                                                    label: 'All',
+                                                    count:
+                                                        provider
+                                                            .allDecks
+                                                            .length,
+                                                    index: 0,
+                                                    isSelected:
+                                                        _tabController.index ==
+                                                        0,
+                                                    onTap:
+                                                        () => _tabController
+                                                            .animateTo(0),
+                                                  ),
+                                                  _buildModernTab(
+                                                    icon:
+                                                        Icons
+                                                            .card_giftcard_rounded,
+                                                    label: 'Free',
+                                                    count:
+                                                        provider
+                                                            .freeDecks
+                                                            .length,
+                                                    index: 1,
+                                                    isSelected:
+                                                        _tabController.index ==
+                                                        1,
+                                                    onTap:
+                                                        () => _tabController
+                                                            .animateTo(1),
+                                                  ),
+                                                  _buildModernTab(
+                                                    icon: Icons.palette_rounded,
+                                                    label: 'Custom',
+                                                    count:
+                                                        provider
+                                                            .customDecks
+                                                            .length,
+                                                    index: 2,
+                                                    isSelected:
+                                                        _tabController.index ==
+                                                        2,
+                                                    onTap:
+                                                        () => _tabController
+                                                            .animateTo(2),
+                                                    showBadge:
+                                                        provider
+                                                            .customDecks
+                                                            .isNotEmpty,
                                                   ),
                                                 ],
                                               ),
-                                            ),
-                                          ),
-                                          // Tab items
-                                          Row(
-                                            children: [
-                                              _buildModernTab(
-                                                icon: Icons.grid_view_rounded,
-                                                label: 'All',
-                                                count: provider.allDecks.length,
-                                                index: 0,
-                                                isSelected:
-                                                    _tabController.index == 0,
-                                                onTap:
-                                                    () => _tabController
-                                                        .animateTo(0),
-                                              ),
-                                              _buildModernTab(
-                                                icon:
-                                                    Icons.card_giftcard_rounded,
-                                                label: 'Free',
-                                                count:
-                                                    provider.freeDecks.length,
-                                                index: 1,
-                                                isSelected:
-                                                    _tabController.index == 1,
-                                                onTap:
-                                                    () => _tabController
-                                                        .animateTo(1),
-                                              ),
-                                              _buildModernTab(
-                                                icon: Icons.palette_rounded,
-                                                label: 'Custom',
-                                                count:
-                                                    provider.customDecks.length,
-                                                index: 2,
-                                                isSelected:
-                                                    _tabController.index == 2,
-                                                onTap:
-                                                    () => _tabController
-                                                        .animateTo(2),
-                                                showBadge:
-                                                    provider
-                                                        .customDecks
-                                                        .isNotEmpty,
-                                              ),
                                             ],
-                                          ),
-                                        ],
+                                          );
+                                        },
                                       );
                                     },
                                   );
