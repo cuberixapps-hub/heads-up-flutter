@@ -301,25 +301,68 @@ class _TutorialScreenState extends State<TutorialScreen>
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: () {
+                  GestureDetector(
+                    onTap: () {
                       Navigator.pop(context);
                       _nextStep();
                     },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: AppTheme.primaryColor,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 12,
+                    child: Container(
+                      width: 160,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(26),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.pop(context);
+                            _nextStep();
+                          },
+                          borderRadius: BorderRadius.circular(26),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Continue',
+                                  style: TextStyle(
+                                    color: AppTheme.primaryColor,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primaryColor.withOpacity(
+                                      0.1,
+                                    ),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.arrow_forward_rounded,
+                                    color: AppTheme.primaryColor,
+                                    size: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                    child: const Text(
-                      'Continue',
-                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
@@ -1260,61 +1303,280 @@ class _TutorialScreenState extends State<TutorialScreen>
   }
 
   Widget _buildNavigationButtons() {
+    final bool isPracticeMode = _isInteractive && _currentStep == 4;
+    final bool canProceed =
+        !isPracticeMode || (_correctTilts >= 3 && _skipTilts >= 3);
+    final bool isLastStep = _currentStep == _tutorialSteps.length - 1;
+
     return Container(
-      padding: const EdgeInsets.all(24),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+      child: Column(
         children: [
-          if (_currentStep > 0)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _previousStep,
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: BorderSide(color: AppTheme.primaryColor, width: 2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  'Previous',
-                  style: TextStyle(
-                    color: AppTheme.primaryColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+          // Progress indicators
+          Container(
+            height: 40,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                _tutorialSteps.length,
+                (index) => _buildStepIndicator(index),
               ),
             ),
-          if (_currentStep > 0) const SizedBox(width: 16),
-          Expanded(
-            child: ElevatedButton(
-              onPressed:
-                  _isInteractive && _currentStep == 4
-                      ? (_correctTilts >= 3 && _skipTilts >= 3
-                          ? _nextStep
-                          : null)
-                      : (_currentStep == _tutorialSteps.length - 1
-                          ? _completeTutorial
-                          : _nextStep),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryColor,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Navigation section
+          if (!isLastStep)
+            // Regular navigation for non-final pages
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                // Back button - positioned absolutely
+                if (_currentStep > 0)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _buildMinimalBackButton(onPressed: _previousStep),
+                  ),
+
+                // Center-aligned next button
+                _buildModernContinueButton(
+                  onPressed: canProceed ? _nextStep : null,
+                  isDisabled: !canProceed,
                 ),
-              ),
-              child: Text(
-                _currentStep == _tutorialSteps.length - 1 ? 'Finish' : 'Next',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+              ],
+            )
+          else
+            // Final page - Finish button
+            _buildFinishButton(onPressed: _completeTutorial),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepIndicator(int index) {
+    final isActive = _currentStep == index;
+    final isPast = index < _currentStep;
+    final Color indicatorColor = AppTheme.primaryColor;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      width: isActive ? 32 : 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color:
+            isActive
+                ? indicatorColor
+                : isPast
+                ? indicatorColor.withOpacity(0.3)
+                : indicatorColor.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+    );
+  }
+
+  Widget _buildMinimalBackButton({required VoidCallback onPressed}) {
+    return GestureDetector(
+          onTap: onPressed,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.arrow_back_rounded,
+                  color: AppTheme.primaryColor.withOpacity(0.6),
+                  size: 20,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Back',
+                  style: TextStyle(
+                    color: AppTheme.primaryColor.withOpacity(0.6),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        )
+        .animate()
+        .fadeIn(duration: 300.ms)
+        .slideX(begin: -0.1, curve: Curves.easeOut);
+  }
+
+  Widget _buildModernContinueButton({
+    required VoidCallback? onPressed,
+    bool isDisabled = false,
+  }) {
+    return GestureDetector(
+          onTap: isDisabled ? null : onPressed,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: 160,
+            height: 52,
+            decoration: BoxDecoration(
+              color:
+                  isDisabled
+                      ? AppTheme.primaryColor.withOpacity(0.3)
+                      : AppTheme.primaryColor,
+              borderRadius: BorderRadius.circular(26),
+              boxShadow:
+                  isDisabled
+                      ? []
+                      : [
+                        BoxShadow(
+                          color: AppTheme.primaryColor.withOpacity(0.25),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: isDisabled ? null : onPressed,
+                borderRadius: BorderRadius.circular(26),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Continue',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(
+                            isDisabled ? 0.6 : 1.0,
+                          ),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(
+                            isDisabled ? 0.1 : 0.2,
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.arrow_forward_rounded,
+                          color: Colors.white.withOpacity(
+                            isDisabled ? 0.6 : 1.0,
+                          ),
+                          size: 14,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ],
-      ),
-    );
+        )
+        .animate()
+        .fadeIn(duration: 400.ms, delay: 100.ms)
+        .scale(begin: const Offset(0.95, 0.95), curve: Curves.easeOut);
+  }
+
+  Widget _buildFinishButton({required VoidCallback onPressed}) {
+    return GestureDetector(
+          onTap: onPressed,
+          child: Container(
+            width: double.infinity,
+            height: 60,
+            decoration: BoxDecoration(
+              color: AppTheme.successColor,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.successColor.withOpacity(0.3),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
+                  spreadRadius: -4,
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onPressed,
+                borderRadius: BorderRadius.circular(30),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Main text
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Complete Tutorial',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Arrow indicator on the right
+                    Positioned(
+                      right: 24,
+                      child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          )
+                          .animate(onPlay: (controller) => controller.repeat())
+                          .shimmer(
+                            duration: 2000.ms,
+                            color: Colors.white.withOpacity(0.3),
+                          )
+                          .then()
+                          .animate()
+                          .slideX(
+                            begin: 0,
+                            end: 0.1,
+                            duration: 1000.ms,
+                            curve: Curves.easeInOut,
+                          )
+                          .then()
+                          .slideX(
+                            begin: 0.1,
+                            end: 0,
+                            duration: 1000.ms,
+                            curve: Curves.easeInOut,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        )
+        .animate()
+        .fadeIn(duration: 500.ms, delay: 200.ms)
+        .slideY(begin: 0.2, curve: Curves.easeOutBack)
+        .scale(begin: const Offset(0.9, 0.9), curve: Curves.easeOut);
   }
 }
 
