@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -465,60 +466,71 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
 
   Widget _buildSearchBar() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+      margin: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Modern search field with enhanced design
-          Container(
-            height: 52,
+          // Ultra-modern search field
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+            height: 56,
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color:
-                    _isSearching
-                        ? AppTheme.primaryColor.withOpacity(0.4)
-                        : Colors.grey.shade200,
-                width: _isSearching ? 2 : 1,
-              ),
+              color: _isSearching ? Colors.white : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(28),
               boxShadow: [
                 BoxShadow(
                   color:
                       _isSearching
-                          ? AppTheme.primaryColor.withOpacity(0.1)
-                          : Colors.black.withOpacity(0.04),
-                  blurRadius: _isSearching ? 20 : 10,
-                  offset: const Offset(0, 4),
+                          ? AppTheme.primaryColor.withOpacity(0.08)
+                          : Colors.black.withOpacity(0.03),
+                  blurRadius: _isSearching ? 24 : 12,
+                  offset: Offset(0, _isSearching ? 8 : 4),
+                  spreadRadius: _isSearching ? 2 : 0,
                 ),
               ],
             ),
             child: Row(
               children: [
-                // Enhanced search icon
-                Padding(
-                  padding: const EdgeInsets.only(left: 16, right: 8),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color:
-                          _isSearching
-                              ? AppTheme.primaryColor.withOpacity(0.1)
-                              : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.search_rounded,
-                      color:
-                          _isSearching
-                              ? AppTheme.primaryColor
-                              : Colors.grey.shade500,
-                      size: 20,
-                    ),
-                  ),
+                // Animated search icon
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: _isSearching ? 1 : 0),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, child) {
+                    return Container(
+                      margin: const EdgeInsets.only(left: 20, right: 12),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // Background glow
+                          if (_isSearching)
+                            Container(
+                              width: 32 + (value * 4),
+                              height: 32 + (value * 4),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryColor.withOpacity(
+                                  0.1 * value,
+                                ),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          // Icon
+                          Icon(
+                            _isSearching ? Icons.search : Icons.search,
+                            color: Color.lerp(
+                              Colors.grey.shade400,
+                              AppTheme.primaryColor,
+                              value,
+                            ),
+                            size: 22,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-                // Text field with better typography
+                // Text field with smooth animations
                 Expanded(
                   child: TextField(
                     controller: _searchTextController,
@@ -527,176 +539,292 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
                         _searchQuery = value.toLowerCase();
                         _isSearching = value.isNotEmpty;
                       });
+                      if (value.isNotEmpty) {
+                        HapticFeedback.selectionClick();
+                      }
                     },
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                       color: AppTheme.textPrimary,
-                      letterSpacing: 0.2,
+                      letterSpacing: 0.3,
                     ),
                     decoration: InputDecoration(
-                      hintText: 'Search for categories...',
+                      hintText: 'What would you like to play?',
                       hintStyle: TextStyle(
                         color: Colors.grey.shade400,
-                        fontSize: 14,
+                        fontSize: 15,
                         fontWeight: FontWeight.w400,
-                        letterSpacing: 0.1,
+                        letterSpacing: 0.2,
                       ),
                       border: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 0,
-                        vertical: 16,
+                        vertical: 18,
                       ),
                     ),
                   ),
                 ),
-                // Results count or clear button
+                // Animated clear button and results
                 AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
+                  duration: const Duration(milliseconds: 250),
+                  transitionBuilder: (
+                    Widget child,
+                    Animation<double> animation,
+                  ) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(scale: animation, child: child),
+                    );
+                  },
                   child:
                       _searchQuery.isNotEmpty
-                          ? Row(
-                            children: [
-                              // Results count
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                margin: const EdgeInsets.only(right: 8),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.primaryColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '${_getFilteredCount()}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppTheme.primaryColor,
-                                  ),
-                                ),
-                              ),
-                              // Clear button
-                              Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: () {
-                                    _searchTextController.clear();
-                                    setState(() {
-                                      _searchQuery = '';
-                                      _isSearching = false;
-                                    });
+                          ? Container(
+                            key: const ValueKey('search-actions'),
+                            margin: const EdgeInsets.only(right: 8),
+                            child: Row(
+                              children: [
+                                // Animated results badge
+                                TweenAnimationBuilder<double>(
+                                  tween: Tween(begin: 0, end: 1),
+                                  duration: const Duration(milliseconds: 400),
+                                  curve: Curves.elasticOut,
+                                  builder: (context, value, child) {
+                                    return Transform.scale(
+                                      scale: value,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        margin: const EdgeInsets.only(right: 8),
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              AppTheme.primaryColor.withOpacity(
+                                                0.15,
+                                              ),
+                                              AppTheme.primaryColor.withOpacity(
+                                                0.1,
+                                              ),
+                                            ],
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.auto_awesome,
+                                              size: 14,
+                                              color: AppTheme.primaryColor,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '${_getFilteredCount()}',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w700,
+                                                color: AppTheme.primaryColor,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
                                   },
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    margin: const EdgeInsets.only(right: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade100,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Icon(
-                                      Icons.close_rounded,
-                                      size: 16,
-                                      color: Colors.grey.shade600,
+                                ),
+                                // Modern clear button
+                                Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () {
+                                      HapticFeedback.lightImpact();
+                                      _searchTextController.clear();
+                                      setState(() {
+                                        _searchQuery = '';
+                                        _isSearching = false;
+                                      });
+                                    },
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(10),
+                                      margin: const EdgeInsets.only(right: 8),
+                                      child: Icon(
+                                        Icons.clear_rounded,
+                                        size: 20,
+                                        color: Colors.grey.shade500,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           )
-                          : const SizedBox(width: 16),
+                          : const SizedBox(width: 20, key: ValueKey('empty')),
                 ),
               ],
             ),
           ),
-          // Enhanced quick filter chips
-          if (_searchQuery.isEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              'Quick Filters',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.textSecondary,
-                letterSpacing: 0.3,
-              ),
-            ),
-            const SizedBox(height: 10),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildEnhancedFilterChip(
-                    'Trending',
-                    Icons.local_fire_department_rounded,
-                    Colors.orange,
-                  ),
-                  _buildEnhancedFilterChip(
-                    'Popular',
-                    Icons.star_rounded,
-                    Colors.amber,
-                  ),
-                  _buildEnhancedFilterChip(
-                    'New',
-                    Icons.new_releases_rounded,
-                    Colors.blue,
-                  ),
-                  _buildEnhancedFilterChip(
-                    'Fun',
-                    Icons.mood_rounded,
-                    Colors.green,
-                  ),
-                ],
-              ),
-            ),
-          ],
+          // Modern quick filter section
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+            child:
+                _searchQuery.isEmpty
+                    ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 4),
+                          child: Text(
+                            'Quick Filters',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textSecondary,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          child: Row(
+                            children: [
+                              _buildModernFilterChip(
+                                'Trending',
+                                Icons.local_fire_department_rounded,
+                                const Color(0xFFFF5757),
+                                const Color(0xFFFFEBEB),
+                              ),
+                              _buildModernFilterChip(
+                                'Popular',
+                                Icons.star_rounded,
+                                const Color(0xFFFFB800),
+                                const Color(0xFFFFF7E6),
+                              ),
+                              _buildModernFilterChip(
+                                'New',
+                                Icons.auto_awesome,
+                                const Color(0xFF00D4FF),
+                                const Color(0xFFE6F9FF),
+                              ),
+                              _buildModernFilterChip(
+                                'Fun',
+                                Icons.emoji_emotions_rounded,
+                                const Color(0xFF7C3AED),
+                                const Color(0xFFF3E8FF),
+                              ),
+                              _buildModernFilterChip(
+                                'Classic',
+                                Icons.workspace_premium_rounded,
+                                const Color(0xFF10B981),
+                                const Color(0xFFECFDF5),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                    : const SizedBox.shrink(),
+          ),
         ],
       ),
     ).animate().fadeIn(delay: 200.ms, duration: 400.ms).slideY(begin: 0.03);
   }
 
-  Widget _buildEnhancedFilterChip(String label, IconData icon, Color color) {
-    return Container(
-      margin: const EdgeInsets.only(right: 10),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            _searchTextController.text = label.toLowerCase();
-            setState(() {
-              _searchQuery = label.toLowerCase();
-              _isSearching = true;
-            });
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color.withOpacity(0.2), width: 1),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 16, color: color),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: color.withOpacity(0.9),
-                    letterSpacing: 0.2,
+  Widget _buildModernFilterChip(
+    String label,
+    IconData icon,
+    Color iconColor,
+    Color bgColor,
+  ) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 400 + (label.length * 20)),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Transform.scale(
+          scale: 0.95 + (0.05 * value),
+          child: Opacity(
+            opacity: value,
+            child: Container(
+              margin: const EdgeInsets.only(right: 10),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    _searchTextController.text = label.toLowerCase();
+                    setState(() {
+                      _searchQuery = label.toLowerCase();
+                      _isSearching = true;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(18),
+                  splashColor: iconColor.withOpacity(0.1),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: iconColor.withOpacity(0.1),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: iconColor.withOpacity(0.08),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.9),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Icon(icon, size: 14, color: iconColor),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: iconColor.withOpacity(0.9),
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
