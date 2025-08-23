@@ -332,118 +332,273 @@ class _GameplayScreenState extends State<GameplayScreen>
     showDialog(
       context: context,
       barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.7),
       builder:
           (dialogContext) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            backgroundColor: Colors.white,
+            elevation: 0,
+            backgroundColor: Colors.transparent,
             child: Container(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.white, Colors.white.withOpacity(0.95)],
+                ),
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.deck.color.withOpacity(0.3),
+                    blurRadius: 30,
+                    spreadRadius: 5,
+                    offset: const Offset(0, 10),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Stack(
                 children: [
-                  // Pause icon
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppTheme.primaryColor.withOpacity(0.1),
-                    ),
-                    child: Icon(
-                      Icons.pause_rounded,
-                      size: 32,
-                      color: AppTheme.primaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Title
-                  const Text(
-                    'Game Paused',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Message
-                  Text(
-                    'Take your time! Ready to continue?',
-                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Resume button (primary action)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(dialogContext);
-                        context.read<GameProvider>().togglePause();
-                        _canDetectTilt = true;
-                        _hapticService.lightImpact();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryColor,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'Resume Game',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                  // Background pattern
+                  Positioned(
+                    top: -50,
+                    right: -50,
+                    child: Container(
+                      width: 150,
+                      height: 150,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            widget.deck.color.withOpacity(0.1),
+                            widget.deck.color.withOpacity(0.05),
+                            Colors.transparent,
+                          ],
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-
-                  // End game button (secondary action)
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () {
-                        Navigator.pop(dialogContext);
-                        _hapticService.mediumImpact();
-
-                        // End the current game
-                        context.read<GameProvider>().endGame();
-
-                        // Navigate to results screen
-                        if (widget.isTeamMode) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const TeamResultsScreen(),
+                  // Content - wrapped in scrollable container with proper constraints
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.7,
+                      maxWidth: MediaQuery.of(context).size.width * 0.9,
+                    ),
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Animated pause icon
+                            TweenAnimationBuilder<double>(
+                              tween: Tween(begin: 0.0, end: 1.0),
+                              duration: const Duration(milliseconds: 500),
+                              builder: (context, value, child) {
+                                return Transform.scale(
+                                  scale: value,
+                                  child: Container(
+                                    width: 60,
+                                    height: 60,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          widget.deck.color.withOpacity(0.2),
+                                          widget.deck.color.withOpacity(0.1),
+                                        ],
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: widget.deck.color.withOpacity(
+                                            0.2,
+                                          ),
+                                          blurRadius: 20,
+                                          spreadRadius: 2,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Icon(
+                                      Icons.pause_rounded,
+                                      size: 32,
+                                      color: widget.deck.color,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                          );
-                        } else {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ResultsScreen(),
+                            const SizedBox(height: 20),
+
+                            // Title with gradient
+                            ShaderMask(
+                              shaderCallback:
+                                  (bounds) => LinearGradient(
+                                    colors: [
+                                      widget.deck.color,
+                                      widget.deck.color.withOpacity(0.7),
+                                    ],
+                                  ).createShader(bounds),
+                              child: const Text(
+                                'Game Paused',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
-                          );
-                        }
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(color: Colors.red, width: 1.5),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'End Game',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                            const SizedBox(height: 8),
+
+                            // Message
+                            Text(
+                              'Take a breather!',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[700],
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            Text(
+                              'Your game is waiting for you',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[500],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 24),
+
+                            // Resume button with gradient
+                            Container(
+                              width: double.infinity,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    widget.deck.color,
+                                    widget.deck.color.withOpacity(0.8),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: widget.deck.color.withOpacity(0.3),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    Navigator.pop(dialogContext);
+                  context.read<GameProvider>().togglePause();
+                  _canDetectTilt = true;
+                                    _hapticService.lightImpact();
+                                  },
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Center(
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: const [
+                                        Icon(
+                                          Icons.play_arrow_rounded,
+                                          color: Colors.white,
+                                          size: 24,
+                                        ),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          'Resume Game',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // End game button with subtle design
+                            Container(
+                              width: double.infinity,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Colors.grey[200]!,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    Navigator.pop(dialogContext);
+                                    _hapticService.mediumImpact();
+
+                                    // End the current game
+                                    context.read<GameProvider>().endGame();
+
+                                    // Navigate to results screen
+                                    if (widget.isTeamMode) {
+                                      Navigator.pushReplacement(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const TeamResultsScreen(),
+                                        ),
+                                      );
+                                    } else {
+                                      Navigator.pushReplacement(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const ResultsScreen(),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Center(
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.stop_rounded,
+                                          color: Colors.red[400],
+                                          size: 22,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'End Game',
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.red[400],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -486,40 +641,40 @@ class _GameplayScreenState extends State<GameplayScreen>
       },
       child: Scaffold(
         body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                widget.deck.color.withOpacity(0.8),
-                widget.deck.color,
+                  colors: [
+                    widget.deck.color.withOpacity(0.8),
+                    widget.deck.color,
                 widget.deck.color.withOpacity(0.6),
-              ],
-            ),
-          ),
-          child: Stack(
-            children: [
+                  ],
+                ),
+              ),
+                child: Stack(
+                  children: [
               // Animated background elements
               _buildAnimatedBackground(),
 
-              // Main content
+                    // Main content
               SafeArea(
                 child: _isCountingDown ? _buildCountdown() : _buildGameplay(),
-              ),
+                      ),
 
-              // Feedback overlay
-              _buildFeedbackOverlay(),
+                    // Feedback overlay
+                    _buildFeedbackOverlay(),
 
               // Tutorial hints
               if (_showTutorialHints && !_isCountingDown)
-                TutorialHintOverlay(
+                    TutorialHintOverlay(
                   showHints: true,
-                  onDismiss: () {
-                    setState(() {
-                      _showTutorialHints = false;
-                    });
-                  },
-                ),
+                      onDismiss: () {
+                        setState(() {
+                          _showTutorialHints = false;
+                        });
+                      },
+                    ),
             ],
           ),
         ),
@@ -529,14 +684,14 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   Widget _buildAnimatedBackground() {
     return Stack(
-      children: [
+        children: [
         // Animated gradient mesh
         AnimatedBuilder(
           animation: _backgroundAnimController,
           builder: (context, child) {
             return Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
                   begin: Alignment(
                     -1 +
                         math.sin(
@@ -635,29 +790,29 @@ class _GameplayScreenState extends State<GameplayScreen>
               child: Container(
                 width: 180,
                 height: 180,
-                decoration: BoxDecoration(
+            decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withOpacity(0.15),
                   border: Border.all(
                     color: Colors.white.withOpacity(0.3),
                     width: 3,
                   ),
-                  boxShadow: [
-                    BoxShadow(
+              boxShadow: [
+                BoxShadow(
                       color: Colors.black.withOpacity(0.2),
                       blurRadius: 30,
                       spreadRadius: 10,
-                    ),
-                  ],
                 ),
+              ],
+            ),
                 child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
+              children: [
+                Text(
                         _countdownValue.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
+                  style: const TextStyle(
+                    color: Colors.white,
                           fontSize: 72,
                           fontWeight: FontWeight.w900,
                           height: 1,
@@ -668,19 +823,19 @@ class _GameplayScreenState extends State<GameplayScreen>
                         'GET READY',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                           letterSpacing: 2,
-                        ),
-                      ),
-                    ],
                   ),
                 ),
-              ),
+              ],
             ),
-          );
-        },
-      ),
+                ),
+                  ),
+                ),
+              );
+            },
+          ),
     );
   }
 
@@ -700,31 +855,31 @@ class _GameplayScreenState extends State<GameplayScreen>
             children: [
               // Main card with animation
               Center(
-                child: AnimatedBuilder(
-                  animation: _cardFlipController,
-                  builder: (context, child) {
-                    final angle = _cardFlipController.value * math.pi;
-                    if (angle >= math.pi / 2) {
-                      return Transform(
-                        alignment: Alignment.center,
-                        transform:
-                            Matrix4.identity()
-                              ..setEntry(3, 2, 0.001)
-                              ..rotateY(math.pi),
-                        child: _buildCardBack(),
-                      );
-                    } else {
-                      return Transform(
-                        alignment: Alignment.center,
-                        transform:
-                            Matrix4.identity()
-                              ..setEntry(3, 2, 0.001)
-                              ..rotateY(angle),
-                        child: _buildCardFront(currentCard),
-                      );
-                    }
-                  },
-                ),
+            child: AnimatedBuilder(
+              animation: _cardFlipController,
+              builder: (context, child) {
+                final angle = _cardFlipController.value * math.pi;
+                if (angle >= math.pi / 2) {
+                  return Transform(
+                    alignment: Alignment.center,
+                    transform:
+                        Matrix4.identity()
+                          ..setEntry(3, 2, 0.001)
+                          ..rotateY(math.pi),
+                    child: _buildCardBack(),
+                  );
+                } else {
+                  return Transform(
+                    alignment: Alignment.center,
+                    transform:
+                        Matrix4.identity()
+                          ..setEntry(3, 2, 0.001)
+                          ..rotateY(angle),
+                    child: _buildCardFront(currentCard),
+                  );
+                }
+              },
+            ),
               ),
 
               // Manual control buttons
@@ -746,9 +901,9 @@ class _GameplayScreenState extends State<GameplayScreen>
   Widget _buildModernHeader(GameProvider gameProvider) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Row(
+          child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
+            children: [
           // Pause button
           _buildGlassButton(icon: Icons.pause_rounded, onTap: _pauseGame),
 
@@ -838,10 +993,10 @@ class _GameplayScreenState extends State<GameplayScreen>
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+                child: Container(
         width: 48,
         height: 48,
-        decoration: BoxDecoration(
+                  decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.15),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
@@ -894,7 +1049,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                 ],
               ),
               borderRadius: BorderRadius.circular(32),
-              border: Border.all(
+                    border: Border.all(
                 color: Colors.white.withOpacity(0.5),
                 width: 1,
               ),
@@ -947,16 +1102,16 @@ class _GameplayScreenState extends State<GameplayScreen>
                               color: widget.deck.color,
                             ),
                             const SizedBox(width: 8),
-                            Text(
+                      Text(
                               widget.deck.name.toUpperCase(),
-                              style: TextStyle(
+                        style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 color: widget.deck.color,
                                 letterSpacing: 1.5,
-                              ),
-                            ),
-                          ],
+                        ),
+                      ),
+                    ],
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -989,13 +1144,13 @@ class _GameplayScreenState extends State<GameplayScreen>
                                 overflow: TextOverflow.visible,
                               ),
                             ),
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ),
-              ],
+              ),
+            ],
+          ),
+        ),
+      ],
             ),
           ),
         );
@@ -1058,7 +1213,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                     const SizedBox(height: 24),
                     Text(
                       'Next Card',
-                      style: TextStyle(
+          style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
                         fontSize: 24,
                         fontWeight: FontWeight.w600,
@@ -1120,22 +1275,22 @@ class _GameplayScreenState extends State<GameplayScreen>
           Container(
                 width: 120,
                 height: 120,
-                decoration: BoxDecoration(
+      decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
                     colors: [color.withOpacity(0.3), color.withOpacity(0.2)],
-                  ),
+        ),
                   border: Border.all(color: color.withOpacity(0.5), width: 3),
-                  boxShadow: [
-                    BoxShadow(
+        boxShadow: [
+          BoxShadow(
                       color: color.withOpacity(0.3),
                       blurRadius: 30,
                       spreadRadius: 5,
-                    ),
-                  ],
-                ),
+          ),
+        ],
+      ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -1434,56 +1589,6 @@ class _ElegantBackgroundPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ElegantBackgroundPainter oldDelegate) {
-    return oldDelegate.animation != animation;
-  }
-}
-
-class _ModernBackgroundPainter extends CustomPainter {
-  final double animation;
-  final Color color;
-
-  _ModernBackgroundPainter({required this.animation, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..style = PaintingStyle.fill
-          ..strokeWidth = 2;
-
-    // Draw floating circles
-    for (int i = 0; i < 5; i++) {
-      final offset = Offset(
-        size.width * (0.2 + i * 0.15),
-        size.height * (0.3 + math.sin(animation * 2 * math.pi + i) * 0.1),
-      );
-
-      paint.color = Colors.white.withOpacity(0.03 + i * 0.01);
-      canvas.drawCircle(offset, 50 + i * 20, paint);
-    }
-
-    // Draw gradient lines
-    final path = Path();
-    for (int i = 0; i < 3; i++) {
-      path.reset();
-      final y = size.height * (0.2 + i * 0.3);
-      path.moveTo(0, y);
-
-      for (double x = 0; x <= size.width; x += 10) {
-        final normalizedX = x / size.width;
-        final waveY =
-            y + math.sin((normalizedX + animation) * math.pi * 2) * 20;
-        path.lineTo(x, waveY);
-      }
-
-      paint.color = Colors.white.withOpacity(0.02);
-      paint.style = PaintingStyle.stroke;
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_ModernBackgroundPainter oldDelegate) {
     return oldDelegate.animation != animation;
   }
 }

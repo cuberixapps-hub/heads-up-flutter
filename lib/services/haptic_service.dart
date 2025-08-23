@@ -1,4 +1,3 @@
-import 'package:vibration/vibration.dart';
 import 'package:flutter/services.dart';
 
 class HapticService {
@@ -6,83 +5,70 @@ class HapticService {
   factory HapticService() => _instance;
   HapticService._internal();
 
-  bool _isVibrationEnabled = true;
+  bool _isHapticEnabled = true;
 
-  void setVibrationEnabled(bool enabled) {
-    _isVibrationEnabled = enabled;
+  void setHapticEnabled(bool enabled) {
+    _isHapticEnabled = enabled;
   }
 
   Future<void> lightImpact() async {
-    if (!_isVibrationEnabled) return;
+    if (!_isHapticEnabled) return;
     try {
-      HapticFeedback.lightImpact();
-      await Vibration.vibrate(duration: 10, amplitude: 50);
+      await HapticFeedback.lightImpact();
     } catch (e) {
       // Handle error silently
     }
   }
 
   Future<void> mediumImpact() async {
-    if (!_isVibrationEnabled) return;
+    if (!_isHapticEnabled) return;
     try {
-      HapticFeedback.mediumImpact();
-      await Vibration.vibrate(duration: 20, amplitude: 100);
+      await HapticFeedback.mediumImpact();
     } catch (e) {
       // Handle error silently
     }
   }
 
   Future<void> heavyImpact() async {
-    if (!_isVibrationEnabled) return;
+    if (!_isHapticEnabled) return;
     try {
-      HapticFeedback.heavyImpact();
-      await Vibration.vibrate(duration: 30, amplitude: 150);
+      await HapticFeedback.heavyImpact();
     } catch (e) {
       // Handle error silently
     }
   }
 
   Future<void> success() async {
-    if (!_isVibrationEnabled) return;
+    if (!_isHapticEnabled) return;
     try {
-      HapticFeedback.mediumImpact();
-      await Vibration.vibrate(
-        pattern: [0, 50, 30, 50],
-        intensities: [0, 100, 0, 100],
-      );
+      await HapticFeedback.mediumImpact();
     } catch (e) {
       // Handle error silently
     }
   }
 
   Future<void> warning() async {
-    if (!_isVibrationEnabled) return;
+    if (!_isHapticEnabled) return;
     try {
-      HapticFeedback.lightImpact();
-      await Vibration.vibrate(duration: 15, amplitude: 75);
+      await HapticFeedback.lightImpact();
     } catch (e) {
       // Handle error silently
     }
   }
 
   Future<void> error() async {
-    if (!_isVibrationEnabled) return;
+    if (!_isHapticEnabled) return;
     try {
-      HapticFeedback.heavyImpact();
-      await Vibration.vibrate(
-        pattern: [0, 100, 50, 100],
-        intensities: [0, 150, 0, 150],
-      );
+      await HapticFeedback.heavyImpact();
     } catch (e) {
       // Handle error silently
     }
   }
 
   Future<void> selection() async {
-    if (!_isVibrationEnabled) return;
+    if (!_isHapticEnabled) return;
     try {
-      HapticFeedback.selectionClick();
-      await Vibration.vibrate(duration: 5, amplitude: 30);
+      await HapticFeedback.selectionClick();
     } catch (e) {
       // Handle error silently
     }

@@ -45,6 +45,14 @@ class _SplashScreenState extends State<SplashScreen>
     _logoController.forward();
     _textController.forward();
     _navigateToNext();
+    
+    // Fallback navigation in case the normal navigation fails
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        debugPrint('⚠️ Fallback navigation triggered - going to home');
+        context.go('/home');
+      }
+    });
   }
 
   Future<void> _navigateToNext() async {
@@ -52,12 +60,22 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
-
-    if (!hasSeenOnboarding) {
-      context.go('/onboarding');
-    } else {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
+      
+      debugPrint('🚀 Navigation: Has seen onboarding = $hasSeenOnboarding');
+      
+      if (!hasSeenOnboarding) {
+        debugPrint('🚀 Navigating to onboarding screen...');
+        context.go('/onboarding');
+      } else {
+        debugPrint('🚀 Navigating to home screen...');
+        context.go('/home');
+      }
+    } catch (e) {
+      debugPrint('❌ Navigation error: $e');
+      // Force navigation to home if there's an error
       context.go('/home');
     }
   }

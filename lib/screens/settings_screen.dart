@@ -30,7 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   // Settings values
   bool _soundEnabled = true;
-  bool _vibrationEnabled = true;
+  bool _hapticEnabled = true;
   bool _notificationsEnabled = false;
   int _timerDuration = 60;
   bool _showTutorials = true;
@@ -61,7 +61,7 @@ class _SettingsScreenState extends State<SettingsScreen>
 
     setState(() {
       _soundEnabled = gameProvider.soundEnabled;
-      _vibrationEnabled = gameProvider.vibrationEnabled;
+      _hapticEnabled = gameProvider.vibrationEnabled;
       _kidFriendlyMode = gameProvider.kidFriendlyMode;
       _showWordsAfterPass = gameProvider.showWordsAfterPass;
       _timerDuration = gameProvider.roundDuration;
@@ -73,7 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     });
 
     _audioService.setSoundEnabled(_soundEnabled);
-    _hapticService.setVibrationEnabled(_vibrationEnabled);
+    _hapticService.setHapticEnabled(_hapticEnabled);
   }
 
   Future<void> _saveSettings() async {
@@ -84,7 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     if (_soundEnabled != gameProvider.soundEnabled) {
       await gameProvider.toggleSound();
     }
-    if (_vibrationEnabled != gameProvider.vibrationEnabled) {
+    if (_hapticEnabled != gameProvider.vibrationEnabled) {
       await gameProvider.toggleVibration();
     }
     if (_kidFriendlyMode != gameProvider.kidFriendlyMode) {
@@ -104,7 +104,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     await prefs.setBool('prefer_landscape_gameplay', _preferLandscape);
 
     _audioService.setSoundEnabled(_soundEnabled);
-    _hapticService.setVibrationEnabled(_vibrationEnabled);
+    _hapticService.setHapticEnabled(_hapticEnabled);
   }
 
   @override
@@ -263,12 +263,12 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                     _buildDivider(),
                     _buildSwitchTile(
-                      'Vibration',
-                      'Haptic feedback during gameplay',
-                      Icons.vibration_rounded,
-                      _vibrationEnabled,
+                      'Haptic Feedback',
+                      'Subtle touch feedback during gameplay',
+                      Icons.touch_app_rounded,
+                      _hapticEnabled,
                       (value) {
-                        setState(() => _vibrationEnabled = value);
+                        setState(() => _hapticEnabled = value);
                         _saveSettings();
                         if (value) _hapticService.mediumImpact();
                       },

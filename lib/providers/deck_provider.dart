@@ -43,31 +43,71 @@ class DeckProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // First, check if default decks exist in Firestore
-      final firebaseDefaultDecks = await _deckFirebaseService.getDefaultDecks();
+      debugPrint('🎮 HEADS UP: Starting app initialization...');
+
+      // Try to fetch from Firebase with a timeout
+      final firebaseDefaultDecks = await _deckFirebaseService
+          .getDefaultDecks()
+          .timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {
+              debugPrint(
+                '📱 OFFLINE MODE: No internet connection detected - loading local decks',
+              );
+              return <Deck>[];
+            },
+          );
 
       if (firebaseDefaultDecks.isEmpty) {
-        // Initialize default decks in Firestore if they don't exist
-        debugPrint('Initializing default decks in Firestore...');
-        await _deckFirebaseService.initializeDefaultDecks(DefaultDecks.decks);
+        // Try to initialize default decks in Firestore if they don't exist
+        debugPrint('🎯 Loading default decks from local storage...');
+        _loadLocalDefaultDecks();
+        debugPrint(
+          '✅ Successfully loaded ${_defaultDecks.length} default decks locally',
+        );
 
-        // Fetch again after initialization
-        _defaultDecks = await _deckFirebaseService.getDefaultDecks();
+        // Try to upload to Firebase in background (non-blocking)
+        _deckFirebaseService
+            .initializeDefaultDecks(DefaultDecks.decks)
+            .then((_) {
+              debugPrint('Default decks uploaded to Firebase');
+              // Try to fetch from Firebase again
+              _deckFirebaseService.getDefaultDecks().then((decks) {
+                if (decks.isNotEmpty) {
+                  _defaultDecks = decks;
+                  notifyListeners();
+                }
+              });
+            })
+            .catchError((e) {
+              // This is expected when offline - not an error
+              debugPrint(
+                '📴 Running in offline mode (Firebase sync will resume when online)',
+              );
+            });
       } else {
         _defaultDecks = firebaseDefaultDecks;
+        debugPrint('✅ Loaded ${_defaultDecks.length} decks from Firebase');
       }
 
-      // Set up real-time listeners
+      // Set up real-time listeners (will work when connection is restored)
       _setupRealtimeListeners();
 
       // Load user-specific data
       await _loadUserData();
 
       _isInitialized = true;
+      debugPrint(
+        '🎉 APP READY: Heads Up game is fully loaded and ready to play!',
+      );
     } catch (e) {
-      debugPrint('Error initializing decks: $e');
+      debugPrint('📱 OFFLINE MODE: Loading local decks...');
       // Fallback to local default decks if Firebase fails
       _loadLocalDefaultDecks();
+      _isInitialized = true;
+      debugPrint(
+        '✅ APP READY: Running in offline mode with ${_defaultDecks.length} decks available',
+      );
     } finally {
       _isLoading = false;
       notifyListeners();

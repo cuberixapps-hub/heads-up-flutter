@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'constants/app_theme.dart';
 import 'providers/deck_provider.dart';
 import 'providers/game_provider.dart';
+import 'widgets/network_status_widget.dart';
 
 import 'services/firebase_service.dart';
 import 'utils/app_router.dart';
@@ -11,12 +12,34 @@ import 'utils/app_router.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  debugPrint('');
+  debugPrint('========================================');
+  debugPrint('🎮 HEADS UP GAME STARTING...');
+  debugPrint('========================================');
+
   // Initialize Firebase
   final firebaseService = FirebaseService();
   await firebaseService.initialize();
 
-  // Sign in anonymously by default
-  await firebaseService.signInAnonymously();
+  // Try to sign in anonymously, but don't block app startup if it fails
+  try {
+    await firebaseService.signInAnonymously().timeout(
+      const Duration(seconds: 5),
+      onTimeout: () {
+        debugPrint('📱 Starting in OFFLINE MODE (no internet connection)');
+        debugPrint(
+          'ℹ️ Note: Firebase warnings below are NORMAL and expected when offline',
+        );
+        return null;
+      },
+    );
+    debugPrint('✅ Connected to Firebase successfully');
+  } catch (e) {
+    debugPrint('📱 Starting in OFFLINE MODE');
+    debugPrint(
+      'ℹ️ Note: Firebase warnings below are NORMAL and expected when offline',
+    );
+  }
 
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
@@ -52,6 +75,10 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         routerConfig: AppRouter.router,
+        builder: (context, child) {
+          // Wrap the child with NetworkStatusWidget after MaterialApp provides Directionality
+          return NetworkStatusWidget(child: child ?? const SizedBox.shrink());
+        },
       ),
     );
   }
