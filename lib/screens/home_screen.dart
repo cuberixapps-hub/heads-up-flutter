@@ -669,59 +669,77 @@ class _HomeScreenState extends State<HomeScreen>
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          Row(
-                                            children: [
-                                              Text(
-                                                'Quick Play',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .headlineSmall
-                                                    ?.copyWith(
-                                                      color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                      fontSize: 26,
-                                                      letterSpacing: -0.5,
-                                                    ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 3,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: AppTheme.warningColor
-                                                      .withOpacity(0.9),
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      Icons
-                                                          .local_fire_department_rounded,
-                                                      color: Colors.white,
-                                                      size: 14,
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      'HOT',
-                                                      style: TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 11,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        letterSpacing: 0.5,
+                                          LayoutBuilder(
+                                            builder: (context, constraints) {
+                                              // Check if we have enough space for both text and chip
+                                              final showChip =
+                                                  constraints.maxWidth > 150;
+
+                                              return Row(
+                                                children: [
+                                                  Text(
+                                                    'Quick Play',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .headlineSmall
+                                                        ?.copyWith(
+                                                          color: Colors.white,
+                                                          fontWeight:
+                                                              FontWeight.w800,
+                                                          fontSize: 26,
+                                                          letterSpacing: -0.5,
+                                                        ),
+                                                  ),
+                                                  if (showChip) ...[
+                                                    const SizedBox(width: 8),
+                                                    Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 3,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: AppTheme
+                                                            .warningColor
+                                                            .withOpacity(0.9),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              8,
+                                                            ),
+                                                      ),
+                                                      child: Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          Icon(
+                                                            Icons
+                                                                .local_fire_department_rounded,
+                                                            color: Colors.white,
+                                                            size: 14,
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 4,
+                                                          ),
+                                                          Text(
+                                                            'HOT',
+                                                            style: TextStyle(
+                                                              color:
+                                                                  Colors.white,
+                                                              fontSize: 11,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w700,
+                                                              letterSpacing:
+                                                                  0.5,
+                                                            ),
+                                                          ),
+                                                        ],
                                                       ),
                                                     ),
                                                   ],
-                                                ),
-                                              ),
-                                            ],
+                                                ],
+                                              );
+                                            },
                                           ),
                                           const SizedBox(height: 6),
                                           Text(
@@ -947,7 +965,7 @@ class _HomeScreenState extends State<HomeScreen>
                           borderRadius: BorderRadius.circular(24),
                           splashColor: Colors.white.withOpacity(0.2),
                           child: Padding(
-                            padding: const EdgeInsets.all(20),
+                            padding: const EdgeInsets.all(16),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -956,12 +974,12 @@ class _HomeScreenState extends State<HomeScreen>
                                   children: [
                                     Container(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 6,
+                                        horizontal: 8,
+                                        vertical: 4,
                                       ),
                                       decoration: BoxDecoration(
                                         color: Colors.white.withOpacity(0.25),
-                                        borderRadius: BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
@@ -969,16 +987,16 @@ class _HomeScreenState extends State<HomeScreen>
                                           Icon(
                                             Icons.local_fire_department_rounded,
                                             color: Colors.white,
-                                            size: 16,
+                                            size: 14,
                                           ),
-                                          const SizedBox(width: 6),
+                                          const SizedBox(width: 4),
                                           Text(
                                             'DAILY CHALLENGE',
                                             style: TextStyle(
                                               color: Colors.white,
-                                              fontSize: 11,
+                                              fontSize: 10,
                                               fontWeight: FontWeight.w700,
-                                              letterSpacing: 0.5,
+                                              letterSpacing: 0.3,
                                             ),
                                           ),
                                         ],
@@ -987,7 +1005,7 @@ class _HomeScreenState extends State<HomeScreen>
                                     const Spacer(),
                                     if (_hasPlayedDaily)
                                       Container(
-                                        padding: const EdgeInsets.all(8),
+                                        padding: const EdgeInsets.all(6),
                                         decoration: BoxDecoration(
                                           color: Colors.green.withOpacity(0.3),
                                           shape: BoxShape.circle,
@@ -995,14 +1013,14 @@ class _HomeScreenState extends State<HomeScreen>
                                         child: Icon(
                                           Icons.check_rounded,
                                           color: Colors.white,
-                                          size: 20,
+                                          size: 18,
                                         ),
                                       )
                                     else
                                       Container(
                                         padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 4,
+                                          horizontal: 8,
+                                          vertical: 3,
                                         ),
                                         decoration: BoxDecoration(
                                           color: Colors.amber.withOpacity(0.3),
@@ -1021,29 +1039,29 @@ class _HomeScreenState extends State<HomeScreen>
                                       ),
                                   ],
                                 ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 10),
                                 // Title and description
                                 Text(
                                   deck.title,
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 24,
+                                    fontSize: 20,
                                     fontWeight: FontWeight.w800,
                                     height: 1.1,
                                   ),
                                 ),
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 6),
                                 Text(
                                   deck.description,
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.9),
-                                    fontSize: 14,
+                                    fontSize: 13,
                                     fontWeight: FontWeight.w500,
                                   ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 12),
                                 // Stats row
                                 Row(
                                   children: [
@@ -1052,13 +1070,13 @@ class _HomeScreenState extends State<HomeScreen>
                                       '${deck.cards.length}',
                                       'Cards',
                                     ),
-                                    const SizedBox(width: 24),
+                                    const SizedBox(width: 20),
                                     _buildDailyStat(
                                       Icons.timer_rounded,
                                       '60s',
                                       'Timer',
                                     ),
-                                    const SizedBox(width: 24),
+                                    const SizedBox(width: 20),
                                     _buildDailyStat(
                                       Icons.star_rounded,
                                       '+50',
@@ -1066,11 +1084,11 @@ class _HomeScreenState extends State<HomeScreen>
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 12),
                                 // Play button or completed status
                                 Container(
                                   width: double.infinity,
-                                  height: 48,
+                                  height: 44,
                                   decoration: BoxDecoration(
                                     color:
                                         _hasPlayedDaily
@@ -1147,8 +1165,8 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildDailyStat(IconData icon, String value, String label) {
     return Row(
       children: [
-        Icon(icon, color: Colors.white.withOpacity(0.8), size: 18),
-        const SizedBox(width: 6),
+        Icon(icon, color: Colors.white.withOpacity(0.8), size: 16),
+        const SizedBox(width: 4),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1156,7 +1174,7 @@ class _HomeScreenState extends State<HomeScreen>
               value,
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 14,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1164,7 +1182,7 @@ class _HomeScreenState extends State<HomeScreen>
               label,
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
-                fontSize: 10,
+                fontSize: 9,
                 fontWeight: FontWeight.w500,
               ),
             ),
