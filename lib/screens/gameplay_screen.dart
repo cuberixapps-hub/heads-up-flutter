@@ -59,6 +59,22 @@ class _GameplayScreenState extends State<GameplayScreen>
   double _calibrationZ = 0.0;
   bool _isCalibrated = false;
 
+  // Neutral position tracking
+  bool _isInNeutralPosition = true;
+  DateTime? _lastActionTime;
+  static const _minTimeBetweenActions = Duration(
+    milliseconds: 1500,
+  ); // Increased for stability
+  static const _neutralThreshold = 20.0; // Increased neutral zone for stability
+
+  // Stability improvements
+  static const _actionThreshold =
+      45.0; // High threshold for very deliberate actions only
+  bool _actionLocked = false; // Prevent any action during cooldown
+
+  // Debug flag - set to true to see accelerometer values
+  static const _debugAccelerometer = false;
+
   // Game state
   bool _isCountingDown = true;
   int _countdownValue = 3;
@@ -178,66 +194,167 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _calibrateAccelerometer() {
-    // Calibrate the accelerometer when the phone is held to the forehead
-    accelerometerEventStream().first.then((event) {
-      _calibrationX = event.x;
-      _calibrationY = event.y;
-      _calibrationZ = event.z;
-      _isCalibrated = true;
-      _canDetectTilt = true;
-      _startAccelerometer();
+    // Reset state before calibration
+    _isInNeutralPosition = true;
+    _hasTriggeredAction = false;
+    _lastActionTime = null;
+    _actionLocked = false;
+
+    // Wait a moment for the user to position the phone, then calibrate
+    Future.delayed(const Duration(milliseconds: 500), () {
+      accelerometerEventStream().first.then((event) {
+        _calibrationX = event.x;
+        _calibrationY = event.y;
+        _calibrationZ = event.z;
+        _isCalibrated = true;
+        _canDetectTilt = true;
+        _startAccelerometer();
+      });
     });
   }
 
   void _startAccelerometer() {
     _accelerometerSubscription = accelerometerEventStream().listen((event) {
-      if (!_canDetectTilt || _hasTriggeredAction || !_isCalibrated) return;
+      if (!_canDetectTilt || !_isCalibrated) return;
 
       // Calculate relative tilt from calibrated position
       final deltaX = event.x - _calibrationX;
       final deltaY = event.y - _calibrationY;
       final deltaZ = event.z - _calibrationZ;
 
-      // Ignore left/right movements (X-axis changes)
-      // Only respond to forward/backward tilts
-      if (deltaX.abs() > 5.0) {
-        // If there's significant X-axis movement, ignore this reading
+      // IMPORTANT: Understanding accelerometer axes in different orientations:
+      //
+      // Portrait mode (phone vertical):
+      // - X-axis: left(-) to right(+)
+      // - Y-axis: bottom(-) to top(+) - THIS IS OUR TILT AXIS
+      // - Z-axis: back(-) to front(+)
+      //
+      // Landscape mode (phone horizontal, rotated 90° counter-clockwise):
+      // - The axes rotate with the device!
+      // - What was Y-axis becomes X-axis
+      // - What was X-axis becomes -Y-axis
+      // - Z-axis remains the same
+      //
+      // When phone is held to forehead in landscape:
+      // - Tilting forward (away from head) = CORRECT
+      // - Tilting backward (toward head) = PASS
+      // - This is detected via Z-axis changes
+
+      double tiltAngle;
+
+      if (_isLandscapeMode) {
+        // In landscape mode, when phone is on forehead:
+        // Forward/backward tilt affects Z-axis (perpendicular to screen)
+        // We use Z-axis change to detect the tilt
+        tiltAngle = deltaZ * 10; // Scale for sensitivity
+
+        if (_debugAccelerometer) {
+          print(
+            'Landscape - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | ' +
+                'DeltaX: ${deltaX.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | ' +
+                'TiltAngle: ${tiltAngle.toStringAsFixed(1)}',
+          );
+        }
+
+        // Filter out side-to-side movements (rotation around vertical axis)
+        // In landscape, this would be deltaY (because axes are rotated)
+        if (deltaY.abs() > 5.0) {
+          if (_debugAccelerometer) {
+            print('Ignoring - too much rotation');
+          }
+          return;
+        }
+      } else {
+        // In portrait mode:
+        // Forward/backward tilt affects Y-axis
+        tiltAngle = deltaY * 10;
+
+        if (_debugAccelerometer) {
+          print(
+            'Portrait - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | ' +
+                'DeltaX: ${deltaX.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | ' +
+                'TiltAngle: ${tiltAngle.toStringAsFixed(1)}',
+          );
+        }
+
+        // Filter out side-to-side movements
+        if (deltaX.abs() > 5.0) {
+          if (_debugAccelerometer) {
+            print('Ignoring - too much side movement');
+          }
+          return;
+        }
+      }
+
+      // Check if we're in neutral position
+      if (tiltAngle.abs() < _neutralThreshold) {
+        // Phone is in neutral position
+        if (!_isInNeutralPosition) {
+          _isInNeutralPosition = true;
+          _hasTriggeredAction =
+              false; // Reset trigger flag when returning to neutral
+        }
         return;
       }
 
-      // When phone is held to forehead (landscape):
-      // Tilt forward (away from head) = PASS
-      // Tilt backward (toward head) = CORRECT
-      // We use deltaZ for detecting the tilt when phone is vertical
+      // Check if enough time has passed since last action
+      if (_lastActionTime != null) {
+        final timeSinceLastAction = DateTime.now().difference(_lastActionTime!);
+        if (timeSinceLastAction < _minTimeBetweenActions) {
+          return; // Too soon for another action
+        }
+      }
 
-      double tiltAngle;
-      if (_isLandscapeMode) {
-        // In landscape mode, use Z-axis changes
-        tiltAngle = deltaZ * 10; // Scale for sensitivity
-      } else {
-        // In portrait mode, use Y-axis
-        tiltAngle = deltaY * 10;
+      // Only process tilt if we were in neutral position and haven't triggered yet
+      if (!_isInNeutralPosition || _hasTriggeredAction) {
+        return;
       }
 
       // Adjusted thresholds for better detection
-      const passThreshold = 25.0; // Tilt forward to pass
-      const correctThreshold = -25.0; // Tilt backward to mark correct
+      // In landscape with Z-axis: positive deltaZ = tilt backward (toward head) = PASS
+      //                           negative deltaZ = tilt forward (away from head) = CORRECT
+      const correctThreshold =
+          -_actionThreshold; // Tilt forward (away from head) to mark correct
+      const passThreshold =
+          _actionThreshold; // Tilt backward (toward head) to pass
 
-      if (tiltAngle > passThreshold) {
-        // Tilted forward - Pass
-        _handlePass();
-      } else if (tiltAngle < correctThreshold) {
-        // Tilted backward - Correct
-        _handleCorrect();
+      if (_isLandscapeMode) {
+        // In landscape mode, the directions are specific to Z-axis behavior
+        if (tiltAngle < correctThreshold) {
+          // Tilted forward (away from head) - Correct
+          _isInNeutralPosition = false;
+          _hasTriggeredAction = true;
+          _lastActionTime = DateTime.now();
+          _handleCorrect();
+        } else if (tiltAngle > passThreshold) {
+          // Tilted backward (toward head) - Pass
+          _isInNeutralPosition = false;
+          _hasTriggeredAction = true;
+          _lastActionTime = DateTime.now();
+          _handlePass();
+        }
+      } else {
+        // In portrait mode, keep the original logic
+        if (tiltAngle > _actionThreshold) {
+          // Tilted forward - Pass
+          _isInNeutralPosition = false;
+          _hasTriggeredAction = true;
+          _lastActionTime = DateTime.now();
+          _handlePass();
+        } else if (tiltAngle < -_actionThreshold) {
+          // Tilted backward - Correct
+          _isInNeutralPosition = false;
+          _hasTriggeredAction = true;
+          _lastActionTime = DateTime.now();
+          _handleCorrect();
+        }
       }
     });
   }
 
   void _handleCorrect() {
-    if (_hasTriggeredAction) return;
-
-    _hasTriggeredAction = true;
-    _canDetectTilt = false;
+    if (_actionLocked) return; // Prevent duplicate actions
+    _actionLocked = true;
 
     // Update game state
     context.read<GameProvider>().markCorrect();
@@ -247,20 +364,23 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     // Play effects
     _audioService.playCorrect();
-    _hapticService.lightImpact(); // Light haptic for correct
+    _hapticService.lightImpact(); // Light haptic for correct [[memory:7008710]]
 
     // Animate card flip
     _cardFlipController.forward().then((_) {
       _cardFlipController.reverse();
       _prepareNextCard();
     });
+
+    // Unlock after cooldown
+    Future.delayed(_minTimeBetweenActions, () {
+      _actionLocked = false;
+    });
   }
 
   void _handlePass() {
-    if (_hasTriggeredAction) return;
-
-    _hasTriggeredAction = true;
-    _canDetectTilt = false;
+    if (_actionLocked) return; // Prevent duplicate actions
+    _actionLocked = true;
 
     // Update game state
     context.read<GameProvider>().markPass();
@@ -270,12 +390,17 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     // Play effects
     _audioService.playPass();
-    _hapticService.selection(); // Very light haptic for pass
+    _hapticService.selection(); // Very light haptic for pass [[memory:7008710]]
 
     // Animate card flip
     _cardFlipController.forward().then((_) {
       _cardFlipController.reverse();
       _prepareNextCard();
+    });
+
+    // Unlock after cooldown
+    Future.delayed(_minTimeBetweenActions, () {
+      _actionLocked = false;
     });
   }
 
@@ -302,11 +427,10 @@ class _GameplayScreenState extends State<GameplayScreen>
           gameProvider.currentSession?.isComplete == true) {
         _navigateToResults();
       } else {
-        // Reset for next card
-        setState(() {
-          _hasTriggeredAction = false;
-          _canDetectTilt = true;
-        });
+        // Note: We don't reset flags here anymore
+        // The neutral position detection will handle resetting when phone returns to neutral
+        // This prevents the issue where holding the phone tilted causes continuous triggers
+        setState(() {});
       }
     });
   }
@@ -328,15 +452,13 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _handleManualCorrect() {
-    if (!_hasTriggeredAction && !_isCountingDown) {
-      _handleCorrect();
-    }
+    if (_isCountingDown || _actionLocked) return;
+    _handleCorrect();
   }
 
   void _handleManualPass() {
-    if (!_hasTriggeredAction && !_isCountingDown) {
-      _handlePass();
-    }
+    if (_isCountingDown || _actionLocked) return;
+    _handlePass();
   }
 
   void _pauseGame() {
@@ -514,6 +636,10 @@ class _GameplayScreenState extends State<GameplayScreen>
                                     Navigator.pop(dialogContext);
                                     context.read<GameProvider>().togglePause();
                                     _canDetectTilt = true;
+                                    // Reset tilt detection state when resuming
+                                    _isInNeutralPosition = true;
+                                    _hasTriggeredAction = false;
+                                    _actionLocked = false;
                                     _hapticService.lightImpact();
                                   },
                                   borderRadius: BorderRadius.circular(14),
@@ -1340,6 +1466,12 @@ class _GameplayScreenState extends State<GameplayScreen>
         onTap: () {
           setState(() {
             _useManualControls = !_useManualControls;
+            // Reset state when switching control modes
+            _isInNeutralPosition = true;
+            _hasTriggeredAction = false;
+            _lastActionTime = null;
+            _actionLocked = false;
+
             if (!_useManualControls && !_isCalibrated) {
               _calibrateAccelerometer();
             }
