@@ -54,6 +54,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   bool _hasTriggeredAction = false;
 
   // Calibration values
+  double _calibrationX = 0.0;
   double _calibrationY = 0.0;
   double _calibrationZ = 0.0;
   bool _isCalibrated = false;
@@ -146,6 +147,10 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _startCountdown() {
+    // Play sound for initial "3"
+    _audioService.playCountdown();
+    _hapticService.lightImpact();
+
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_countdownValue > 1) {
         setState(() {
@@ -175,6 +180,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   void _calibrateAccelerometer() {
     // Calibrate the accelerometer when the phone is held to the forehead
     accelerometerEventStream().first.then((event) {
+      _calibrationX = event.x;
       _calibrationY = event.y;
       _calibrationZ = event.z;
       _isCalibrated = true;
@@ -188,8 +194,16 @@ class _GameplayScreenState extends State<GameplayScreen>
       if (!_canDetectTilt || _hasTriggeredAction || !_isCalibrated) return;
 
       // Calculate relative tilt from calibrated position
+      final deltaX = event.x - _calibrationX;
       final deltaY = event.y - _calibrationY;
       final deltaZ = event.z - _calibrationZ;
+
+      // Ignore left/right movements (X-axis changes)
+      // Only respond to forward/backward tilts
+      if (deltaX.abs() > 5.0) {
+        // If there's significant X-axis movement, ignore this reading
+        return;
+      }
 
       // When phone is held to forehead (landscape):
       // Tilt forward (away from head) = PASS
@@ -233,7 +247,7 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     // Play effects
     _audioService.playCorrect();
-    _hapticService.success();
+    _hapticService.lightImpact(); // Light haptic for correct
 
     // Animate card flip
     _cardFlipController.forward().then((_) {
@@ -256,7 +270,7 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     // Play effects
     _audioService.playPass();
-    _hapticService.warning();
+    _hapticService.selection(); // Very light haptic for pass
 
     // Animate card flip
     _cardFlipController.forward().then((_) {
@@ -498,8 +512,8 @@ class _GameplayScreenState extends State<GameplayScreen>
                                 child: InkWell(
                                   onTap: () {
                                     Navigator.pop(dialogContext);
-                  context.read<GameProvider>().togglePause();
-                  _canDetectTilt = true;
+                                    context.read<GameProvider>().togglePause();
+                                    _canDetectTilt = true;
                                     _hapticService.lightImpact();
                                   },
                                   borderRadius: BorderRadius.circular(14),
@@ -641,40 +655,40 @@ class _GameplayScreenState extends State<GameplayScreen>
       },
       child: Scaffold(
         body: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-                  colors: [
-                    widget.deck.color.withOpacity(0.8),
-                    widget.deck.color,
+              colors: [
+                widget.deck.color.withOpacity(0.8),
+                widget.deck.color,
                 widget.deck.color.withOpacity(0.6),
-                  ],
-                ),
-              ),
-                child: Stack(
-                  children: [
+              ],
+            ),
+          ),
+          child: Stack(
+            children: [
               // Animated background elements
               _buildAnimatedBackground(),
 
-                    // Main content
+              // Main content
               SafeArea(
                 child: _isCountingDown ? _buildCountdown() : _buildGameplay(),
-                      ),
+              ),
 
-                    // Feedback overlay
-                    _buildFeedbackOverlay(),
+              // Feedback overlay
+              _buildFeedbackOverlay(),
 
               // Tutorial hints
               if (_showTutorialHints && !_isCountingDown)
-                    TutorialHintOverlay(
+                TutorialHintOverlay(
                   showHints: true,
-                      onDismiss: () {
-                        setState(() {
-                          _showTutorialHints = false;
-                        });
-                      },
-                    ),
+                  onDismiss: () {
+                    setState(() {
+                      _showTutorialHints = false;
+                    });
+                  },
+                ),
             ],
           ),
         ),
@@ -684,14 +698,14 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   Widget _buildAnimatedBackground() {
     return Stack(
-        children: [
+      children: [
         // Animated gradient mesh
         AnimatedBuilder(
           animation: _backgroundAnimController,
           builder: (context, child) {
             return Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
                   begin: Alignment(
                     -1 +
                         math.sin(
@@ -790,29 +804,29 @@ class _GameplayScreenState extends State<GameplayScreen>
               child: Container(
                 width: 180,
                 height: 180,
-            decoration: BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withOpacity(0.15),
                   border: Border.all(
                     color: Colors.white.withOpacity(0.3),
                     width: 3,
                   ),
-              boxShadow: [
-                BoxShadow(
+                  boxShadow: [
+                    BoxShadow(
                       color: Colors.black.withOpacity(0.2),
                       blurRadius: 30,
                       spreadRadius: 10,
+                    ),
+                  ],
                 ),
-              ],
-            ),
                 child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
+                    children: [
+                      Text(
                         _countdownValue.toString(),
-                  style: const TextStyle(
-                    color: Colors.white,
+                        style: const TextStyle(
+                          color: Colors.white,
                           fontSize: 72,
                           fontWeight: FontWeight.w900,
                           height: 1,
@@ -823,19 +837,19 @@ class _GameplayScreenState extends State<GameplayScreen>
                         'GET READY',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                           letterSpacing: 2,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
-                ),
-                  ),
-                ),
-              );
-            },
-          ),
+          );
+        },
+      ),
     );
   }
 
@@ -855,31 +869,31 @@ class _GameplayScreenState extends State<GameplayScreen>
             children: [
               // Main card with animation
               Center(
-            child: AnimatedBuilder(
-              animation: _cardFlipController,
-              builder: (context, child) {
-                final angle = _cardFlipController.value * math.pi;
-                if (angle >= math.pi / 2) {
-                  return Transform(
-                    alignment: Alignment.center,
-                    transform:
-                        Matrix4.identity()
-                          ..setEntry(3, 2, 0.001)
-                          ..rotateY(math.pi),
-                    child: _buildCardBack(),
-                  );
-                } else {
-                  return Transform(
-                    alignment: Alignment.center,
-                    transform:
-                        Matrix4.identity()
-                          ..setEntry(3, 2, 0.001)
-                          ..rotateY(angle),
-                    child: _buildCardFront(currentCard),
-                  );
-                }
-              },
-            ),
+                child: AnimatedBuilder(
+                  animation: _cardFlipController,
+                  builder: (context, child) {
+                    final angle = _cardFlipController.value * math.pi;
+                    if (angle >= math.pi / 2) {
+                      return Transform(
+                        alignment: Alignment.center,
+                        transform:
+                            Matrix4.identity()
+                              ..setEntry(3, 2, 0.001)
+                              ..rotateY(math.pi),
+                        child: _buildCardBack(),
+                      );
+                    } else {
+                      return Transform(
+                        alignment: Alignment.center,
+                        transform:
+                            Matrix4.identity()
+                              ..setEntry(3, 2, 0.001)
+                              ..rotateY(angle),
+                        child: _buildCardFront(currentCard),
+                      );
+                    }
+                  },
+                ),
               ),
 
               // Manual control buttons
@@ -901,9 +915,9 @@ class _GameplayScreenState extends State<GameplayScreen>
   Widget _buildModernHeader(GameProvider gameProvider) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
+        children: [
           // Pause button
           _buildGlassButton(icon: Icons.pause_rounded, onTap: _pauseGame),
 
@@ -993,10 +1007,10 @@ class _GameplayScreenState extends State<GameplayScreen>
   }) {
     return GestureDetector(
       onTap: onTap,
-                child: Container(
+      child: Container(
         width: 48,
         height: 48,
-                  decoration: BoxDecoration(
+        decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.15),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
@@ -1049,7 +1063,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                 ],
               ),
               borderRadius: BorderRadius.circular(32),
-                    border: Border.all(
+              border: Border.all(
                 color: Colors.white.withOpacity(0.5),
                 width: 1,
               ),
@@ -1102,16 +1116,16 @@ class _GameplayScreenState extends State<GameplayScreen>
                               color: widget.deck.color,
                             ),
                             const SizedBox(width: 8),
-                      Text(
+                            Text(
                               widget.deck.name.toUpperCase(),
-                        style: TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 color: widget.deck.color,
                                 letterSpacing: 1.5,
-                        ),
-                      ),
-                    ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -1144,13 +1158,13 @@ class _GameplayScreenState extends State<GameplayScreen>
                                 overflow: TextOverflow.visible,
                               ),
                             ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ],
+              ],
             ),
           ),
         );
@@ -1213,7 +1227,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                     const SizedBox(height: 24),
                     Text(
                       'Next Card',
-          style: TextStyle(
+                      style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
                         fontSize: 24,
                         fontWeight: FontWeight.w600,
@@ -1275,22 +1289,22 @@ class _GameplayScreenState extends State<GameplayScreen>
           Container(
                 width: 120,
                 height: 120,
-      decoration: BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                     colors: [color.withOpacity(0.3), color.withOpacity(0.2)],
-        ),
+                  ),
                   border: Border.all(color: color.withOpacity(0.5), width: 3),
-        boxShadow: [
-          BoxShadow(
+                  boxShadow: [
+                    BoxShadow(
                       color: color.withOpacity(0.3),
                       blurRadius: 30,
                       spreadRadius: 5,
-          ),
-        ],
-      ),
+                    ),
+                  ],
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

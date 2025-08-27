@@ -14,68 +14,112 @@ class AudioService {
 
   Future<void> playCorrect() async {
     if (!_isSoundEnabled) return;
-    try {
-      await _player.play(AssetSource('sounds/correct.mp3'));
-    } catch (e) {
-      // Handle error silently
+
+    // Try different file formats and names
+    final soundOptions = [
+      'sounds/ting.wav',
+      'sounds/ting.mp3',
+      'sounds/correct.wav',
+      'sounds/correct.mp3',
+    ];
+
+    for (final sound in soundOptions) {
+      try {
+        await _player.play(AssetSource(sound));
+        return; // If successful, exit
+      } catch (e) {
+        // Try next option
+      }
     }
   }
 
   Future<void> playPass() async {
     if (!_isSoundEnabled) return;
-    try {
-      await _player.play(AssetSource('sounds/pass.mp3'));
-    } catch (e) {
-      // Handle error silently
+
+    // Try different file formats and names
+    final soundOptions = [
+      'sounds/page_tear.wav',
+      'sounds/page_tear.mp3',
+      'sounds/pass.wav',
+      'sounds/pass.mp3',
+    ];
+
+    for (final sound in soundOptions) {
+      try {
+        await _player.play(AssetSource(sound));
+        return; // If successful, exit
+      } catch (e) {
+        // Try next option
+      }
     }
   }
 
   Future<void> playCountdown() async {
     if (!_isSoundEnabled) return;
-    try {
-      await _player.play(AssetSource('sounds/countdown.mp3'));
-    } catch (e) {
-      // Handle error silently
+    final soundOptions = ['sounds/countdown.wav', 'sounds/countdown.mp3'];
+    for (final sound in soundOptions) {
+      try {
+        await _player.play(AssetSource(sound));
+        return;
+      } catch (e) {
+        // Try next option
+      }
     }
   }
 
   Future<void> playTimeUp() async {
     if (!_isSoundEnabled) return;
-    try {
-      await _player.play(AssetSource('sounds/time_up.mp3'));
-    } catch (e) {
-      // Handle error silently
+    final soundOptions = ['sounds/time_up.wav', 'sounds/time_up.mp3'];
+    for (final sound in soundOptions) {
+      try {
+        await _player.play(AssetSource(sound));
+        return;
+      } catch (e) {
+        // Try next option
+      }
     }
   }
 
   Future<void> playClick() async {
     if (!_isSoundEnabled) return;
-    try {
-      await _player.play(AssetSource('sounds/click.mp3'));
-    } catch (e) {
-      // Handle error silently
+    final soundOptions = ['sounds/click.wav', 'sounds/click.mp3'];
+    for (final sound in soundOptions) {
+      try {
+        await _player.play(AssetSource(sound));
+        return;
+      } catch (e) {
+        // Try next option
+      }
     }
   }
 
   Future<void> playSuccess() async {
     if (!_isSoundEnabled) return;
-    try {
-      await _player.play(AssetSource('sounds/success.mp3'));
-    } catch (e) {
-      // Handle error silently
+    final soundOptions = ['sounds/success.wav', 'sounds/success.mp3'];
+    for (final sound in soundOptions) {
+      try {
+        await _player.play(AssetSource(sound));
+        return;
+      } catch (e) {
+        // Try next option
+      }
     }
   }
 
   Future<void> playVictory() async {
     if (!_isSoundEnabled) return;
-    try {
-      await _player.play(AssetSource('sounds/victory.mp3'));
-    } catch (e) {
-      // Handle error silently - fallback to success sound
+    final soundOptions = [
+      'sounds/victory.wav',
+      'sounds/victory.mp3',
+      'sounds/success.wav', // Fallback to success sound
+      'sounds/success.mp3',
+    ];
+    for (final sound in soundOptions) {
       try {
-        await _player.play(AssetSource('sounds/success.mp3'));
+        await _player.play(AssetSource(sound));
+        return;
       } catch (e) {
-        // Handle error silently
+        // Try next option
       }
     }
   }
