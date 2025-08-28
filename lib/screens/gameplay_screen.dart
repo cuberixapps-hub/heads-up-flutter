@@ -142,7 +142,7 @@ class _GameplayScreenState extends State<GameplayScreen>
     );
 
     _feedbackController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 300),
       vsync: this,
     );
 
@@ -412,9 +412,8 @@ class _GameplayScreenState extends State<GameplayScreen>
     });
 
     _feedbackController.forward().then((_) {
-      Future.delayed(const Duration(milliseconds: 300), () {
-        _feedbackController.reverse();
-      });
+      // Immediately reverse without delay for snappier feel
+      _feedbackController.reverse();
     });
   }
 
@@ -999,22 +998,30 @@ class _GameplayScreenState extends State<GameplayScreen>
                   animation: _cardFlipController,
                   builder: (context, child) {
                     final angle = _cardFlipController.value * math.pi;
+
+                    // Choose rotation axis based on orientation
+                    Matrix4 getTransform(double rotationAngle) {
+                      final matrix = Matrix4.identity()..setEntry(3, 2, 0.001);
+                      if (_isLandscapeMode) {
+                        // In landscape, rotate around X-axis (up/down)
+                        matrix.rotateX(rotationAngle);
+                      } else {
+                        // In portrait, rotate around Y-axis (left/right)
+                        matrix.rotateY(rotationAngle);
+                      }
+                      return matrix;
+                    }
+
                     if (angle >= math.pi / 2) {
                       return Transform(
                         alignment: Alignment.center,
-                        transform:
-                            Matrix4.identity()
-                              ..setEntry(3, 2, 0.001)
-                              ..rotateY(math.pi),
+                        transform: getTransform(math.pi),
                         child: _buildCardBack(),
                       );
                     } else {
                       return Transform(
                         alignment: Alignment.center,
-                        transform:
-                            Matrix4.identity()
-                              ..setEntry(3, 2, 0.001)
-                              ..rotateY(angle),
+                        transform: getTransform(angle),
                         child: _buildCardFront(currentCard),
                       );
                     }
@@ -1559,46 +1566,45 @@ class _GameplayScreenState extends State<GameplayScreen>
           return const SizedBox.shrink();
         }
 
+        // Simple fade animation only
+        final opacity = _feedbackController.value;
+
         return Positioned.fill(
           child: IgnorePointer(
             child: Center(
-              child: Transform.scale(
-                scale: _feedbackController.value,
-                child: Opacity(
-                  opacity: _feedbackController.value,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 48,
-                      vertical: 24,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _feedbackColor.withOpacity(0.95),
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _feedbackColor.withOpacity(0.5),
-                          blurRadius: 40,
-                          spreadRadius: 10,
+              child: Opacity(
+                opacity: opacity,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 20,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _feedbackColor,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _feedbackColor.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_feedbackIcon != null)
+                        Icon(_feedbackIcon, size: 28, color: Colors.white),
+                      if (_feedbackIcon != null) const SizedBox(width: 12),
+                      Text(
+                        _feedbackText,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (_feedbackIcon != null)
-                          Icon(_feedbackIcon, size: 56, color: Colors.white),
-                        const SizedBox(height: 12),
-                        Text(
-                          _feedbackText,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
