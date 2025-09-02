@@ -1313,7 +1313,7 @@ class _TutorialScreenState extends State<TutorialScreen>
       child: Column(
         children: [
           // Progress indicators
-          Container(
+          SizedBox(
             height: 40,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,

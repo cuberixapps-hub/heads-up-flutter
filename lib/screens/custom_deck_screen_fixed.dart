@@ -2,14 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
-import 'dart:math' as math;
-import '../constants/app_theme.dart';
 import '../models/deck.dart';
 import '../providers/deck_provider.dart';
 import '../services/haptic_service.dart';
-import '../widgets/icon_picker_widget.dart';
-import '../widgets/color_picker_widget.dart';
-import '../utils/deck_import_export.dart';
 
 class CustomDeckScreen extends StatefulWidget {
   final Deck? existingDeck;

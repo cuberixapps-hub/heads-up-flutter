@@ -228,7 +228,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                         child: Column(
                           children: [
                             // Modern page indicators
-                            Container(
+                            SizedBox(
                               height: 40,
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,

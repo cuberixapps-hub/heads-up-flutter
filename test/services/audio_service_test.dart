@@ -1,10 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/annotations.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:heads_up_game/services/audio_service.dart';
 
-@GenerateMocks([AudioPlayer])
-import 'audio_service_test.mocks.dart';
 
 void main() {
   group('AudioService Tests', () {

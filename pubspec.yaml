@@ -88,6 +88,10 @@ dependencies:
   firebase_storage: ^12.3.7
   firebase_analytics: ^11.3.5
   firebase_crashlytics: ^4.1.5
+  firebase_remote_config: ^5.1.5
+
+  # AdMob
+  google_mobile_ads: ^5.2.0
 
 dev_dependencies:
   flutter_test:

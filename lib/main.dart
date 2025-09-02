@@ -7,6 +7,7 @@ import 'providers/game_provider.dart';
 import 'widgets/network_status_widget.dart';
 
 import 'services/firebase_service.dart';
+import 'services/ad_service.dart';
 import 'utils/app_router.dart';
 
 void main() async {
@@ -17,9 +18,12 @@ void main() async {
   debugPrint('🎮 HEADS UP GAME STARTING...');
   debugPrint('========================================');
 
-  // Initialize Firebase
+  // IMPORTANT: Initialize Firebase FIRST (includes Remote Config)
   final firebaseService = FirebaseService();
   await firebaseService.initialize();
+  
+  // Initialize AdMob (will use Firebase Remote Config to determine ad type)
+  await AdService.initialize();
 
   // Try to sign in anonymously, but don't block app startup if it fails
   try {

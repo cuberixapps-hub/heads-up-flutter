@@ -250,9 +250,7 @@ class _GameplayScreenState extends State<GameplayScreen>
 
         if (_debugAccelerometer) {
           print(
-            'Landscape - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | ' +
-                'DeltaX: ${deltaX.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | ' +
-                'TiltAngle: ${tiltAngle.toStringAsFixed(1)}',
+            'Landscape - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | ' 'DeltaX: ${deltaX.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | ' 'TiltAngle: ${tiltAngle.toStringAsFixed(1)}',
           );
         }
 
@@ -271,9 +269,7 @@ class _GameplayScreenState extends State<GameplayScreen>
 
         if (_debugAccelerometer) {
           print(
-            'Portrait - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | ' +
-                'DeltaX: ${deltaX.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | ' +
-                'TiltAngle: ${tiltAngle.toStringAsFixed(1)}',
+            'Portrait - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | ' 'DeltaX: ${deltaX.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | ' 'TiltAngle: ${tiltAngle.toStringAsFixed(1)}',
           );
         }
 

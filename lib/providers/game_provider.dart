@@ -345,6 +345,36 @@ class GameProvider extends ChangeNotifier {
     return _statistics;
   }
 
+  // Double the score of the last completed game
+  void doubleLastGameScore() {
+    if (_currentSession != null && _currentSession!.isComplete) {
+      // Get all current results
+      final currentResults = _currentSession!.results;
+
+      // Duplicate all correct results to double the score
+      final correctResults =
+          currentResults.where((r) => r.result == GameResult.correct).toList();
+      final doubledResults = [...currentResults, ...correctResults];
+
+      // Update the session with doubled results
+      _currentSession = _currentSession!.copyWith(results: doubledResults);
+
+      // Update statistics with doubled score
+      final originalCorrect = correctResults.length;
+      _statistics['totalCorrect'] =
+          (_statistics['totalCorrect'] ?? 0) + originalCorrect;
+      _statistics['highScore'] =
+          (_statistics['highScore'] ?? 0) < (originalCorrect * 2)
+              ? (originalCorrect * 2)
+              : _statistics['highScore'];
+
+      // Save updated session
+      _saveGameSession();
+
+      notifyListeners();
+    }
+  }
+
   // Calculate achievement progress
   Map<String, double> getAchievementProgress() {
     final stats = _statistics;

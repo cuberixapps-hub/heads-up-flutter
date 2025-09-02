@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
 import '../firebase_options.dart';
 
@@ -15,17 +16,26 @@ class FirebaseService {
   late FirebaseAuth _auth;
   late FirebaseAnalytics _analytics;
   late FirebaseCrashlytics _crashlytics;
+  late FirebaseRemoteConfig _remoteConfig;
+
+  static bool _initialized = false;
+
+  // Remote Config Keys
+  static const String _useProductionAdsKey = 'use_production_ads';
 
   FirebaseFirestore get firestore => _firestore;
   FirebaseAuth get auth => _auth;
   FirebaseAnalytics get analytics => _analytics;
   FirebaseCrashlytics get crashlytics => _crashlytics;
+  FirebaseRemoteConfig get remoteConfig => _remoteConfig;
 
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   // Initialize Firebase and auto-create guest user
   Future<void> initialize() async {
+    if (_initialized) return;
+
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
@@ -35,6 +45,7 @@ class FirebaseService {
       _auth = FirebaseAuth.instance;
       _analytics = FirebaseAnalytics.instance;
       _crashlytics = FirebaseCrashlytics.instance;
+      _remoteConfig = FirebaseRemoteConfig.instance;
 
       // Enable Firestore offline persistence
       _firestore.settings = const Settings(
@@ -48,6 +59,9 @@ class FirebaseService {
         FlutterError.onError = _crashlytics.recordFlutterError;
       }
 
+      // Initialize Remote Config
+      await _initializeRemoteConfig();
+
       // Auto-create guest user if not already signed in
       if (_auth.currentUser == null) {
         await _createGuestUser();
@@ -56,7 +70,8 @@ class FirebaseService {
         await updateUserLastSeen();
       }
 
-      debugPrint('Firebase initialized successfully');
+      _initialized = true;
+      debugPrint('✅ Firebase initialized successfully');
     } catch (e) {
       debugPrint('Error initializing Firebase: $e');
       rethrow;
@@ -219,6 +234,139 @@ class FirebaseService {
       await _analytics.logScreenView(screenName: screenName);
     } catch (e) {
       debugPrint('Error logging screen view: $e');
+    }
+  }
+
+  // Initialize Firebase Remote Config
+  Future<void> _initializeRemoteConfig() async {
+    try {
+      // Set default values (CRITICAL: Default to false for safety)
+      await _remoteConfig.setDefaults({
+        _useProductionAdsKey: false, // Default to test ads
+      });
+
+      debugPrint(
+        '📝 Remote Config: Default value set for $_useProductionAdsKey = false',
+      );
+
+      // Set config settings
+      await _remoteConfig.setConfigSettings(
+        RemoteConfigSettings(
+          fetchTimeout: const Duration(minutes: 1),
+          minimumFetchInterval:
+              kDebugMode
+                  ? const Duration(minutes: 5) // 5 minutes in debug for testing
+                  : const Duration(hours: 12), // 12 hours in production
+        ),
+      );
+
+      // Fetch and activate
+      final bool fetchSucceeded = await _remoteConfig.fetchAndActivate();
+
+      // Log fetch status
+      if (fetchSucceeded) {
+        debugPrint('✅ Remote Config: Successfully fetched from Firebase');
+      } else {
+        debugPrint('📦 Remote Config: Using cached values');
+      }
+
+      // Log the actual value and its source
+      final bool configValue = _remoteConfig.getBool(_useProductionAdsKey);
+      final ValueSource source =
+          _remoteConfig.getValue(_useProductionAdsKey).source;
+
+      debugPrint('🔍 Remote Config Value Details:');
+      debugPrint('   - Parameter: $_useProductionAdsKey');
+      debugPrint('   - Raw Value from Firebase: $configValue');
+      debugPrint('   - Value Source: ${_getSourceName(source)}');
+      debugPrint('   - Last Fetch Time: ${_remoteConfig.lastFetchTime}');
+
+      // Listen for real-time updates
+      _remoteConfig.onConfigUpdated.listen((event) async {
+        debugPrint('🔔 Remote Config: Update detected from Firebase!');
+        await _remoteConfig.activate();
+
+        final bool newValue = _remoteConfig.getBool(_useProductionAdsKey);
+        debugPrint('🔄 Remote Config Updated:');
+        debugPrint('   - New Value: $newValue');
+        debugPrint(
+          '   - Effective Production Ads: ${shouldUseProductionAds()}',
+        );
+      });
+
+      debugPrint('🎛️ Remote Config initialized successfully');
+      _logCurrentAdConfiguration();
+    } catch (e) {
+      debugPrint('⚠️ Remote Config initialization failed: $e');
+      debugPrint('⚠️ Will use default values (test ads)');
+    }
+  }
+
+  // Get human-readable source name
+  static String _getSourceName(ValueSource source) {
+    switch (source) {
+      case ValueSource.valueStatic:
+        return 'Static (Default value)';
+      case ValueSource.valueDefault:
+        return 'Default (Local default)';
+      case ValueSource.valueRemote:
+        return 'Remote (From Firebase)';
+    }
+  }
+
+  // Log current ad configuration
+  static void _logCurrentAdConfiguration() {
+    final bool useProductionAds = shouldUseProductionAds();
+    final bool remoteConfigValue = _instance._remoteConfig.getBool(
+      _useProductionAdsKey,
+    );
+
+    debugPrint('');
+    debugPrint('📱 === CURRENT AD CONFIGURATION ===');
+    debugPrint(
+      '   Build Mode: ${kDebugMode ? "DEBUG" : (kProfileMode ? "PROFILE" : "RELEASE")}',
+    );
+    debugPrint('   Remote Config ($_useProductionAdsKey): $remoteConfigValue');
+    debugPrint(
+      '   Effective Setting: ${useProductionAds ? "PRODUCTION ADS" : "TEST ADS"}',
+    );
+
+    if (kDebugMode || kProfileMode) {
+      debugPrint(
+        '   ⚠️ Note: Debug/Profile mode always uses TEST ADS for safety',
+      );
+    } else {
+      debugPrint('   ✅ Production mode: Using Remote Config value');
+    }
+    debugPrint('===================================');
+    debugPrint('');
+  }
+
+  // Check if production ads should be used based on Remote Config
+  static bool shouldUseProductionAds() {
+    if (!_initialized) {
+      // If not initialized, use default behavior
+      return !kDebugMode && !kProfileMode;
+    }
+
+    // Get the value from Remote Config
+    final useProductionAds = _instance._remoteConfig.getBool(
+      _useProductionAdsKey,
+    );
+
+    // SAFETY: In debug/profile mode, ALWAYS use test ads regardless of Remote Config
+    if (kDebugMode || kProfileMode) {
+      return false;
+    }
+
+    // In release mode, use the Remote Config value
+    return useProductionAds;
+  }
+
+  // Log error to Crashlytics
+  static void logError(dynamic error, StackTrace? stackTrace) {
+    if (_initialized) {
+      _instance._crashlytics.recordError(error, stackTrace);
     }
   }
 }

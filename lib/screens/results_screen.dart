@@ -9,6 +9,8 @@ import '../models/game_session.dart';
 import '../providers/game_provider.dart';
 import '../services/haptic_service.dart';
 import '../services/audio_service.dart';
+import '../services/ad_service.dart';
+import '../widgets/banner_ad_widget.dart';
 import 'category_selection_screen.dart';
 
 class ResultsScreen extends StatefulWidget {
@@ -22,6 +24,7 @@ class _ResultsScreenState extends State<ResultsScreen>
     with TickerProviderStateMixin {
   final _hapticService = HapticService();
   final _audioService = AudioService();
+  final _adService = AdService();
 
   late AnimationController _scoreController;
   late AnimationController _statsController;
@@ -29,6 +32,7 @@ class _ResultsScreenState extends State<ResultsScreen>
   late ConfettiController _confettiController;
 
   bool _showDetails = false;
+  bool _hasDoubledScore = false;
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -66,6 +70,12 @@ class _ResultsScreenState extends State<ResultsScreen>
         _celebrationController.repeat();
       }
     });
+    
+    // Show interstitial ad after game completion
+    Future.delayed(const Duration(milliseconds: 1000), () {
+      _adService.incrementGameCount();
+      _adService.showInterstitialAd();
+    });
   }
 
   @override
@@ -93,9 +103,11 @@ class _ResultsScreenState extends State<ResultsScreen>
           Navigator.of(context).popUntil((route) => route.isFirst);
         }
       },
-      child: Scaffold(
-        backgroundColor: AppTheme.backgroundColor,
-        body: Consumer<GameProvider>(
+      child: BottomBannerAd(
+        widgetKey: 'results_screen',
+        child: Scaffold(
+          backgroundColor: AppTheme.backgroundColor,
+          body: Consumer<GameProvider>(
           builder: (context, gameProvider, child) {
             final session = gameProvider.currentSession;
             if (session == null) {
@@ -209,6 +221,8 @@ class _ResultsScreenState extends State<ResultsScreen>
                                 accuracy,
                                 isHighScore,
                               ),
+                              const SizedBox(height: 16),
+                              if (!_hasDoubledScore) _buildDoubleScoreButton(session),
                               const SizedBox(height: 24),
                               _buildStatsGrid(session, timeInSeconds),
                               const SizedBox(height: 24),
@@ -228,6 +242,7 @@ class _ResultsScreenState extends State<ResultsScreen>
             );
           },
         ),
+      ),
       ),
     );
   }
@@ -1597,10 +1612,14 @@ class _ResultsScreenState extends State<ResultsScreen>
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: () {
-                          Navigator.of(
-                            context,
-                          ).popUntil((route) => route.isFirst);
+                        onTap: () async {
+                          // Show interstitial ad occasionally when returning home
+                          await _adService.showInterstitialAdForHome();
+                          if (mounted) {
+                            Navigator.of(
+                              context,
+                            ).popUntil((route) => route.isFirst);
+                          }
                         },
                         borderRadius: BorderRadius.circular(16),
                         child: Row(
@@ -1714,6 +1733,112 @@ Play Heads Up! and beat my score!
 
     Share.share(message);
     _hapticService.lightImpact();
+  }
+
+  Widget _buildDoubleScoreButton(GameSession session) {
+    return Container(
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.amber.shade600,
+            Colors.amber.shade700,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.amber.withOpacity(0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () async {
+            _hapticService.mediumImpact();
+            
+            // Show rewarded ad
+            await _adService.showRewardedAd(
+              rewardType: 'double_score',
+              onUserEarnedReward: (amount) {
+                setState(() {
+                  _hasDoubledScore = true;
+                });
+                
+                // Double the score in the game provider
+                final gameProvider = context.read<GameProvider>();
+                gameProvider.doubleLastGameScore();
+                
+                _hapticService.success();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(Icons.star_rounded, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text('Score doubled! +${session.correctCount * 10} bonus points'),
+                      ],
+                    ),
+                    backgroundColor: Colors.amber.shade700,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.play_circle_filled,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Watch Ad to Double Score',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '2x',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    )
+    .animate()
+    .fadeIn(delay: 1000.ms, duration: 600.ms)
+    .slideY(begin: 0.2, end: 0)
+    .shimmer(delay: 1600.ms, duration: 1500.ms, color: Colors.white.withOpacity(0.3));
   }
 }
 

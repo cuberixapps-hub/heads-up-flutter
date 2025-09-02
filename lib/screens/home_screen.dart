@@ -13,6 +13,7 @@ import '../services/haptic_service.dart';
 import '../services/audio_service.dart';
 import '../services/daily_deck_service.dart';
 import '../models/daily_deck.dart';
+import '../widgets/banner_ad_widget.dart';
 import 'category_selection_screen.dart';
 import 'gameplay_screen.dart';
 import 'tutorial_screen.dart';
@@ -299,9 +300,11 @@ class _HomeScreenState extends State<HomeScreen>
       );
     }
 
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
-      body: RefreshIndicator(
+    return BottomBannerAd(
+      widgetKey: 'home_screen',
+      child: Scaffold(
+        backgroundColor: AppTheme.backgroundColor,
+        body: RefreshIndicator(
         onRefresh: () async {
           print('🔄 Manual refresh triggered');
           await _loadDailyDeck();
@@ -416,6 +419,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ],
         ),
+      ),
       ),
     );
   }

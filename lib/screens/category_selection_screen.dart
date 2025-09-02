@@ -10,6 +10,7 @@ import '../providers/deck_provider.dart';
 import '../providers/game_provider.dart';
 import '../services/haptic_service.dart';
 import '../services/audio_service.dart';
+import '../widgets/banner_ad_widget.dart';
 import 'gameplay_screen.dart';
 import 'custom_deck_screen.dart';
 import 'dart:ui';
@@ -75,9 +76,11 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
-      body: CustomScrollView(
+    return BottomBannerAd(
+      widgetKey: 'category_selection_screen',
+      child: Scaffold(
+        backgroundColor: AppTheme.backgroundColor,
+        body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
           // Clean Modern App Bar
@@ -369,6 +372,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
             ),
           ),
         ],
+      ),
       ),
     );
   }

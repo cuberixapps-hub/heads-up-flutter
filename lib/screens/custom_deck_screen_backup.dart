@@ -1072,15 +1072,15 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
   }
 }
 
-          const SizedBox(width: 8),
+          SizedBox(width = 8),
 
           // Save button
-          if (_hasChanges)
+          if (hasChanges)
             TextButton.icon(
-              onPressed: _isLoading ? null : _saveDeck,
-              icon: const Icon(Icons.save_rounded),
-              label: const Text('Save'),
-              style: TextButton.styleFrom(
+              onPressed = _isLoading ? null : _saveDeck,
+              icon = const Icon(Icons.save_rounded),
+              label = const Text('Save'),
+              style = TextButton.styleFrom(
                 backgroundColor: AppTheme.primaryColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
@@ -1091,7 +1091,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                   borderRadius: BorderRadius.circular(20),
                 ),
               ),
-            ).animate().fadeIn().scale(begin: const Offset(0.8, 0.8)),
+            ).animate().fadeIn().scale(begin = const Offset(0.8, 0.8)),
         ],
       ),
     );
