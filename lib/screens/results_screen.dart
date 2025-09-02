@@ -11,6 +11,7 @@ import '../services/haptic_service.dart';
 import '../services/audio_service.dart';
 import '../services/ad_service.dart';
 import '../widgets/banner_ad_widget.dart';
+import '../widgets/video_section.dart';
 import 'category_selection_screen.dart';
 
 class ResultsScreen extends StatefulWidget {
@@ -70,7 +71,7 @@ class _ResultsScreenState extends State<ResultsScreen>
         _celebrationController.repeat();
       }
     });
-    
+
     // Show interstitial ad after game completion
     Future.delayed(const Duration(milliseconds: 1000), () {
       _adService.incrementGameCount();
@@ -108,141 +109,145 @@ class _ResultsScreenState extends State<ResultsScreen>
         child: Scaffold(
           backgroundColor: AppTheme.backgroundColor,
           body: Consumer<GameProvider>(
-          builder: (context, gameProvider, child) {
-            final session = gameProvider.currentSession;
-            if (session == null) {
-              return const Center(child: Text('No game data'));
-            }
+            builder: (context, gameProvider, child) {
+              final session = gameProvider.currentSession;
+              if (session == null) {
+                return const Center(child: Text('No game data'));
+              }
 
-            final isHighScore = _checkIfHighScore(session, gameProvider);
-            final totalCards = session.correctCount + session.passCount;
-            final accuracy =
-                totalCards > 0
-                    ? (session.correctCount / totalCards * 100).round()
-                    : 0;
+              final isHighScore = _checkIfHighScore(session, gameProvider);
+              final totalCards = session.correctCount + session.passCount;
+              final accuracy =
+                  totalCards > 0
+                      ? (session.correctCount / totalCards * 100).round()
+                      : 0;
 
-            // Calculate points (correct answers * 10)
-            final points = session.correctCount * 10;
+              // Calculate points (correct answers * 10)
+              final points = session.correctCount * 10;
 
-            // Format time to show only integer seconds
-            final timeInSeconds = session.roundDuration.inSeconds;
+              // Format time to show only integer seconds
+              final timeInSeconds = session.roundDuration.inSeconds;
 
-            return Stack(
-              children: [
-                // Elegant gradient background with subtle mesh
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppTheme.backgroundColor,
-                        AppTheme.backgroundColor.withBlue(
-                          (AppTheme.backgroundColor.blue * 0.98).round(),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Subtle wave pattern at top
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    height: 300,
+              return Stack(
+                children: [
+                  // Elegant gradient background with subtle mesh
+                  Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                         colors: [
-                          session.deck.color.withOpacity(0.06),
-                          session.deck.color.withOpacity(0.02),
-                          Colors.transparent,
+                          AppTheme.backgroundColor,
+                          AppTheme.backgroundColor.withBlue(
+                            (AppTheme.backgroundColor.blue * 0.98).round(),
+                          ),
                         ],
-                        stops: const [0.0, 0.5, 1.0],
                       ),
                     ),
                   ),
-                ),
 
-                // Subtle grid pattern overlay
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _SubtlePatternPainter(
-                      color: session.deck.color.withOpacity(0.02),
-                    ),
-                  ),
-                ),
-
-                // Confetti
-                if (isHighScore)
-                  Align(
-                    alignment: Alignment.topCenter,
-                    child: ConfettiWidget(
-                      confettiController: _confettiController,
-                      blastDirectionality: BlastDirectionality.explosive,
-                      shouldLoop: false,
-                      colors: [
-                        session.deck.color,
-                        AppTheme.accentColor,
-                        AppTheme.primaryColor,
-                        Colors.amber,
-                        AppTheme.secondaryColor,
-                      ],
-                      numberOfParticles: 50,
-                      gravity: 0.15,
-                      emissionFrequency: 0.05,
-                      maxBlastForce: 20,
-                      minBlastForce: 8,
-                    ),
-                  ),
-
-                // Main content
-                SafeArea(
-                  child: Column(
-                    children: [
-                      // Modern header
-                      _buildModernHeader(session),
-
-                      // Scrollable content
-                      Expanded(
-                        child: SingleChildScrollView(
-                          controller: _scrollController,
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Column(
-                            children: [
-                              const SizedBox(height: 24),
-                              _buildScoreSection(
-                                session,
-                                points,
-                                accuracy,
-                                isHighScore,
-                              ),
-                              const SizedBox(height: 16),
-                              if (!_hasDoubledScore) _buildDoubleScoreButton(session),
-                              const SizedBox(height: 24),
-                              _buildStatsGrid(session, timeInSeconds),
-                              const SizedBox(height: 24),
-                              _buildWordsSection(session),
-                              const SizedBox(height: 100),
-                            ],
-                          ),
+                  // Subtle wave pattern at top
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      height: 300,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            session.deck.color.withOpacity(0.06),
+                            session.deck.color.withOpacity(0.02),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.5, 1.0],
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
 
-                // Floating action buttons
-                _buildFloatingActions(session),
-              ],
-            );
-          },
+                  // Subtle grid pattern overlay
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _SubtlePatternPainter(
+                        color: session.deck.color.withOpacity(0.02),
+                      ),
+                    ),
+                  ),
+
+                  // Confetti
+                  if (isHighScore)
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: ConfettiWidget(
+                        confettiController: _confettiController,
+                        blastDirectionality: BlastDirectionality.explosive,
+                        shouldLoop: false,
+                        colors: [
+                          session.deck.color,
+                          AppTheme.accentColor,
+                          AppTheme.primaryColor,
+                          Colors.amber,
+                          AppTheme.secondaryColor,
+                        ],
+                        numberOfParticles: 50,
+                        gravity: 0.15,
+                        emissionFrequency: 0.05,
+                        maxBlastForce: 20,
+                        minBlastForce: 8,
+                      ),
+                    ),
+
+                  // Main content
+                  SafeArea(
+                    child: Column(
+                      children: [
+                        // Modern header
+                        _buildModernHeader(session),
+
+                        // Scrollable content
+                        Expanded(
+                          child: SingleChildScrollView(
+                            controller: _scrollController,
+                            physics: const BouncingScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Column(
+                              children: [
+                                const SizedBox(height: 24),
+                                _buildScoreSection(
+                                  session,
+                                  points,
+                                  accuracy,
+                                  isHighScore,
+                                ),
+                                const SizedBox(height: 16),
+                                if (!_hasDoubledScore)
+                                  _buildDoubleScoreButton(session),
+                                const SizedBox(height: 24),
+                                // Add video section
+                                const VideoSection(),
+                                const SizedBox(height: 24),
+                                _buildStatsGrid(session, timeInSeconds),
+                                const SizedBox(height: 24),
+                                _buildWordsSection(session),
+                                const SizedBox(height: 100),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Floating action buttons
+                  _buildFloatingActions(session),
+                ],
+              );
+            },
+          ),
         ),
-      ),
       ),
     );
   }
@@ -1022,7 +1027,7 @@ class _ResultsScreenState extends State<ResultsScreen>
                                               ),
                                               const SizedBox(height: 2),
                                               Text(
-                                                '${((session.correctCount / (session.correctCount + session.passCount)) * 100).toInt()}%',
+                                                '${(session.correctCount + session.passCount) > 0 ? ((session.correctCount / (session.correctCount + session.passCount)) * 100).toInt() : 0}%',
                                                 style: TextStyle(
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.w800,
@@ -1085,7 +1090,7 @@ class _ResultsScreenState extends State<ResultsScreen>
                                               ),
                                               const SizedBox(height: 2),
                                               Text(
-                                                '${((session.passCount / (session.correctCount + session.passCount)) * 100).toInt()}%',
+                                                '${(session.correctCount + session.passCount) > 0 ? ((session.passCount / (session.correctCount + session.passCount)) * 100).toInt() : 0}%',
                                                 style: TextStyle(
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.w800,
@@ -1737,108 +1742,114 @@ Play Heads Up! and beat my score!
 
   Widget _buildDoubleScoreButton(GameSession session) {
     return Container(
-      width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.amber.shade600,
-            Colors.amber.shade700,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.amber.withOpacity(0.3),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+          width: double.infinity,
+          height: 56,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.amber.shade600, Colors.amber.shade700],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.amber.withOpacity(0.3),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () async {
-            _hapticService.mediumImpact();
-            
-            // Show rewarded ad
-            await _adService.showRewardedAd(
-              rewardType: 'double_score',
-              onUserEarnedReward: (amount) {
-                setState(() {
-                  _hasDoubledScore = true;
-                });
-                
-                // Double the score in the game provider
-                final gameProvider = context.read<GameProvider>();
-                gameProvider.doubleLastGameScore();
-                
-                _hapticService.success();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        Icon(Icons.star_rounded, color: Colors.white),
-                        const SizedBox(width: 8),
-                        Text('Score doubled! +${session.correctCount * 10} bonus points'),
-                      ],
-                    ),
-                    backgroundColor: Colors.amber.shade700,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () async {
+                _hapticService.mediumImpact();
+
+                // Show rewarded ad
+                await _adService.showRewardedAd(
+                  rewardType: 'double_score',
+                  onUserEarnedReward: (amount) {
+                    setState(() {
+                      _hasDoubledScore = true;
+                    });
+
+                    // Double the score in the game provider
+                    final gameProvider = context.read<GameProvider>();
+                    gameProvider.doubleLastGameScore();
+
+                    _hapticService.success();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            Icon(Icons.star_rounded, color: Colors.white),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Score doubled! +${session.correctCount * 10} bonus points',
+                            ),
+                          ],
+                        ),
+                        backgroundColor: Colors.amber.shade700,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
-            );
-          },
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.play_circle_filled,
-                  color: Colors.white,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Watch Ad to Double Score',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '2x',
-                    style: TextStyle(
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.play_circle_filled,
                       color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      size: 24,
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Watch Ad to Double Score',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '2x',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
-    )
-    .animate()
-    .fadeIn(delay: 1000.ms, duration: 600.ms)
-    .slideY(begin: 0.2, end: 0)
-    .shimmer(delay: 1600.ms, duration: 1500.ms, color: Colors.white.withOpacity(0.3));
+        )
+        .animate()
+        .fadeIn(delay: 1000.ms, duration: 600.ms)
+        .slideY(begin: 0.2, end: 0)
+        .shimmer(
+          delay: 1600.ms,
+          duration: 1500.ms,
+          color: Colors.white.withOpacity(0.3),
+        );
   }
 }
 

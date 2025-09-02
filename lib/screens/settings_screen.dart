@@ -38,6 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   bool _showWordsAfterPass = true;
   bool _useManualControls = false;
   bool _preferLandscape = true;
+  bool _reactionRecordingEnabled = true;
 
   @override
   void initState() {
@@ -70,6 +71,8 @@ class _SettingsScreenState extends State<SettingsScreen>
       _showTutorials = prefs.getBool('show_tutorials') ?? true;
       _useManualControls = prefs.getBool('use_manual_controls') ?? false;
       _preferLandscape = prefs.getBool('prefer_landscape_gameplay') ?? true;
+      _reactionRecordingEnabled =
+          prefs.getBool('enable_reaction_recording') ?? true;
     });
 
     _audioService.setSoundEnabled(_soundEnabled);
@@ -102,6 +105,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     await prefs.setBool('show_tutorials', _showTutorials);
     await prefs.setBool('use_manual_controls', _useManualControls);
     await prefs.setBool('prefer_landscape_gameplay', _preferLandscape);
+    await prefs.setBool('enable_reaction_recording', _reactionRecordingEnabled);
 
     _audioService.setSoundEnabled(_soundEnabled);
     _hapticService.setHapticEnabled(_hapticEnabled);
@@ -295,6 +299,18 @@ class _SettingsScreenState extends State<SettingsScreen>
                       _showWordsAfterPass,
                       (value) {
                         setState(() => _showWordsAfterPass = value);
+                        _saveSettings();
+                        _hapticService.lightImpact();
+                      },
+                    ),
+                    _buildDivider(),
+                    _buildSwitchTile(
+                      'Record Reactions',
+                      'Capture fun moments during gameplay',
+                      Icons.videocam_rounded,
+                      _reactionRecordingEnabled,
+                      (value) {
+                        setState(() => _reactionRecordingEnabled = value);
                         _saveSettings();
                         _hapticService.lightImpact();
                       },

@@ -17,6 +17,8 @@ import '../widgets/banner_ad_widget.dart';
 import 'category_selection_screen.dart';
 import 'gameplay_screen.dart';
 import 'tutorial_screen.dart';
+import '../test_camera_screen.dart';
+import 'video_debug_screen.dart';
 import 'team_setup_screen.dart';
 import 'custom_deck_management_screen.dart';
 
@@ -305,121 +307,147 @@ class _HomeScreenState extends State<HomeScreen>
       child: Scaffold(
         backgroundColor: AppTheme.backgroundColor,
         body: RefreshIndicator(
-        onRefresh: () async {
-          print('🔄 Manual refresh triggered');
-          await _loadDailyDeck();
-        },
-        color: AppTheme.primaryColor,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
-          ),
-          slivers: [
-            // Elegant Modern App Bar with clean design
-            SliverAppBar(
-              expandedHeight: 240,
-              floating: true,
-              pinned: true,
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        AppTheme.primaryColor,
-                        AppTheme.primaryColor.withOpacity(0.95),
+          onRefresh: () async {
+            print('🔄 Manual refresh triggered');
+            await _loadDailyDeck();
+          },
+          color: AppTheme.primaryColor,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            slivers: [
+              // Elegant Modern App Bar with clean design
+              SliverAppBar(
+                expandedHeight: 240,
+                floating: true,
+                pinned: true,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                actions: [
+                  // Test camera button (temporary for debugging)
+                  IconButton(
+                    icon: const Icon(Icons.videocam, color: Colors.white),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TestCameraScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  // Video debug button
+                  IconButton(
+                    icon: const Icon(Icons.bug_report, color: Colors.white),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const VideoDebugScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          AppTheme.primaryColor,
+                          AppTheme.primaryColor.withOpacity(0.95),
+                        ],
+                      ),
+                    ),
+                    child: Stack(
+                      children: [
+                        // Subtle pattern overlay
+                        Positioned.fill(
+                          child: CustomPaint(
+                            painter: _HeaderPatternPainter(
+                              animation: _pulseController,
+                            ),
+                          ),
+                        ),
+                        // Bottom curve
+                        Positioned(
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          child: Container(
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: AppTheme.backgroundColor,
+                              borderRadius: const BorderRadius.only(
+                                topLeft: Radius.circular(40),
+                                topRight: Radius.circular(40),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppTheme.primaryColor.withOpacity(0.2),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, -5),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Content
+                        SafeArea(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    _buildLogo(),
+                                    _buildSettingsButton(),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+                                Flexible(child: _buildWelcomeText(context)),
+                                const SizedBox(height: 20),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  child: Stack(
-                    children: [
-                      // Subtle pattern overlay
-                      Positioned.fill(
-                        child: CustomPaint(
-                          painter: _HeaderPatternPainter(
-                            animation: _pulseController,
-                          ),
-                        ),
-                      ),
-                      // Bottom curve
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: Container(
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: AppTheme.backgroundColor,
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(40),
-                              topRight: Radius.circular(40),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.primaryColor.withOpacity(0.2),
-                                blurRadius: 10,
-                                offset: const Offset(0, -5),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      // Content
-                      SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  _buildLogo(),
-                                  _buildSettingsButton(),
-                                ],
-                              ),
-                              const SizedBox(height: 20),
-                              Flexible(child: _buildWelcomeText(context)),
-                              const SizedBox(height: 20),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
-            ),
 
-            // Main Content
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  _buildQuickPlayCard(context),
-                  const SizedBox(height: 16),
-                  if (_todaysDeck != null) ...[
-                    _buildDailyHeadsUpCard(context),
+              // Main Content
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _buildQuickPlayCard(context),
                     const SizedBox(height: 16),
-                  ],
-                  _buildFeatureGrid(context),
-                  const SizedBox(height: 24),
-                  _buildStatsCard(context),
-                  const SizedBox(height: 24),
-                  _buildRecentDecksSection(context),
-                  const SizedBox(height: 40),
-                ]),
+                    if (_todaysDeck != null) ...[
+                      _buildDailyHeadsUpCard(context),
+                      const SizedBox(height: 16),
+                    ],
+                    _buildFeatureGrid(context),
+                    const SizedBox(height: 24),
+                    _buildStatsCard(context),
+                    const SizedBox(height: 24),
+                    _buildRecentDecksSection(context),
+                    const SizedBox(height: 40),
+                  ]),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }

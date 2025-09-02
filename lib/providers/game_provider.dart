@@ -4,6 +4,7 @@ import '../models/game_session.dart';
 import '../models/deck.dart';
 import '../services/game_firebase_service.dart';
 import '../services/firebase_service.dart';
+import '../models/video_recording_result.dart';
 
 class GameProvider extends ChangeNotifier {
   final GameFirebaseService _gameFirebaseService = GameFirebaseService();
@@ -15,6 +16,9 @@ class GameProvider extends ChangeNotifier {
   bool _isGameActive = false;
   List<GameSession> _gameHistory = [];
   Map<String, dynamic> _statistics = {};
+
+  // Video recording field
+  VideoRecordingResult? _lastVideoRecording;
 
   // Streams
   StreamSubscription? _recentGamesSubscription;
@@ -40,6 +44,9 @@ class GameProvider extends ChangeNotifier {
   bool get vibrationEnabled => _settings['vibrationEnabled'] ?? true;
   bool get kidFriendlyMode => _settings['kidFriendlyMode'] ?? false;
   bool get showWordsAfterPass => _settings['showWordsAfterPass'] ?? true;
+
+  // Video recording getter
+  VideoRecordingResult? get lastVideoRecording => _lastVideoRecording;
 
   GameProvider() {
     _initialize();
@@ -104,6 +111,8 @@ class GameProvider extends ChangeNotifier {
     List<String>? teamNames,
     int totalRounds = 1,
   }) {
+    // Don't clear video recording here - it should be cleared when leaving results screen
+    // clearVideoRecording();
     _currentSession = GameSession.start(
       deck: deck,
       roundDuration: Duration(seconds: roundDuration),
@@ -428,6 +437,16 @@ class GameProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error clearing all data: $e');
     }
+  }
+
+  // Video recording methods
+  void setVideoRecording(VideoRecordingResult? recording) {
+    _lastVideoRecording = recording;
+    notifyListeners();
+  }
+
+  void clearVideoRecording() {
+    _lastVideoRecording = null;
   }
 
   @override

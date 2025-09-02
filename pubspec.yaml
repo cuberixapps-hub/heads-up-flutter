@@ -66,8 +66,7 @@ dependencies:
   # Audio
   audioplayers: ^6.1.0
 
-  # Permissions
-  permission_handler: ^11.3.1
+  # Permissions - removed permission_handler, using native camera permissions
 
   # Utilities
   intl: ^0.19.0
@@ -78,6 +77,7 @@ dependencies:
 
   # Video
   video_player: ^2.9.1
+  # Note: Removed ffmpeg_kit_flutter due to iOS compatibility issues
 
   # Haptics
 

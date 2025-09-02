@@ -250,5 +250,11 @@
 			<string>3qcr597p9d.skadnetwork</string>
 		</dict>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Record your reactions during gameplay to create fun videos</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Include audio in your reaction videos</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save your reaction videos to your photo library</string>
 </dict>
 </plist>

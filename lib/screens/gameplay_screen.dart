@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
+import 'dart:io';
 import '../constants/app_theme.dart';
 import '../models/deck.dart';
 import '../providers/game_provider.dart';
@@ -15,6 +16,8 @@ import '../services/audio_service.dart';
 import '../widgets/tutorial_hint_overlay.dart';
 import 'results_screen.dart';
 import 'team_results_screen.dart';
+import '../services/camera_recording_service.dart';
+import '../models/video_recording_result.dart';
 
 class GameplayScreen extends StatefulWidget {
   final Deck deck;
@@ -93,13 +96,45 @@ class _GameplayScreenState extends State<GameplayScreen>
   bool _useManualControls = false;
   bool _isLandscapeMode = false;
 
+  // Camera recording
+  final _cameraRecording = CameraRecordingService.instance;
+  bool _isCameraEnabled = false;
+  bool _isRecordingVideo = false;
+  bool _isNavigating = false;
+
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
     _checkTutorialHints();
     _checkPreferredOrientation();
+    _checkCameraPreference();
     _startCountdown();
+
+    // Listen for game state changes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final gameProvider = context.read<GameProvider>();
+      gameProvider.addListener(_checkGameState);
+    });
+  }
+
+  void _checkGameState() {
+    if (!mounted) return;
+    final gameProvider = context.read<GameProvider>();
+    if (!gameProvider.isGameActive &&
+        !_isNavigating &&
+        _countdownController.isCompleted) {
+      debugPrint('=== GAME STATE CHANGE DETECTED ===');
+      debugPrint('Game ended via timer/provider, navigating to results...');
+      debugPrint('Is recording: $_isRecordingVideo');
+
+      // Delay slightly to ensure proper cleanup
+      Future.delayed(const Duration(milliseconds: 100), () async {
+        if (mounted && !_isNavigating) {
+          await _navigateToResults();
+        }
+      });
+    }
   }
 
   Future<void> _checkPreferredOrientation() async {
@@ -128,6 +163,27 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     // Increment games played
     await prefs.setInt('games_played', _gamesPlayed + 1);
+  }
+
+  Future<void> _checkCameraPreference() async {
+    debugPrint('Checking camera preference...');
+    final prefs = await SharedPreferences.getInstance();
+    _isCameraEnabled = prefs.getBool('enable_reaction_recording') ?? true;
+    debugPrint('Camera enabled preference: $_isCameraEnabled');
+
+    // Debug: Check all preferences
+    final allKeys = prefs.getKeys();
+    debugPrint('All preference keys: $allKeys');
+    for (final key in allKeys) {
+      if (key.contains('reaction') ||
+          key.contains('camera') ||
+          key.contains('record')) {
+        debugPrint('Preference $key = ${prefs.get(key)}');
+      }
+    }
+
+    // Don't initialize camera here - wait until game starts
+    // This ensures permissions are requested when app is fully active
   }
 
   void _initializeAnimations() {
@@ -185,12 +241,66 @@ class _GameplayScreenState extends State<GameplayScreen>
     });
   }
 
-  void _startGame() {
+  void _startGame() async {
     if (!_useManualControls) {
       _calibrateAccelerometer();
     }
     _audioService.playClick();
     _hapticService.mediumImpact();
+
+    // Initialize camera first, then start recording
+    if (_isCameraEnabled) {
+      debugPrint('=== CAMERA RECORDING START ===');
+      debugPrint('Game starting - initializing camera...');
+      debugPrint('Camera preference enabled: $_isCameraEnabled');
+
+      // The camera package will automatically request permissions
+      final initialized = await _cameraRecording.initialize();
+      debugPrint('Camera initialization result: $initialized');
+
+      if (initialized) {
+        debugPrint('Camera initialized during game start');
+        final recordingStarted = await _startVideoRecording();
+        debugPrint('Recording started result: $recordingStarted');
+      } else {
+        debugPrint('Camera initialization failed during game start');
+        _isCameraEnabled = false;
+      }
+    } else {
+      debugPrint('=== CAMERA DISABLED ===');
+      debugPrint('Camera recording disabled by user preference');
+    }
+  }
+
+  Future<bool> _startVideoRecording() async {
+    debugPrint(
+      '_startVideoRecording called. Camera enabled: $_isCameraEnabled',
+    );
+    if (!_isCameraEnabled) {
+      debugPrint('Camera not enabled, skipping recording');
+      return false;
+    }
+
+    debugPrint('Starting video recording...');
+    debugPrint('Deck name: ${widget.deck.name}');
+    debugPrint('Deck color: ${widget.deck.color.toString()}');
+
+    final success = await _cameraRecording.startRecording(
+      widget.deck.name,
+      widget.deck.color.toString(),
+    );
+
+    if (success) {
+      setState(() {
+        _isRecordingVideo = true;
+      });
+      debugPrint('Video recording started successfully');
+      debugPrint('_isRecordingVideo set to: $_isRecordingVideo');
+    } else {
+      debugPrint('Failed to start video recording');
+    }
+
+    return success;
   }
 
   void _calibrateAccelerometer() {
@@ -250,7 +360,9 @@ class _GameplayScreenState extends State<GameplayScreen>
 
         if (_debugAccelerometer) {
           print(
-            'Landscape - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | ' 'DeltaX: ${deltaX.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | ' 'TiltAngle: ${tiltAngle.toStringAsFixed(1)}',
+            'Landscape - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | '
+            'DeltaX: ${deltaX.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | '
+            'TiltAngle: ${tiltAngle.toStringAsFixed(1)}',
           );
         }
 
@@ -269,7 +381,9 @@ class _GameplayScreenState extends State<GameplayScreen>
 
         if (_debugAccelerometer) {
           print(
-            'Portrait - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | ' 'DeltaX: ${deltaX.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | ' 'TiltAngle: ${tiltAngle.toStringAsFixed(1)}',
+            'Portrait - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | '
+            'DeltaX: ${deltaX.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | '
+            'TiltAngle: ${tiltAngle.toStringAsFixed(1)}',
           );
         }
 
@@ -352,8 +466,22 @@ class _GameplayScreenState extends State<GameplayScreen>
     if (_actionLocked) return; // Prevent duplicate actions
     _actionLocked = true;
 
+    // Get current word before marking correct
+    final gameProvider = context.read<GameProvider>();
+    final currentWord = gameProvider.currentSession?.currentCard ?? '';
+
     // Update game state
-    context.read<GameProvider>().markCorrect();
+    gameProvider.markCorrect();
+
+    // Log video event
+    if (_isRecordingVideo) {
+      _cameraRecording.logGameEvent(
+        type: 'correct',
+        word: currentWord,
+        score: gameProvider.currentSession?.correctCount ?? 0,
+        remainingTime: gameProvider.remainingTime,
+      );
+    }
 
     // Show feedback
     _showFeedback('CORRECT!', AppTheme.successColor, Icons.check_circle);
@@ -378,8 +506,22 @@ class _GameplayScreenState extends State<GameplayScreen>
     if (_actionLocked) return; // Prevent duplicate actions
     _actionLocked = true;
 
+    // Get current word before marking pass
+    final gameProvider = context.read<GameProvider>();
+    final currentWord = gameProvider.currentSession?.currentCard ?? '';
+
     // Update game state
-    context.read<GameProvider>().markPass();
+    gameProvider.markPass();
+
+    // Log video event
+    if (_isRecordingVideo) {
+      _cameraRecording.logGameEvent(
+        type: 'pass',
+        word: currentWord,
+        score: gameProvider.currentSession?.correctCount ?? 0,
+        remainingTime: gameProvider.remainingTime,
+      );
+    }
 
     // Show feedback
     _showFeedback('PASS', AppTheme.warningColor, Icons.skip_next);
@@ -415,13 +557,29 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   void _prepareNextCard() {
     Future.delayed(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+
       final gameProvider = context.read<GameProvider>();
 
       // Check if game is over
       if (!gameProvider.isGameActive ||
           gameProvider.currentSession?.isComplete == true) {
-        _navigateToResults();
+        debugPrint('Game over detected in _prepareNextCard');
+        if (!_isNavigating) {
+          _navigateToResults();
+        }
       } else {
+        // Log word shown event
+        final currentWord = gameProvider.currentSession?.currentCard ?? '';
+        if (_isRecordingVideo && currentWord.isNotEmpty) {
+          _cameraRecording.logGameEvent(
+            type: 'word_shown',
+            word: currentWord,
+            score: gameProvider.currentSession?.correctCount ?? 0,
+            remainingTime: gameProvider.remainingTime,
+          );
+        }
+
         // Note: We don't reset flags here anymore
         // The neutral position detection will handle resetting when phone returns to neutral
         // This prevents the issue where holding the phone tilted causes continuous triggers
@@ -430,8 +588,91 @@ class _GameplayScreenState extends State<GameplayScreen>
     });
   }
 
-  void _navigateToResults() {
+  Future<void> _navigateToResults() async {
+    if (_isNavigating) {
+      debugPrint('Already navigating, skipping...');
+      return;
+    }
+    _isNavigating = true;
+
+    debugPrint('_navigateToResults called');
     _accelerometerSubscription?.cancel();
+
+    // Stop video recording and get result
+    if (_isRecordingVideo) {
+      debugPrint('Video is recording, stopping and navigating...');
+      await _stopRecordingAndNavigate();
+    } else {
+      debugPrint('No video recording, navigating directly...');
+      _navigateToResultsScreen();
+    }
+  }
+
+  Future<void> _stopRecordingAndNavigate() async {
+    debugPrint(
+      '_stopRecordingAndNavigate called. Is recording: $_isRecordingVideo',
+    );
+    VideoRecordingResult? recordingResult;
+
+    if (_isRecordingVideo) {
+      debugPrint('Stopping video recording...');
+      setState(() {
+        _isRecordingVideo = false; // Prevent multiple stops
+      });
+
+      recordingResult = await _cameraRecording.stopRecording(
+        widget.deck.name,
+        widget.deck.color.toString(),
+      );
+
+      // Store in game provider
+      if (recordingResult != null) {
+        debugPrint(
+          'Recording result received. Video path: ${recordingResult.videoPath}',
+        );
+        debugPrint('Recording duration: ${recordingResult.duration}');
+        debugPrint('Recording events: ${recordingResult.events.length}');
+
+        // Verify file exists before storing
+        final videoFile = File(recordingResult.videoPath);
+        final exists = await videoFile.exists();
+        debugPrint('Video file exists before storing: $exists');
+
+        if (!mounted) {
+          debugPrint('Widget not mounted, cannot store recording');
+          return;
+        }
+
+        context.read<GameProvider>().setVideoRecording(recordingResult);
+        debugPrint('Recording result stored in GameProvider');
+
+        // Verify it was stored
+        final storedRecording = context.read<GameProvider>().lastVideoRecording;
+        debugPrint('Verified storage: ${storedRecording != null}');
+
+        // Small delay to ensure provider updates propagate
+        await Future.delayed(const Duration(milliseconds: 100));
+      } else {
+        debugPrint('Recording result is null');
+      }
+    } else {
+      debugPrint('Not recording video, skipping stop');
+    }
+
+    if (mounted) {
+      _navigateToResultsScreen();
+    }
+  }
+
+  void _navigateToResultsScreen() {
+    debugPrint('=== NAVIGATING TO RESULTS ===');
+    final gameProvider = context.read<GameProvider>();
+    final recording = gameProvider.lastVideoRecording;
+    debugPrint('Video recording in provider: ${recording != null}');
+    if (recording != null) {
+      debugPrint('Video path: ${recording.videoPath}');
+      debugPrint('Video duration: ${recording.duration}');
+    }
 
     if (widget.isTeamMode) {
       Navigator.pushReplacement(
@@ -747,6 +988,15 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   @override
   void dispose() {
+    // Remove game state listener
+    try {
+      final gameProvider = context.read<GameProvider>();
+      gameProvider.removeListener(_checkGameState);
+    } catch (e) {
+      // Context might be deactivated
+      debugPrint('Could not remove listener: $e');
+    }
+
     _countdownController.dispose();
     _cardFlipController.dispose();
     _feedbackController.dispose();
@@ -762,6 +1012,21 @@ class _GameplayScreenState extends State<GameplayScreen>
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
+
+    // Clean up camera if still recording
+    if (_isRecordingVideo) {
+      debugPrint('Stopping recording in dispose');
+      _cameraRecording
+          .stopRecording(widget.deck.name, widget.deck.color.toString())
+          .then((result) {
+            if (result != null) {
+              debugPrint(
+                'Recording stopped in dispose, but cannot save to provider',
+              );
+            }
+          });
+    }
+
     super.dispose();
   }
 
