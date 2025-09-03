@@ -110,13 +110,8 @@ class CameraRecordingService {
       _isRecording = true;
       _gameEvents.clear();
 
-      // Log game start event
-      logGameEvent(
-        type: 'game_start',
-        word: deckName,
-        score: 0,
-        remainingTime: null,
-      );
+      // Log game start event (don't use deck name as word)
+      logGameEvent(type: 'game_start', word: '', score: 0, remainingTime: null);
 
       debugPrint('Recording started: $_currentVideoPath');
       return true;
@@ -145,9 +140,20 @@ class CameraRecordingService {
     );
 
     _gameEvents.add(event);
-    debugPrint(
-      'Game event logged: $type - $word at ${event.timestamp.inSeconds}s',
-    );
+    debugPrint('=== GAME EVENT LOGGED ===');
+    debugPrint('Event type: $type');
+    debugPrint('Word: "$word"');
+    debugPrint('Score: $score');
+    debugPrint('Timestamp: ${event.timestamp.inSeconds}s');
+    debugPrint('Total events so far: ${_gameEvents.length}');
+    
+    // Debug all events
+    if (type == 'word_shown') {
+      debugPrint('All events:');
+      for (var e in _gameEvents) {
+        debugPrint('  ${e.type}: "${e.word}" at ${e.timestamp.inSeconds}s');
+      }
+    }
   }
 
   // Stop recording and return video path

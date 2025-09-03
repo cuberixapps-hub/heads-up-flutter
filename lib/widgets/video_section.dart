@@ -5,10 +5,13 @@ import 'dart:io';
 import '../constants/app_theme.dart';
 import '../models/video_recording_result.dart';
 import '../providers/game_provider.dart';
+import '../services/game_replay_renderer.dart';
 import '../screens/video_player_screen.dart';
+import '../screens/video_player_with_overlay_screen.dart';
 import '../services/video_composer.dart';
 import '../services/haptic_service.dart';
 import '../utils/video_utils.dart';
+import 'video_with_overlay.dart';
 
 class VideoSection extends StatefulWidget {
   const VideoSection({super.key});
@@ -26,6 +29,7 @@ class _VideoSectionState extends State<VideoSection>
   String? _thumbnailPath;
   bool _isProcessingVideo = false;
   bool _videoProcessingFailed = false;
+  List<String> _generatedFrames = [];
   late AnimationController _videoSectionController;
 
   @override
@@ -89,24 +93,49 @@ class _VideoSectionState extends State<VideoSection>
         throw Exception('No game session found');
       }
 
-      // Note: Game replay overlay is currently disabled due to FFmpeg compatibility
-      // The reaction video will be shown without the PiP overlay
-      debugPrint('Processing reaction video...');
+      debugPrint('=== VIDEO PROCESSING STARTED ===');
+      debugPrint('Recording duration: ${_recordingResult!.duration}');
+      debugPrint('Total events: ${_recordingResult!.events.length}');
 
-      // For now, use the raw reaction video
-      final composedPath = _recordingResult!.videoPath;
+      // Pre-generate all game replay frames to ensure smooth playback
+      debugPrint('Pre-generating game replay frames...');
+      final frames = await GameReplayRenderer.generateGameReplayFrames(
+        recordingResult: _recordingResult!,
+        deckColor: _getDeckColor(),
+        gameDuration: _recordingResult!.duration,
+      );
 
-      // Generate thumbnail
-      _thumbnailPath = await VideoComposer.generateThumbnail(composedPath);
+      if (frames.isEmpty) {
+        debugPrint('Warning: No game replay frames generated');
+      } else {
+        debugPrint('Successfully generated ${frames.length} frames');
 
-      // No temporary files to clean up since we're using the raw video
+        // Store frames for later cleanup
+        _generatedFrames = frames;
+      }
+
+      // Use the raw video path as we're doing dynamic overlay
+      _composedVideoPath = _recordingResult!.videoPath;
+
+      // Verify video file exists and is accessible
+      final videoFile = File(_recordingResult!.videoPath);
+      if (!await videoFile.exists()) {
+        throw Exception('Video file not found');
+      }
+
+      final fileSize = await videoFile.length();
+      debugPrint('Video file size: ${fileSize / 1024 / 1024} MB');
+
+      // Try to generate thumbnail
+      _thumbnailPath = await VideoComposer.generateThumbnail(
+        _recordingResult!.videoPath,
+      );
 
       setState(() {
-        _composedVideoPath = composedPath;
         _isProcessingVideo = false;
       });
 
-      debugPrint('Video processing complete');
+      debugPrint('=== VIDEO PROCESSING COMPLETE ===');
     } catch (e) {
       debugPrint('Video processing error: $e');
       setState(() {
@@ -119,6 +148,18 @@ class _VideoSectionState extends State<VideoSection>
   @override
   void dispose() {
     _videoSectionController.dispose();
+
+    // Clean up generated frames
+    if (_generatedFrames.isNotEmpty) {
+      for (final frame in _generatedFrames) {
+        try {
+          File(frame).deleteSync();
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+    }
+
     super.dispose();
   }
 
@@ -360,21 +401,70 @@ class _VideoSectionState extends State<VideoSection>
   }
 
   Widget _buildVideoPreview() {
+    // Use VideoWithOverlay for synchronized preview with pre-generated frames
+    if (_recordingResult != null &&
+        _composedVideoPath != null &&
+        _generatedFrames.isNotEmpty) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          VideoWithOverlay(
+            videoPath: _composedVideoPath!,
+            recordingResult: _recordingResult!,
+            deckColor: _getDeckColor(),
+            onTap: () => _playVideo(_composedVideoPath!),
+            autoPlay: false,
+            preGeneratedFrames: _generatedFrames,
+          ),
+
+          // Duration badge
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.timer_outlined,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _formatDuration(_recordingResult!.duration),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Fallback to simple preview
     return Stack(
       fit: StackFit.expand,
       children: [
         // Thumbnail or placeholder
-        if (_thumbnailPath != null)
-          Image.file(File(_thumbnailPath!), fit: BoxFit.cover)
-        else
-          Container(
-            color: Colors.black,
-            child: const Icon(
-              Icons.movie_outlined,
-              color: Colors.white54,
-              size: 64,
-            ),
+        Container(
+          color: Colors.black,
+          child: const Icon(
+            Icons.movie_outlined,
+            color: Colors.white54,
+            size: 64,
           ),
+        ),
 
         // Dark overlay
         Container(color: Colors.black.withOpacity(0.3)),
@@ -435,6 +525,12 @@ class _VideoSectionState extends State<VideoSection>
     );
   }
 
+  Color _getDeckColor() {
+    final gameProvider = context.read<GameProvider>();
+    final session = gameProvider.currentSession;
+    return session?.deck.color ?? AppTheme.primaryColor;
+  }
+
   Widget _buildRawVideoPreview() {
     return _buildVideoPreview();
   }
@@ -486,9 +582,12 @@ class _VideoSectionState extends State<VideoSection>
       context,
       MaterialPageRoute(
         builder:
-            (context) => VideoPlayerScreen(
+            (context) => VideoPlayerWithOverlayScreen(
               videoPath: videoPath,
               title: 'Heads Up! - ${_recordingResult!.deckName}',
+              recordingResult: _recordingResult!,
+              deckColor: _getDeckColor(),
+              preGeneratedFrames: _generatedFrames,
             ),
       ),
     );

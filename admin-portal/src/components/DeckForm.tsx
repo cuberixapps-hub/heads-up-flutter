@@ -136,19 +136,53 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
     };
 
     const generateAISuggestions = () => {
-        // Simulate AI suggestions - in production, this would call an AI API
-        const suggestions = [
-            'Celebrity Name',
-            'Movie Title',
-            'Animal',
-            'Food Item',
-            'Country',
-            'Sport',
-            'Book Title',
-            'Song Name',
-            'TV Show',
-            'Historical Figure',
-        ];
+        // Generate contextual suggestions based on deck name
+        const deckNameLower = deckName.toLowerCase();
+        let suggestions: string[] = [];
+
+        if (deckNameLower.includes('movie') || deckNameLower.includes('film')) {
+            suggestions = [
+                'Titanic', 'Avatar', 'Star Wars', 'The Lion King', 'Inception',
+                'The Matrix', 'Toy Story', 'Jurassic Park', 'Harry Potter', 'The Avengers'
+            ];
+        } else if (deckNameLower.includes('food') || deckNameLower.includes('eat')) {
+            suggestions = [
+                'Pizza', 'Hamburger', 'Sushi', 'Ice Cream', 'Chocolate',
+                'Pasta', 'Tacos', 'Salad', 'French Fries', 'Chicken Wings'
+            ];
+        } else if (deckNameLower.includes('animal') || deckNameLower.includes('pet')) {
+            suggestions = [
+                'Lion', 'Elephant', 'Penguin', 'Dolphin', 'Giraffe',
+                'Tiger', 'Monkey', 'Kangaroo', 'Eagle', 'Butterfly'
+            ];
+        } else if (deckNameLower.includes('celebrit') || deckNameLower.includes('famous')) {
+            suggestions = [
+                'Taylor Swift', 'Tom Cruise', 'Beyoncé', 'Brad Pitt', 'Jennifer Lawrence',
+                'Leonardo DiCaprio', 'Emma Watson', 'Chris Hemsworth', 'Scarlett Johansson', 'Robert Downey Jr.'
+            ];
+        } else if (deckNameLower.includes('sport')) {
+            suggestions = [
+                'Basketball', 'Soccer', 'Tennis', 'Swimming', 'Golf',
+                'Baseball', 'Football', 'Volleyball', 'Boxing', 'Cycling'
+            ];
+        } else if (deckNameLower.includes('countr') || deckNameLower.includes('place')) {
+            suggestions = [
+                'France', 'Japan', 'Brazil', 'Australia', 'Canada',
+                'Italy', 'Mexico', 'India', 'Egypt', 'Germany'
+            ];
+        } else if (deckNameLower.includes('music') || deckNameLower.includes('song')) {
+            suggestions = [
+                'Bohemian Rhapsody', 'Imagine', 'Hey Jude', 'Stairway to Heaven', 'Billie Jean',
+                'Hotel California', 'Sweet Child O Mine', 'Wonderwall', 'Smells Like Teen Spirit', 'Let It Be'
+            ];
+        } else {
+            // Generic suggestions if no category detected
+            suggestions = [
+                'Eiffel Tower', 'Pizza', 'Harry Potter', 'Basketball', 'Paris',
+                'Chocolate', 'Superman', 'Guitar', 'Birthday Cake', 'Rainbow'
+            ];
+        }
+
         setAiSuggestions(suggestions);
         setShowAISuggestions(true);
     };

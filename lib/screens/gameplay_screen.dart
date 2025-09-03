@@ -242,6 +242,11 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _startGame() async {
+    debugPrint('=== GAME START ===');
+    debugPrint('Deck name: ${widget.deck.name}');
+    debugPrint('Deck cards: ${widget.deck.cards}');
+    debugPrint('Deck cards count: ${widget.deck.cards.length}');
+    
     if (!_useManualControls) {
       _calibrateAccelerometer();
     }
@@ -262,6 +267,21 @@ class _GameplayScreenState extends State<GameplayScreen>
         debugPrint('Camera initialized during game start');
         final recordingStarted = await _startVideoRecording();
         debugPrint('Recording started result: $recordingStarted');
+
+        if (recordingStarted) {
+          // Log the first word shown
+          final gameProvider = context.read<GameProvider>();
+          final currentWord = gameProvider.currentSession?.currentCard ?? '';
+          if (currentWord.isNotEmpty) {
+            _cameraRecording.logGameEvent(
+              type: 'word_shown',
+              word: currentWord,
+              score: 0,
+              remainingTime: gameProvider.remainingTime,
+            );
+            debugPrint('Logged first word: $currentWord');
+          }
+        }
       } else {
         debugPrint('Camera initialization failed during game start');
         _isCameraEnabled = false;
@@ -571,6 +591,11 @@ class _GameplayScreenState extends State<GameplayScreen>
       } else {
         // Log word shown event
         final currentWord = gameProvider.currentSession?.currentCard ?? '';
+        debugPrint('=== WORD SHOWN EVENT ===');
+        debugPrint('Current card index: ${gameProvider.currentSession?.currentCardIndex}');
+        debugPrint('Current word from session: $currentWord');
+        debugPrint('All cards: ${gameProvider.currentSession?.cards}');
+        
         if (_isRecordingVideo && currentWord.isNotEmpty) {
           _cameraRecording.logGameEvent(
             type: 'word_shown',
@@ -578,6 +603,7 @@ class _GameplayScreenState extends State<GameplayScreen>
             score: gameProvider.currentSession?.correctCount ?? 0,
             remainingTime: gameProvider.remainingTime,
           );
+          debugPrint('Logged word_shown event: $currentWord');
         }
 
         // Note: We don't reset flags here anymore

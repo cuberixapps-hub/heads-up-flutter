@@ -1,23 +1,24 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
-
-enum PipPosition { topLeft, topRight, bottomLeft, bottomRight }
+import 'package:path_provider/path_provider.dart';
+import '../models/video_recording_result.dart';
+import '../services/game_replay_renderer.dart';
 
 class VideoComposer {
-  // Compose reaction video with game replay PiP
-  // Note: Video composition requires FFmpeg or native platform implementation
-  // For now, returning the main video without PiP overlay
+  // Note: Video composition with embedded PiP requires FFmpeg which is discontinued
+  // We're using dynamic overlay during playback instead
+  // This method returns the original video and is kept for compatibility
   static Future<String?> composeVideos({
     required String mainVideoPath,
-    required String pipVideoPath,
-    PipPosition pipPosition = PipPosition.bottomRight,
-    Size pipSize = const Size(200, 150),
-    EdgeInsets pipMargin = const EdgeInsets.all(20),
+    required VideoRecordingResult recordingResult,
+    required Color deckColor,
   }) async {
     try {
-      debugPrint('Video composition requested...');
+      debugPrint('=== VIDEO COMPOSITION ===');
+      debugPrint(
+        'Note: Using dynamic overlay approach instead of FFmpeg composition',
+      );
       debugPrint('Main video: $mainVideoPath');
-      debugPrint('PiP video: $pipVideoPath');
 
       // Verify main video exists
       final mainFile = File(mainVideoPath);
@@ -26,18 +27,8 @@ class VideoComposer {
         return null;
       }
 
-      // Clean up PiP video if it exists
-      final pipFile = File(pipVideoPath);
-      if (await pipFile.exists()) {
-        await pipFile.delete();
-      }
-
-      // For now, return the raw reaction video
-      // In the future, this could be enhanced with:
-      // 1. Native platform code for video composition
-      // 2. Server-side processing
-      // 3. Alternative video processing packages
-      debugPrint('Returning raw reaction video (without PiP overlay)');
+      // Return the original video
+      // The PiP overlay is rendered dynamically during playback
       return mainVideoPath;
     } catch (e) {
       debugPrint('Error in video composition: $e');
@@ -45,69 +36,15 @@ class VideoComposer {
     }
   }
 
-  // Calculate PiP overlay position
-  static Offset _calculatePipPosition({
-    required PipPosition pipPosition,
-    required Size pipSize,
-    required EdgeInsets pipMargin,
-  }) {
-    // These calculations assume we know the main video dimensions
-    // In practice, you might need to query the video dimensions first
-    const double mainVideoWidth = 1920; // Assuming 1080p
-    const double mainVideoHeight = 1080;
-
-    switch (pipPosition) {
-      case PipPosition.topLeft:
-        return Offset(pipMargin.left, pipMargin.top);
-
-      case PipPosition.topRight:
-        return Offset(
-          mainVideoWidth - pipSize.width - pipMargin.right,
-          pipMargin.top,
-        );
-
-      case PipPosition.bottomLeft:
-        return Offset(
-          pipMargin.left,
-          mainVideoHeight - pipSize.height - pipMargin.bottom,
-        );
-
-      case PipPosition.bottomRight:
-        return Offset(
-          mainVideoWidth - pipSize.width - pipMargin.right,
-          mainVideoHeight - pipSize.height - pipMargin.bottom,
-        );
-    }
-  }
-
-  // Clean up temporary video files
-  static Future<void> cleanupTemporaryFiles(List<String> filePaths) async {
-    for (final path in filePaths) {
-      try {
-        final file = File(path);
-        if (await file.exists()) {
-          await file.delete();
-          debugPrint('Deleted temporary file: $path');
-        }
-      } catch (e) {
-        debugPrint('Error deleting file $path: $e');
-      }
-    }
-  }
-
   // Generate video thumbnail
-  // Note: Thumbnail generation requires FFmpeg or native platform implementation
   static Future<String?> generateThumbnail(String videoPath) async {
     try {
-      // For now, return null - the video preview will show a placeholder
-      // In the future, this could be implemented using:
-      // 1. Native platform code
-      // 2. Video thumbnail packages
-      // 3. Server-side processing
-      debugPrint('Thumbnail generation currently disabled');
+      // Thumbnail generation requires FFmpeg or native implementation
+      // For now, returning null (video preview will show placeholder)
+      debugPrint('Thumbnail generation currently disabled (requires FFmpeg)');
       return null;
     } catch (e) {
-      debugPrint('Error in thumbnail generation: $e');
+      debugPrint('Error generating thumbnail: $e');
       return null;
     }
   }
