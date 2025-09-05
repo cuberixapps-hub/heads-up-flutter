@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
+import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import '../constants/app_theme.dart';
 import '../services/haptic_service.dart';
 import '../models/video_recording_result.dart';
 import '../services/game_replay_renderer.dart';
+import '../services/native_video_composer.dart';
 import '../widgets/video_overlay_frame_manager.dart';
+import '../widgets/screen_recorder_overlay.dart';
+import '../utils/video_utils.dart';
 
 class VideoPlayerWithOverlayScreen extends StatefulWidget {
   final String videoPath;
@@ -56,27 +60,27 @@ class _VideoPlayerWithOverlayScreenState
     try {
       _controller = VideoPlayerController.file(File(widget.videoPath));
       await _controller!.initialize();
-      
+
       // Update frame based on video position
       _controller!.addListener(() {
         if (_controller!.value.isPlaying && _gameFrames.isNotEmpty) {
           final position = _controller!.value.position;
           // Calculate frame index for 30 FPS
           final frameIndex = (position.inMilliseconds * 30 / 1000).floor();
-          
-          if (frameIndex != _currentFrameIndex && 
-              frameIndex >= 0 && 
+
+          if (frameIndex != _currentFrameIndex &&
+              frameIndex >= 0 &&
               frameIndex < _gameFrames.length) {
             setState(() {
               _currentFrameIndex = frameIndex;
             });
-            
+
             // Preload nearby frames
             _frameManager?.preloadFrames(frameIndex);
           }
         }
       });
-      
+
       setState(() {
         _isInitialized = true;
       });
@@ -87,24 +91,29 @@ class _VideoPlayerWithOverlayScreenState
 
   Future<void> _generateGameFrames() async {
     // If frames are pre-generated, use them directly
-    if (widget.preGeneratedFrames != null && widget.preGeneratedFrames!.isNotEmpty) {
-      debugPrint('Using pre-generated frames: ${widget.preGeneratedFrames!.length} frames');
+    if (widget.preGeneratedFrames != null &&
+        widget.preGeneratedFrames!.isNotEmpty) {
+      debugPrint(
+        'Using pre-generated frames: ${widget.preGeneratedFrames!.length} frames',
+      );
       setState(() {
         _gameFrames = widget.preGeneratedFrames!;
         _isGeneratingFrames = false;
-        
+
         // Initialize frame manager for smooth playback
-        _frameManager = VideoOverlayFrameManager(
-          framePaths: _gameFrames,
-          context: context,
-        );
-        
-        // Preload initial frames
-        _frameManager!.preloadFrames(0);
+        _frameManager = VideoOverlayFrameManager(framePaths: _gameFrames);
+
+        // Set context and preload after widget is built
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _frameManager != null) {
+            _frameManager!.setContext(context);
+            _frameManager!.preloadFrames(0);
+          }
+        });
       });
       return;
     }
-    
+
     // Otherwise generate frames
     setState(() {
       _isGeneratingFrames = true;
@@ -125,16 +134,18 @@ class _VideoPlayerWithOverlayScreenState
         setState(() {
           _gameFrames = frames;
           _isGeneratingFrames = false;
-          
+
           // Initialize frame manager for smooth playback
-          _frameManager = VideoOverlayFrameManager(
-            framePaths: _gameFrames,
-            context: context,
-          );
-          
-          // Preload initial frames
+          _frameManager = VideoOverlayFrameManager(framePaths: _gameFrames);
+
+          // Set context and preload after widget is built
           if (_gameFrames.isNotEmpty) {
-            _frameManager!.preloadFrames(0);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _frameManager != null) {
+                _frameManager!.setContext(context);
+                _frameManager!.preloadFrames(0);
+              }
+            });
           }
         });
       }
@@ -173,7 +184,7 @@ class _VideoPlayerWithOverlayScreenState
 
   void _togglePlayPause() {
     if (_controller == null) return;
-    
+
     setState(() {
       if (_controller!.value.isPlaying) {
         _controller!.pause();
@@ -192,12 +203,15 @@ class _VideoPlayerWithOverlayScreenState
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Video player
+          // Video player - full screen without cropping
           if (_isInitialized && _controller != null)
-            Center(
-              child: AspectRatio(
-                aspectRatio: _controller!.value.aspectRatio,
-                child: VideoPlayer(_controller!),
+            Container(
+              color: Colors.black,
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: _controller!.value.aspectRatio,
+                  child: VideoPlayer(_controller!),
+                ),
               ),
             )
           else
@@ -231,40 +245,48 @@ class _VideoPlayerWithOverlayScreenState
                     children: [
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 50),
-                        child: _currentFrameIndex < _gameFrames.length
-                            ? _frameManager?.getFrame(_currentFrameIndex) ??
-                                Image.file(
-                                  File(_gameFrames[_currentFrameIndex]),
-                                  key: ValueKey(_currentFrameIndex),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      color: widget.deckColor.withOpacity(0.3),
-                                      child: const Center(
-                                        child: Icon(
-                                          Icons.image_not_supported,
-                                          color: Colors.white54,
-                                        ),
+                        child:
+                            _currentFrameIndex < _gameFrames.length
+                                ? _frameManager?.getFrame(_currentFrameIndex) ??
+                                    Image.file(
+                                      File(_gameFrames[_currentFrameIndex]),
+                                      key: ValueKey(_currentFrameIndex),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (
+                                        context,
+                                        error,
+                                        stackTrace,
+                                      ) {
+                                        return Container(
+                                          color: widget.deckColor.withOpacity(
+                                            0.3,
+                                          ),
+                                          child: const Center(
+                                            child: Icon(
+                                              Icons.image_not_supported,
+                                              color: Colors.white54,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    )
+                                : Container(
+                                  key: const ValueKey('empty'),
+                                  color: widget.deckColor.withOpacity(0.3),
+                                  child: const Center(
+                                    child: Text(
+                                      'Game Replay',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
                                       ),
-                                    );
-                                  },
-                                )
-                            : Container(
-                                key: const ValueKey('empty'),
-                                color: widget.deckColor.withOpacity(0.3),
-                                child: const Center(
-                                  child: Text(
-                                    'Game Replay',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
                                     ),
                                   ),
                                 ),
-                              ),
                       ),
-                      
+
                       // Frame number debug (optional - remove in production)
+                      // ignore: dead_code
                       if (false) // Set to true for debugging
                         Positioned(
                           top: 4,
@@ -367,7 +389,7 @@ class _VideoPlayerWithOverlayScreenState
               ),
             ),
 
-          // Header with back button
+          // Header with back button and actions
           SafeArea(
             child: Container(
               padding: const EdgeInsets.all(16),
@@ -388,6 +410,19 @@ class _VideoPlayerWithOverlayScreenState
                       ),
                     ),
                   ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.save_alt_rounded,
+                      color: Colors.white,
+                    ),
+                    onPressed: _showSaveOptions,
+                    tooltip: 'Save',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.share_rounded, color: Colors.white),
+                    onPressed: _showShareOptions,
+                    tooltip: 'Share',
+                  ),
                 ],
               ),
             ),
@@ -405,10 +440,7 @@ class _VideoPlayerWithOverlayScreenState
                   gradient: LinearGradient(
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
-                    colors: [
-                      Colors.black87,
-                      Colors.transparent,
-                    ],
+                    colors: [Colors.black87, Colors.transparent],
                   ),
                 ),
                 child: Column(
@@ -458,5 +490,343 @@ class _VideoPlayerWithOverlayScreenState
     final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  void _showSaveOptions() {
+    _controller?.pause();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.darkSecondary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder:
+          (context) => Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const Icon(
+                  Icons.save_alt_rounded,
+                  size: 48,
+                  color: AppTheme.primaryColor,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Save Video with Game Overlay',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'To save the complete video with game overlay:',
+                  style: TextStyle(color: Colors.white70),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppTheme.primaryColor.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildInstructionStep('1', 'Start screen recording'),
+                      const SizedBox(height: 12),
+                      _buildInstructionStep(
+                        '2',
+                        'Play this video in full screen',
+                      ),
+                      const SizedBox(height: 12),
+                      _buildInstructionStep('3', 'Stop recording when done'),
+                      const SizedBox(height: 12),
+                      _buildInstructionStep('4', 'Save from your gallery'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          // Save reaction video only
+                          final saved = await VideoUtils.saveVideoToGallery(
+                            widget.videoPath,
+                          );
+                          if (saved && mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Reaction video saved (without overlay)',
+                                ),
+                                backgroundColor: AppTheme.successColor,
+                              ),
+                            );
+                          }
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white70,
+                          side: const BorderSide(color: Colors.white30),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text('Save Reaction Only'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _startScreenRecordingMode();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryColor,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text('Start Recording'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+    );
+  }
+
+  void _showShareOptions() {
+    _controller?.pause();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.darkSecondary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder:
+          (context) => Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const Icon(
+                  Icons.share_rounded,
+                  size: 48,
+                  color: AppTheme.primaryColor,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Share Video',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Choose how to share your video:',
+                  style: TextStyle(color: Colors.white70),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    // Share reaction video
+                    await Share.shareXFiles([
+                      XFile(widget.videoPath),
+                    ], text: 'Check out my Heads Up! reaction! 🎮');
+                  },
+                  icon: const Icon(Icons.video_library),
+                  label: const Text('Share Reaction Video'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    // Create composite video with native implementation
+                    _createAndShareCompositeVideo();
+                  },
+                  icon: const Icon(Icons.layers),
+                  label: const Text('Share with Game Overlay'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white30),
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Future<void> _createAndShareCompositeVideo() async {
+    // Show progress dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: AppTheme.darkSecondary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                const Text(
+                  'Creating video with overlay...',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+    );
+
+    try {
+      // Use pre-generated frames if available
+      final framesToUse = widget.preGeneratedFrames ?? _gameFrames;
+
+      // Call native video composer
+      final result = await NativeVideoComposer.composeVideoWithOverlay(
+        reactionVideoPath: widget.videoPath,
+        recordingResult: widget.recordingResult,
+        gameFrames: framesToUse,
+        deckColor: widget.deckColor,
+        onProgress: (progress) {
+          // Progress is handled by native code
+        },
+      );
+
+      Navigator.pop(context); // Close progress dialog
+
+      if (result != null) {
+        // Share the composite video
+        await Share.shareXFiles([
+          XFile(result),
+        ], text: 'Check out my Heads Up! game with reactions! 🎮🎬');
+
+        // Clean up temporary file
+        try {
+          await File(result).delete();
+        } catch (e) {
+          debugPrint('Error deleting temporary composite video: $e');
+        }
+      } else {
+        throw Exception('Failed to create composite video');
+      }
+    } catch (e) {
+      Navigator.pop(context); // Close progress dialog
+
+      // Show error and fallback
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unable to create overlay video. Try screen recording.',
+            ),
+            backgroundColor: AppTheme.warningColor,
+          ),
+        );
+
+        // Fallback to screen recording mode
+        _startScreenRecordingMode();
+      }
+    }
+  }
+
+  Widget _buildInstructionStep(String number, String text) {
+    return Row(
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: AppTheme.primaryColor,
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(
+              number,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _startScreenRecordingMode() {
+    // Show screen recording instructions
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => ScreenRecorderOverlay(
+              child: VideoPlayerWithOverlayScreen(
+                videoPath: widget.videoPath,
+                title: widget.title,
+                recordingResult: widget.recordingResult,
+                deckColor: widget.deckColor,
+                preGeneratedFrames: widget.preGeneratedFrames,
+              ),
+              onRecordingComplete: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Video with overlay saved to gallery!'),
+                    backgroundColor: AppTheme.successColor,
+                  ),
+                );
+              },
+            ),
+      ),
+    );
   }
 }

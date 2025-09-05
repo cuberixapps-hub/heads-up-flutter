@@ -53,6 +53,7 @@ class CameraRecordingService {
       frontCamera ??= cameras.first;
 
       // Determine resolution based on device capability
+      // Using high instead of max to ensure compatibility
       ResolutionPreset resolution = ResolutionPreset.high;
 
       // Create camera controller
@@ -68,6 +69,13 @@ class CameraRecordingService {
 
       _isInitialized = true;
       debugPrint('Camera initialized successfully');
+      debugPrint('Camera resolution: ${_controller!.value.previewSize}');
+      debugPrint('Camera aspect ratio: ${_controller!.value.aspectRatio}');
+      debugPrint('Camera is initialized: ${_controller!.value.isInitialized}');
+
+      // Prepare for video recording
+      await _controller!.prepareForVideoRecording();
+
       return true;
     } catch (e) {
       debugPrint('Camera initialization failed: $e');
@@ -86,6 +94,11 @@ class CameraRecordingService {
 
   // Start recording when game starts
   Future<bool> startRecording(String deckName, String deckColor) async {
+    debugPrint('=== START RECORDING CALLED ===');
+    debugPrint('Deck: $deckName, Color: $deckColor');
+    debugPrint('_isInitialized: $_isInitialized');
+    debugPrint('_controller != null: ${_controller != null}');
+
     if (!_isInitialized || _controller == null) {
       debugPrint('Camera not initialized');
       return false;
@@ -146,7 +159,7 @@ class CameraRecordingService {
     debugPrint('Score: $score');
     debugPrint('Timestamp: ${event.timestamp.inSeconds}s');
     debugPrint('Total events so far: ${_gameEvents.length}');
-    
+
     // Debug all events
     if (type == 'word_shown') {
       debugPrint('All events:');
@@ -212,10 +225,17 @@ class CameraRecordingService {
       _recordingStartTime = null;
       _currentVideoPath = null;
 
+      // Don't dispose the camera here - just stop it from recording
+      // The video file is already saved and we need to return the result
+      debugPrint('Recording stopped successfully, video saved');
+
       return result;
     } catch (e) {
       debugPrint('Failed to stop recording: $e');
       _isRecording = false;
+
+      // Don't dispose camera here - let the app handle it separately
+
       return null;
     }
   }
@@ -243,10 +263,19 @@ class CameraRecordingService {
     debugPrint('Camera recording service disposed');
   }
 
+  // Release camera without affecting recorded video
+  Future<void> releaseCamera() async {
+    if (_controller != null) {
+      await _controller!.dispose();
+      _controller = null;
+      _isInitialized = false;
+      debugPrint('Camera released to stop recording indicator');
+    }
+  }
+
   // Get recording quality based on device
   ResolutionPreset getOptimalResolution() {
-    // You can implement device capability detection here
-    // For now, default to high quality
+    // Using high quality for better compatibility
     return ResolutionPreset.high;
   }
 }

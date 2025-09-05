@@ -81,13 +81,15 @@ class _VideoWithOverlayState extends State<VideoWithOverlay> {
         _isGeneratingFrames = false;
 
         // Initialize frame manager
-        _frameManager = VideoOverlayFrameManager(
-          framePaths: _gameFrames,
-          context: context,
-        );
+        _frameManager = VideoOverlayFrameManager(framePaths: _gameFrames);
 
-        // Preload initial frames
-        _frameManager!.preloadFrames(0);
+        // Set context and preload after widget is built
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _frameManager != null) {
+            _frameManager!.setContext(context);
+            _frameManager!.preloadFrames(0);
+          }
+        });
       });
       return;
     }
@@ -110,14 +112,16 @@ class _VideoWithOverlayState extends State<VideoWithOverlay> {
           _isGeneratingFrames = false;
 
           // Initialize frame manager
-          _frameManager = VideoOverlayFrameManager(
-            framePaths: frames,
-            context: context,
-          );
+          _frameManager = VideoOverlayFrameManager(framePaths: frames);
 
-          // Preload initial frames
+          // Set context and preload after widget is built
           if (frames.isNotEmpty) {
-            _frameManager!.preloadFrames(0);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _frameManager != null) {
+                _frameManager!.setContext(context);
+                _frameManager!.preloadFrames(0);
+              }
+            });
           }
         });
       }
@@ -162,10 +166,15 @@ class _VideoWithOverlayState extends State<VideoWithOverlay> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Main reaction video
-          AspectRatio(
-            aspectRatio: _videoController!.value.aspectRatio,
-            child: VideoPlayer(_videoController!),
+          // Main reaction video - maintain aspect ratio
+          Container(
+            color: Colors.black,
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: _videoController!.value.aspectRatio,
+                child: VideoPlayer(_videoController!),
+              ),
+            ),
           ),
 
           // PiP overlay

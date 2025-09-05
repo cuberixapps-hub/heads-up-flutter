@@ -246,7 +246,7 @@ class _GameplayScreenState extends State<GameplayScreen>
     debugPrint('Deck name: ${widget.deck.name}');
     debugPrint('Deck cards: ${widget.deck.cards}');
     debugPrint('Deck cards count: ${widget.deck.cards.length}');
-    
+
     if (!_useManualControls) {
       _calibrateAccelerometer();
     }
@@ -592,10 +592,12 @@ class _GameplayScreenState extends State<GameplayScreen>
         // Log word shown event
         final currentWord = gameProvider.currentSession?.currentCard ?? '';
         debugPrint('=== WORD SHOWN EVENT ===');
-        debugPrint('Current card index: ${gameProvider.currentSession?.currentCardIndex}');
+        debugPrint(
+          'Current card index: ${gameProvider.currentSession?.currentCardIndex}',
+        );
         debugPrint('Current word from session: $currentWord');
         debugPrint('All cards: ${gameProvider.currentSession?.cards}');
-        
+
         if (_isRecordingVideo && currentWord.isNotEmpty) {
           _cameraRecording.logGameEvent(
             type: 'word_shown',
@@ -678,6 +680,20 @@ class _GameplayScreenState extends State<GameplayScreen>
 
         // Small delay to ensure provider updates propagate
         await Future.delayed(const Duration(milliseconds: 100));
+
+        // Now release the camera to stop the recording indicator
+        await _cameraRecording.releaseCamera();
+        debugPrint('Camera released after saving video');
+
+        // Double-check that the video was saved
+        final checkRecording = context.read<GameProvider>().lastVideoRecording;
+        debugPrint(
+          'Final check - video in provider: ${checkRecording != null}',
+        );
+        if (checkRecording != null) {
+          debugPrint('Video path: ${checkRecording.videoPath}');
+          debugPrint('Video duration: ${checkRecording.duration.inSeconds}s');
+        }
       } else {
         debugPrint('Recording result is null');
       }
@@ -1051,6 +1067,12 @@ class _GameplayScreenState extends State<GameplayScreen>
               );
             }
           });
+    } else {
+      // Ensure camera is released even if not recording
+      debugPrint('Releasing camera in gameplay dispose');
+      _cameraRecording.releaseCamera().then((_) {
+        debugPrint('Camera released in dispose');
+      });
     }
 
     super.dispose();

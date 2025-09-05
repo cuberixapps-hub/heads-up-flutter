@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 
 class VideoOverlayFrameManager {
   final List<String> framePaths;
-  final BuildContext context;
+  BuildContext? _context;
   final Map<int, Image> _cachedImages = {};
   bool _isPreloading = false;
 
-  VideoOverlayFrameManager({required this.framePaths, required this.context});
+  VideoOverlayFrameManager({required this.framePaths});
+
+  void setContext(BuildContext context) {
+    _context = context;
+  }
 
   // Preload frames around the current index for smooth playback
   Future<void> preloadFrames(int currentIndex, {int radius = 10}) async {
@@ -48,8 +52,10 @@ class VideoOverlayFrameManager {
         cacheHeight: 300,
       );
 
-      // Precache the image
-      await precacheImage(image.image, context);
+      // Precache the image if context is available
+      if (_context != null) {
+        await precacheImage(image.image, _context!);
+      }
       _cachedImages[index] = image;
     } catch (e) {
       debugPrint('Error loading frame $index: $e');

@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
+import 'dart:async';
 import '../constants/app_theme.dart';
 import '../models/video_recording_result.dart';
 import '../providers/game_provider.dart';
 import '../services/game_replay_renderer.dart';
-import '../screens/video_player_screen.dart';
 import '../screens/video_player_with_overlay_screen.dart';
 import '../services/video_composer.dart';
 import '../services/haptic_service.dart';
+import '../services/native_video_composer.dart';
 import '../utils/video_utils.dart';
 import 'video_with_overlay.dart';
 
@@ -31,6 +32,10 @@ class _VideoSectionState extends State<VideoSection>
   bool _videoProcessingFailed = false;
   List<String> _generatedFrames = [];
   late AnimationController _videoSectionController;
+
+  // Progress tracking for FFmpeg
+  final _progressController = StreamController<double>.broadcast();
+  Stream<double> get _progressStream => _progressController.stream;
 
   @override
   void initState() {
@@ -148,6 +153,7 @@ class _VideoSectionState extends State<VideoSection>
   @override
   void dispose() {
     _videoSectionController.dispose();
+    _progressController.close();
 
     // Clean up generated frames
     if (_generatedFrames.isNotEmpty) {
@@ -596,46 +602,258 @@ class _VideoSectionState extends State<VideoSection>
   Future<void> _saveVideo() async {
     if (_composedVideoPath == null) return;
 
-    final saved = await VideoUtils.saveVideoToGallery(_composedVideoPath!);
+    // Show options dialog
+    final saveWithOverlay = await showDialog<String>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: AppTheme.darkSecondary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Save Video',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'How would you like to save the video?',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(context, 'reaction'),
+                    icon: const Icon(Icons.person),
+                    label: const Text('Reaction Only'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pop(context, 'screen_record'),
+                    icon: const Icon(Icons.fiber_manual_record),
+                    label: const Text('With Game Overlay'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white30),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Use screen recording to capture both videos',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+    );
 
-    if (saved && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: const [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Video saved to gallery!'),
-            ],
+    if (saveWithOverlay == null) return;
+
+    if (saveWithOverlay == 'reaction') {
+      // Save reaction video directly
+      final saved = await VideoUtils.saveVideoToGallery(_composedVideoPath!);
+
+      if (saved && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Reaction video saved!'),
+            backgroundColor: AppTheme.successColor,
+            behavior: SnackBarBehavior.floating,
           ),
-          backgroundColor: AppTheme.successColor,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
+        );
+      }
+    } else {
+      // Try native composition first
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) => AlertDialog(
+              backgroundColor: AppTheme.darkSecondary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Creating video with overlay...',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  const SizedBox(height: 8),
+                  StreamBuilder<double>(
+                    stream: _progressStream,
+                    builder: (context, snapshot) {
+                      final progress = snapshot.data ?? 0.0;
+                      return LinearProgressIndicator(
+                        value: progress,
+                        backgroundColor: Colors.white24,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppTheme.primaryColor,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
       );
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Failed to save video'),
-          backgroundColor: AppTheme.errorColor,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+
+      try {
+        final compositeVideo =
+            await NativeVideoComposer.composeVideoWithOverlay(
+              reactionVideoPath: _composedVideoPath!,
+              recordingResult: _recordingResult!,
+              gameFrames: _generatedFrames,
+              deckColor: _getDeckColor(),
+              onProgress: (progress) {
+                _progressController.add(progress);
+              },
+            );
+
+        Navigator.pop(context); // Close progress dialog
+
+        if (compositeVideo != null) {
+          final saved = await VideoUtils.saveVideoToGallery(compositeVideo);
+
+          if (saved && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text('Video saved with game overlay!'),
+                  ],
+                ),
+                backgroundColor: AppTheme.successColor,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+
+          // Clean up composite video
+          try {
+            await File(compositeVideo).delete();
+          } catch (e) {
+            debugPrint('Error deleting composite video: $e');
+          }
+        } else {
+          throw Exception('Native composition not available');
+        }
+      } catch (e) {
+        Navigator.pop(context); // Close progress dialog
+
+        // Fallback to screen recording instructions
+        final proceed = await NativeVideoComposer.showCompositionInstructions(
+          context,
+        );
+
+        if (proceed && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.fiber_manual_record, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Start screen recording now!'),
+                ],
+              ),
+              backgroundColor: AppTheme.darkSecondary,
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
     }
   }
 
   Future<void> _shareVideo() async {
     if (_composedVideoPath == null) return;
 
+    // Show share options dialog
+    final shareOption = await showDialog<String>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: AppTheme.darkSecondary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Share Video',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'How would you like to share the video?',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(context, 'reaction'),
+                    icon: const Icon(Icons.person),
+                    label: const Text('Reaction Only'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pop(context, 'with_overlay'),
+                    icon: const Icon(Icons.layers),
+                    label: const Text('With Game Overlay'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white30),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+    );
+
+    if (shareOption == null) return;
+
     final gameProvider = context.read<GameProvider>();
     final session = gameProvider.currentSession;
 
-    if (session != null) {
+    if (session == null) return;
+
+    if (shareOption == 'reaction') {
+      // Share reaction video only
       await VideoUtils.shareVideo(
         videoPath: _composedVideoPath!,
         deckName: session.deck.name,
@@ -643,6 +861,99 @@ class _VideoSectionState extends State<VideoSection>
         correctCount: session.correctCount,
         passCount: session.passCount,
       );
+    } else {
+      // Create composite video first, then share
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) => AlertDialog(
+              backgroundColor: AppTheme.darkSecondary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Preparing video with overlay...',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  const SizedBox(height: 8),
+                  StreamBuilder<double>(
+                    stream: _progressStream,
+                    builder: (context, snapshot) {
+                      final progress = snapshot.data ?? 0.0;
+                      return LinearProgressIndicator(
+                        value: progress,
+                        backgroundColor: Colors.white24,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppTheme.primaryColor,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+      );
+
+      try {
+        final compositeVideo =
+            await NativeVideoComposer.composeVideoWithOverlay(
+              reactionVideoPath: _composedVideoPath!,
+              recordingResult: _recordingResult!,
+              gameFrames: _generatedFrames,
+              deckColor: _getDeckColor(),
+              onProgress: (progress) {
+                _progressController.add(progress);
+              },
+            );
+
+        Navigator.pop(context); // Close progress dialog
+
+        if (compositeVideo != null) {
+          // Share the composite video
+          await VideoUtils.shareVideo(
+            videoPath: compositeVideo,
+            deckName: session.deck.name,
+            score: session.totalScore,
+            correctCount: session.correctCount,
+            passCount: session.passCount,
+          );
+
+          // Clean up composite video after sharing
+          try {
+            await File(compositeVideo).delete();
+          } catch (e) {
+            debugPrint('Error deleting composite video: $e');
+          }
+        } else {
+          throw Exception('Failed to create composite video');
+        }
+      } catch (e) {
+        Navigator.pop(context); // Close progress dialog
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to prepare video. Sharing reaction only.'),
+              backgroundColor: AppTheme.warningColor,
+            ),
+          );
+
+          // Fallback to sharing reaction video only
+          await VideoUtils.shareVideo(
+            videoPath: _composedVideoPath!,
+            deckName: session.deck.name,
+            score: session.totalScore,
+            correctCount: session.correctCount,
+            passCount: session.passCount,
+          );
+        }
+      }
     }
   }
 
