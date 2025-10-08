@@ -24,18 +24,54 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   final AdService _adService = AdService();
   BannerAd? _bannerAd;
   bool _isBannerAdReady = false;
+  AdSize? _adSize;
 
   @override
   void initState() {
     super.initState();
-    _loadBannerAd();
+    // Only load banner ad if AdMob SDK is initialized
+    if (AdService.isInitialized) {
+      // Wait for the first frame to get context
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadBannerAd();
+      });
+    } else {
+      // Try again after a delay
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted && AdService.isInitialized) {
+          _loadBannerAd();
+        }
+      });
+    }
   }
 
-  void _loadBannerAd() {
+  Future<void> _loadBannerAd() async {
+    // Safety check
+    if (!AdService.isInitialized) {
+      debugPrint('⚠️ AdMob SDK not initialized yet for ${widget.widgetKey}');
+      return;
+    }
+
+    // Get adaptive ad size based on screen width
+    final screenWidth = MediaQuery.of(context).size.width.truncate();
+    final adSize =
+        await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
+          screenWidth,
+        );
+
+    if (adSize == null) {
+      debugPrint('❌ Could not get adaptive ad size');
+      return;
+    }
+
+    setState(() {
+      _adSize = adSize;
+    });
+
     _bannerAd = BannerAd(
       adUnitId: _adService.bannerAdUnitId,
       request: const AdRequest(),
-      size: AdSize.banner,
+      size: adSize,
       listener: BannerAdListener(
         onAdLoaded: (ad) {
           if (mounted) {
@@ -65,6 +101,25 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload ad when orientation changes
+    final currentWidth = MediaQuery.of(context).size.width.truncate();
+
+    // Check if we need to reload the ad due to orientation change
+    if (_bannerAd != null && _adSize != null) {
+      final needsReload = _adSize!.width != currentWidth;
+      if (needsReload) {
+        debugPrint('🔄 Reloading banner ad due to orientation change');
+        _bannerAd?.dispose();
+        _bannerAd = null;
+        _isBannerAdReady = false;
+        _loadBannerAd();
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _bannerAd?.dispose();
     super.dispose();
@@ -72,29 +127,33 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isBannerAdReady || _bannerAd == null) {
-      return const SizedBox.shrink();
+    if (!_isBannerAdReady || _bannerAd == null || _adSize == null) {
+      // Return a placeholder with the expected height to prevent layout jumps
+      return Container(
+        width: double.infinity,
+        height: 60, // Approximate height for adaptive banners
+        color: Colors.transparent,
+      );
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
+      width: double.infinity, // Ensure full width
       color:
           widget.backgroundColor ??
           (isDark
-              ? Colors.black.withOpacity(0.8)
-              : Colors.white.withOpacity(0.9)),
+              ? Colors.black.withValues(alpha: 0.8)
+              : Colors.white.withValues(alpha: 0.9)),
       padding: widget.padding,
       child: SafeArea(
         top: false,
-        bottom: false,
-        child: Center(
-          child: Container(
-            alignment: Alignment.center,
-            width: _bannerAd!.size.width.toDouble(),
-            height: _bannerAd!.size.height.toDouble(),
-            child: AdWidget(ad: _bannerAd!),
-          ),
+        bottom: true,
+        child: Container(
+          alignment: Alignment.center,
+          width: double.infinity, // Full width
+          height: _adSize!.height.toDouble(),
+          child: AdWidget(ad: _bannerAd!),
         ),
       ),
     );
@@ -163,9 +222,12 @@ class ScreenWithBannerAd extends StatelessWidget {
       body: Column(
         children: [
           Expanded(child: body),
-          BannerAdWidget(
-            widgetKey: '${screenName}_banner',
-            padding: bannerPadding,
+          SizedBox(
+            width: double.infinity, // Ensure full width
+            child: BannerAdWidget(
+              widgetKey: '${screenName}_banner',
+              padding: bannerPadding,
+            ),
           ),
         ],
       ),

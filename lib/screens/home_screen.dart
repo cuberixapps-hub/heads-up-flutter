@@ -17,8 +17,6 @@ import '../widgets/banner_ad_widget.dart';
 import 'category_selection_screen.dart';
 import 'gameplay_screen.dart';
 import 'tutorial_screen.dart';
-import '../test_camera_screen.dart';
-import 'video_debug_screen.dart';
 import 'team_setup_screen.dart';
 import 'custom_deck_management_screen.dart';
 
@@ -324,32 +322,7 @@ class _HomeScreenState extends State<HomeScreen>
                 pinned: true,
                 backgroundColor: Colors.transparent,
                 elevation: 0,
-                actions: [
-                  // Test camera button (temporary for debugging)
-                  IconButton(
-                    icon: const Icon(Icons.videocam, color: Colors.white),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const TestCameraScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  // Video debug button
-                  IconButton(
-                    icon: const Icon(Icons.bug_report, color: Colors.white),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const VideoDebugScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
+                actions: const [],
                 flexibleSpace: FlexibleSpaceBar(
                   background: Container(
                     decoration: BoxDecoration(
@@ -1870,7 +1843,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         );
       },
-    ).animate().fadeIn(delay: 1000.ms, duration: 800.ms).slideY(begin: 0.1);
+    );
   }
 
   Widget _buildModernStatItem(

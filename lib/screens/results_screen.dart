@@ -72,11 +72,8 @@ class _ResultsScreenState extends State<ResultsScreen>
       }
     });
 
-    // Show interstitial ad after game completion
-    Future.delayed(const Duration(milliseconds: 1000), () {
-      _adService.incrementGameCount();
-      _adService.showInterstitialAd();
-    });
+    // Increment game count for ad tracking
+    _adService.incrementGameCount();
   }
 
   @override
@@ -93,6 +90,74 @@ class _ResultsScreenState extends State<ResultsScreen>
     final stats = gameProvider.getStatistics();
     return session.correctCount == stats['highScore'] &&
         session.correctCount > 0;
+  }
+
+  Future<void> _showInterstitialWithLoader(
+    VoidCallback onComplete, {
+    required String location,
+  }) async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => PopScope(
+            canPop: false,
+            child: Dialog(
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppTheme.primaryColor,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Loading...',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+    );
+
+    // Wait a moment to show the loader
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Close the loader
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+
+    // Show interstitial ad with forced method (no frequency restrictions)
+    await _adService.showInterstitialAdForced(location: location);
+
+    // Execute the callback after ad is shown/dismissed
+    if (mounted) {
+      onComplete();
+    }
   }
 
   @override
@@ -1618,13 +1683,12 @@ class _ResultsScreenState extends State<ResultsScreen>
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: () async {
-                          // Show interstitial ad occasionally when returning home
-                          await _adService.showInterstitialAdForHome();
-                          if (mounted) {
+                          _hapticService.lightImpact();
+                          await _showInterstitialWithLoader(() {
                             Navigator.of(
                               context,
                             ).popUntil((route) => route.isFirst);
-                          }
+                          }, location: 'results_home_button');
                         },
                         borderRadius: BorderRadius.circular(16),
                         child: Row(
@@ -1675,14 +1739,18 @@ class _ResultsScreenState extends State<ResultsScreen>
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder:
-                                  (context) => const CategorySelectionScreen(),
-                            ),
-                          );
+                        onTap: () async {
+                          _hapticService.lightImpact();
+                          await _showInterstitialWithLoader(() {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) =>
+                                        const CategorySelectionScreen(),
+                              ),
+                            );
+                          }, location: 'results_play_again_button');
                         },
                         borderRadius: BorderRadius.circular(16),
                         child: Row(

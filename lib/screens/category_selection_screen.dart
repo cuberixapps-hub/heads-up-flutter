@@ -14,6 +14,7 @@ import '../widgets/banner_ad_widget.dart';
 import 'gameplay_screen.dart';
 import 'custom_deck_screen.dart';
 import 'dart:ui';
+import '../services/camera_recording_service.dart';
 
 class CategorySelectionScreen extends StatefulWidget {
   final bool isTeamMode;
@@ -50,6 +51,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
   final TextEditingController _searchTextController = TextEditingController();
   String _searchQuery = '';
   bool _isSearching = false;
+  bool _isCameraEnabled = false;
 
   @override
   void initState() {
@@ -81,298 +83,306 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
       child: Scaffold(
         backgroundColor: AppTheme.backgroundColor,
         body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          // Clean Modern App Bar
-          SliverAppBar(
-            expandedHeight: 120,
-            floating: false,
-            pinned: true,
-            backgroundColor: AppTheme.primaryColor,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            automaticallyImplyLeading: false,
-            title: SafeArea(
-              child: Row(
-                children: [
-                  // Back button
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        _hapticService.lightImpact();
-                        Navigator.pop(context);
-                      },
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: Colors.white,
-                          size: 20,
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // Clean Modern App Bar
+            SliverAppBar(
+              expandedHeight: 120,
+              floating: false,
+              pinned: true,
+              backgroundColor: AppTheme.primaryColor,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              automaticallyImplyLeading: false,
+              title: SafeArea(
+                child: Row(
+                  children: [
+                    // Back button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          _hapticService.lightImpact();
+                          Navigator.pop(context);
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Title
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Select Category',
-                          style: TextStyle(
+                    const SizedBox(width: 16),
+                    // Title
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Select Category',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Consumer<DeckProvider>(
+                            builder: (context, provider, _) {
+                              return Text(
+                                '${provider.allDecks.length} categories available',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.7),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Filter button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          _hapticService.lightImpact();
+                          // Filter functionality
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.tune_rounded,
                             color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.3,
+                            size: 20,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Consumer<DeckProvider>(
-                          builder: (context, provider, _) {
-                            return Text(
-                              '${provider.allDecks.length} categories available',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.7),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            );
-                          },
-                        ),
+                      ),
+                    ),
+                  ],
+                ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1),
+              ),
+              flexibleSpace: FlexibleSpaceBar(
+                background: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        AppTheme.primaryColor,
+                        AppTheme.primaryColor.withOpacity(0.95),
                       ],
                     ),
                   ),
-                  // Filter button
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        _hapticService.lightImpact();
-                        // Filter functionality
-                      },
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.tune_rounded,
-                          color: Colors.white,
-                          size: 20,
+                  child: Stack(
+                    children: [
+                      // Subtle pattern overlay
+                      Positioned(
+                        top: -100,
+                        right: -100,
+                        child: Container(
+                          width: 300,
+                          height: 300,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.03),
+                              width: 50,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                ],
-              ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AppTheme.primaryColor,
-                      AppTheme.primaryColor.withOpacity(0.95),
                     ],
                   ),
                 ),
-                child: Stack(
-                  children: [
-                    // Subtle pattern overlay
-                    Positioned(
-                      top: -100,
-                      right: -100,
-                      child: Container(
-                        width: 300,
-                        height: 300,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.03),
-                            width: 50,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ),
-            ),
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(70),
-              child: Container(
-                color: AppTheme.backgroundColor,
-                child: Column(
-                  children: [
-                    const SizedBox(height: 12),
-                    // Modern minimal tab bar
-                    Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 20),
-                          height: 46,
-                          child: Stack(
-                            children: [
-                              // Background track
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade50,
-                                  borderRadius: BorderRadius.circular(23),
-                                  border: Border.all(
-                                    color: Colors.grey.shade200,
-                                    width: 1,
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(70),
+                child: Container(
+                  color: AppTheme.backgroundColor,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 12),
+                      // Modern minimal tab bar
+                      Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 20),
+                            height: 46,
+                            child: Stack(
+                              children: [
+                                // Background track
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade50,
+                                    borderRadius: BorderRadius.circular(23),
+                                    border: Border.all(
+                                      color: Colors.grey.shade200,
+                                      width: 1,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              // Custom tab implementation
-                              AnimatedBuilder(
-                                animation: _tabController.animation!,
-                                builder: (context, child) {
-                                  return Consumer<DeckProvider>(
-                                    builder: (context, provider, _) {
-                                      return LayoutBuilder(
-                                        builder: (context, constraints) {
-                                          final tabWidth =
-                                              constraints.maxWidth / 3;
-                                          final animValue =
-                                              _tabController.animation!.value;
-                                          return Stack(
-                                            children: [
-                                              // Animated indicator
-                                              Positioned(
-                                                left: animValue * tabWidth + 3,
-                                                top: 3,
-                                                bottom: 3,
-                                                width: tabWidth - 6,
-                                                child: Container(
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.white,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          20,
+                                // Custom tab implementation
+                                AnimatedBuilder(
+                                  animation: _tabController.animation!,
+                                  builder: (context, child) {
+                                    return Consumer<DeckProvider>(
+                                      builder: (context, provider, _) {
+                                        return LayoutBuilder(
+                                          builder: (context, constraints) {
+                                            final tabWidth =
+                                                constraints.maxWidth / 3;
+                                            final animValue =
+                                                _tabController.animation!.value;
+                                            return Stack(
+                                              children: [
+                                                // Animated indicator
+                                                Positioned(
+                                                  left:
+                                                      animValue * tabWidth + 3,
+                                                  top: 3,
+                                                  bottom: 3,
+                                                  width: tabWidth - 6,
+                                                  child: Container(
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.white,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            20,
+                                                          ),
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: AppTheme
+                                                              .primaryColor
+                                                              .withOpacity(
+                                                                0.15,
+                                                              ),
+                                                          blurRadius: 10,
+                                                          offset: const Offset(
+                                                            0,
+                                                            2,
+                                                          ),
                                                         ),
-                                                    boxShadow: [
-                                                      BoxShadow(
-                                                        color: AppTheme
-                                                            .primaryColor
-                                                            .withOpacity(0.15),
-                                                        blurRadius: 10,
-                                                        offset: const Offset(
-                                                          0,
-                                                          2,
-                                                        ),
-                                                      ),
-                                                    ],
+                                                      ],
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                              // Tab items
-                                              Row(
-                                                children: [
-                                                  _buildModernTab(
-                                                    icon:
-                                                        Icons.grid_view_rounded,
-                                                    label: 'All',
-                                                    count:
-                                                        provider
-                                                            .allDecks
-                                                            .length,
-                                                    index: 0,
-                                                    isSelected:
-                                                        _tabController.index ==
-                                                        0,
-                                                    onTap:
-                                                        () => _tabController
-                                                            .animateTo(0),
-                                                  ),
-                                                  _buildModernTab(
-                                                    icon:
-                                                        Icons
-                                                            .card_giftcard_rounded,
-                                                    label: 'Free',
-                                                    count:
-                                                        provider
-                                                            .freeDecks
-                                                            .length,
-                                                    index: 1,
-                                                    isSelected:
-                                                        _tabController.index ==
-                                                        1,
-                                                    onTap:
-                                                        () => _tabController
-                                                            .animateTo(1),
-                                                  ),
-                                                  _buildModernTab(
-                                                    icon: Icons.palette_rounded,
-                                                    label: 'Custom',
-                                                    count:
-                                                        provider
-                                                            .customDecks
-                                                            .length,
-                                                    index: 2,
-                                                    isSelected:
-                                                        _tabController.index ==
-                                                        2,
-                                                    onTap:
-                                                        () => _tabController
-                                                            .animateTo(2),
-                                                    showBadge:
-                                                        provider
-                                                            .customDecks
-                                                            .isNotEmpty,
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          );
-                                        },
-                                      );
-                                    },
-                                  );
-                                },
-                              ),
-                            ],
+                                                // Tab items
+                                                Row(
+                                                  children: [
+                                                    _buildModernTab(
+                                                      icon:
+                                                          Icons
+                                                              .grid_view_rounded,
+                                                      label: 'All',
+                                                      count:
+                                                          provider
+                                                              .allDecks
+                                                              .length,
+                                                      index: 0,
+                                                      isSelected:
+                                                          _tabController
+                                                              .index ==
+                                                          0,
+                                                      onTap:
+                                                          () => _tabController
+                                                              .animateTo(0),
+                                                    ),
+                                                    _buildModernTab(
+                                                      icon:
+                                                          Icons
+                                                              .card_giftcard_rounded,
+                                                      label: 'Free',
+                                                      count:
+                                                          provider
+                                                              .freeDecks
+                                                              .length,
+                                                      index: 1,
+                                                      isSelected:
+                                                          _tabController
+                                                              .index ==
+                                                          1,
+                                                      onTap:
+                                                          () => _tabController
+                                                              .animateTo(1),
+                                                    ),
+                                                    _buildModernTab(
+                                                      icon:
+                                                          Icons.palette_rounded,
+                                                      label: 'Custom',
+                                                      count:
+                                                          provider
+                                                              .customDecks
+                                                              .length,
+                                                      index: 2,
+                                                      isSelected:
+                                                          _tabController
+                                                              .index ==
+                                                          2,
+                                                      onTap:
+                                                          () => _tabController
+                                                              .animateTo(2),
+                                                      showBadge:
+                                                          provider
+                                                              .customDecks
+                                                              .isNotEmpty,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          )
+                          .animate()
+                          .fadeIn(delay: 200.ms, duration: 400.ms)
+                          .scale(
+                            begin: const Offset(0.95, 0.95),
+                            curve: Curves.easeOutCubic,
                           ),
-                        )
-                        .animate()
-                        .fadeIn(delay: 200.ms, duration: 400.ms)
-                        .scale(
-                          begin: const Offset(0.95, 0.95),
-                          curve: Curves.easeOutCubic,
-                        ),
-                    const SizedBox(height: 8),
-                  ],
+                      const SizedBox(height: 8),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // Search Bar
-          SliverToBoxAdapter(child: _buildSearchBar()),
+            // Search Bar
+            SliverToBoxAdapter(child: _buildSearchBar()),
 
-          // Content
-          SliverFillRemaining(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildDeckGrid(DeckType.all),
-                _buildDeckGrid(DeckType.free),
-                _buildDeckGrid(DeckType.custom),
-              ],
+            // Content
+            SliverFillRemaining(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildDeckGrid(DeckType.all),
+                  _buildDeckGrid(DeckType.free),
+                  _buildDeckGrid(DeckType.custom),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
@@ -1446,6 +1456,11 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
   }
 
   void _showDeckOptions(Deck deck) {
+    // Reset camera toggle to false when showing deck options
+    setState(() {
+      _isCameraEnabled = false;
+    });
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1548,6 +1563,126 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
                 ),
               ),
               const SizedBox(height: 24),
+
+              // Camera recording toggle
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.dividerColor, width: 1),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.videocam_rounded,
+                          color:
+                              _isCameraEnabled
+                                  ? AppTheme.primaryColor
+                                  : AppTheme.textSecondary,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Record Reactions',
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              'Capture fun moments',
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodySmall?.copyWith(
+                                color: AppTheme.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Switch.adaptive(
+                      value: _isCameraEnabled,
+                      onChanged: (value) async {
+                        _hapticService.lightImpact();
+
+                        if (value) {
+                          // Request camera permissions when enabling
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder:
+                                (context) => const Center(
+                                  child: CircularProgressIndicator(
+                                    color: AppTheme.primaryColor,
+                                  ),
+                                ),
+                          );
+
+                          final cameraService = CameraRecordingService.instance;
+                          final initialized = await cameraService.initialize();
+
+                          if (mounted) {
+                            Navigator.pop(context); // Close loading dialog
+                          }
+
+                          if (initialized) {
+                            setState(() {
+                              _isCameraEnabled = true;
+                            });
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Camera ready! Your reactions will be recorded.',
+                                  ),
+                                  backgroundColor: AppTheme.successColor,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          } else {
+                            // Permission denied or camera failed
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Camera permission denied. Please enable in Settings.',
+                                  ),
+                                  backgroundColor: AppTheme.errorColor,
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: Duration(seconds: 4),
+                                ),
+                              );
+                            }
+                          }
+                        } else {
+                          // Just disable it
+                          setState(() {
+                            _isCameraEnabled = false;
+                          });
+
+                          // Release camera resources
+                          final cameraService = CameraRecordingService.instance;
+                          await cameraService.releaseCamera();
+                        }
+                      },
+                      activeColor: AppTheme.primaryColor,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
 
               // Play button with solid color
               Container(
@@ -1916,6 +2051,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
               deck: deck,
               isTeamMode: widget.isTeamMode,
               teamNames: widget.teamNames,
+              isCameraEnabled: _isCameraEnabled,
             ),
       ),
     );

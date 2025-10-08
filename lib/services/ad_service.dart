@@ -12,16 +12,25 @@ class AdService {
 
   static bool _initialized = false;
 
-  // PRODUCTION Ad IDs - Replace with your actual IDs
+  /// Check if Mobile Ads SDK is initialized
+  static bool get isInitialized => _initialized;
+
+  // PRODUCTION Ad IDs - ONLY USED IN RELEASE MODE
   // Android
-  static const String _prodAndroidBannerAdUnitId = 'ca-app-pub-XXXX/XXXX';
-  static const String _prodAndroidInterstitialAdUnitId = 'ca-app-pub-XXXX/XXXX';
-  static const String _prodAndroidRewardedAdUnitId = 'ca-app-pub-XXXX/XXXX';
+  static const String _prodAndroidBannerAdUnitId =
+      'ca-app-pub-9565182775442262/2581191296';
+  static const String _prodAndroidInterstitialAdUnitId =
+      'ca-app-pub-9565182775442262/1463534832';
+  static const String _prodAndroidRewardedAdUnitId =
+      'ca-app-pub-9565182775442262/9150453169';
 
   // iOS
-  static const String _prodIosBannerAdUnitId = 'ca-app-pub-XXXX/XXXX';
-  static const String _prodIosInterstitialAdUnitId = 'ca-app-pub-XXXX/XXXX';
-  static const String _prodIosRewardedAdUnitId = 'ca-app-pub-XXXX/XXXX';
+  static const String _prodIosBannerAdUnitId =
+      'ca-app-pub-9565182775442262/6105503333';
+  static const String _prodIosInterstitialAdUnitId =
+      'ca-app-pub-9565182775442262/3834547309';
+  static const String _prodIosRewardedAdUnitId =
+      'ca-app-pub-9565182775442262/4433329011';
 
   // TEST Ad IDs - Google's official test IDs (DO NOT CHANGE)
   // Android
@@ -56,14 +65,11 @@ class AdService {
 
   /// CRITICAL: Automatically use test ads in debug/profile mode
   /// This prevents accidental clicks during development
-  /// Also checks Firebase Remote Config for production override
+  /// Production ads are ONLY used in release mode
   bool get _useTestAds {
     // Always use test ads in debug/profile mode for safety
-    if (kDebugMode || kProfileMode) return true;
-
-    // In release mode, check Firebase Remote Config
-    // If Remote Config says use_production_ads = false, use test ads
-    return !FirebaseService.shouldUseProductionAds();
+    // Production ads are automatically used in release mode
+    return kDebugMode || kProfileMode;
   }
 
   /// Get the appropriate banner ad unit ID based on platform and mode
@@ -114,9 +120,10 @@ class AdService {
 
       if (instance._useTestAds) {
         debugPrint('🔧 AdMob SDK initialized with TEST ADS');
-        debugPrint('📍 Reason: ${kDebugMode ? "Debug Mode" : "Profile Mode"}');
+        debugPrint('📍 Mode: ${kDebugMode ? "Debug" : "Profile"}');
       } else {
         debugPrint('✅ AdMob SDK initialized with PRODUCTION ADS');
+        debugPrint('📍 Mode: Release');
       }
       debugPrint('📱 Platform: $platform');
       debugPrint('🆔 Banner ID: ${instance.bannerAdUnitId}');
@@ -154,6 +161,16 @@ class AdService {
       ),
     );
     _bannerAd?.load();
+  }
+
+  /// Get adaptive banner ad size for full width
+  Future<AdSize?> getAdaptiveBannerSize(BuildContext context) async {
+    final screenWidth = MediaQuery.of(context).size.width.truncate();
+
+    // Get adaptive ad size
+    return AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
+      screenWidth,
+    );
   }
 
   /// Get Banner Ad Widget
@@ -281,6 +298,39 @@ class AdService {
     }
   }
 
+  /// Force show interstitial ad without frequency restrictions
+  /// Used for game over screen actions (Play Again, Home)
+  Future<void> showInterstitialAdForced({required String location}) async {
+    debugPrint('🎯 Attempting to force show interstitial ad for: $location');
+
+    if (_isInterstitialAdReady && _interstitialAd != null) {
+      debugPrint('✅ Interstitial ad is ready, showing now');
+      _lastInterstitialTime = DateTime.now();
+      _gamesPlayedSinceLastAd = 0; // Reset counter
+
+      try {
+        await _interstitialAd!.show();
+
+        // Log event
+        await FirebaseService().logEvent(
+          'interstitial_ad_shown',
+          parameters: {'location': location},
+        );
+      } catch (e) {
+        debugPrint('❌ Error showing interstitial ad: $e');
+      }
+    } else {
+      debugPrint('⚠️ Interstitial ad not ready for forced show');
+      debugPrint('   - Ad ready: $_isInterstitialAdReady');
+      debugPrint(
+        '   - Ad instance: ${_interstitialAd != null ? "exists" : "null"}',
+      );
+
+      // Try to load the ad for next time
+      loadInterstitialAd();
+    }
+  }
+
   /// Load Rewarded Ad
   void loadRewardedAd() {
     RewardedAd.load(
@@ -356,4 +406,3 @@ class AdService {
     _gamesPlayedSinceLastAd++;
   }
 }
-
