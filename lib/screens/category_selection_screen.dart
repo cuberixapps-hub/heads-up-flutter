@@ -2051,7 +2051,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen>
               deck: deck,
               isTeamMode: widget.isTeamMode,
               teamNames: widget.teamNames,
-              isCameraEnabled: _isCameraEnabled,
+              // isCameraEnabled: _isCameraEnabled,
             ),
       ),
     );

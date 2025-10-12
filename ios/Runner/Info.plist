@@ -256,5 +256,7 @@
 	<string>Include audio in your reaction videos</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Save your reaction videos to your photo library</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Used to detect tilt gestures during gameplay.</string>
 </dict>
 </plist>

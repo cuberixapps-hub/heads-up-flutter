@@ -13,6 +13,7 @@ import '../models/deck.dart';
 import '../providers/game_provider.dart';
 import '../services/haptic_service.dart';
 import '../services/audio_service.dart';
+import '../widgets/tutorial_hint_overlay.dart';
 import 'results_screen.dart';
 import 'team_results_screen.dart';
 import '../services/camera_recording_service.dart';
@@ -23,7 +24,6 @@ class GameplayScreen extends StatefulWidget {
   final bool isTeamMode;
   final List<String>? teamNames;
   final int? currentTeamIndex;
-  final bool isCameraEnabled;
 
   const GameplayScreen({
     super.key,
@@ -31,7 +31,6 @@ class GameplayScreen extends StatefulWidget {
     this.isTeamMode = false,
     this.teamNames,
     this.currentTeamIndex,
-    this.isCameraEnabled = false,
   });
 
   @override
@@ -52,42 +51,32 @@ class _GameplayScreenState extends State<GameplayScreen>
   late AnimationController _backgroundAnimController;
   late AnimationController _glowController;
 
-  // Sensor subscriptions
+  // Accelerometer
   StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
-  StreamSubscription<GyroscopeEvent>? _gyroscopeSubscription;
   bool _canDetectTilt = false;
   bool _hasTriggeredAction = false;
 
   // Calibration values
   double _calibrationX = 0.0;
   double _calibrationY = 0.0;
+  double _calibrationZ = 0.0;
   bool _isCalibrated = false;
-
-  // Combined sensor approach
-  double _currentTiltAngle = 0.0; // Current tilt angle from accelerometer
-  double _rotationRate = 0.0; // Rotation rate from gyroscope
 
   // Neutral position tracking
   bool _isInNeutralPosition = true;
   DateTime? _lastActionTime;
   static const _minTimeBetweenActions = Duration(
-    milliseconds: 800,
-  ); // Balanced for responsiveness
-  static const _neutralThreshold = 15.0; // Comfortable neutral zone
+    milliseconds: 1500,
+  ); // Increased for stability
+  static const _neutralThreshold = 20.0; // Increased neutral zone for stability
 
-  // Modern thresholds
-  static const _gyroThreshold = 1.5; // rad/s - rotation speed threshold
-  static const _angleThreshold =
-      25.0; // degrees - reduced for better sensitivity
-  static const _quickActionGyroThreshold = 2.5; // rad/s - for quick flicks
+  // Stability improvements
+  static const _actionThreshold =
+      45.0; // High threshold for very deliberate actions only
   bool _actionLocked = false; // Prevent any action during cooldown
 
-  // Visual feedback for tilt
-  double _tiltIndicatorOpacity = 0.0;
-  String _tiltDirection = '';
-
-  // Debug flag - set to true to see sensor values
-  static const _debugSensors = false;
+  // Debug flag - set to true to see accelerometer values
+  static const _debugAccelerometer = false;
 
   // Game state
   bool _isCountingDown = true;
@@ -99,13 +88,17 @@ class _GameplayScreenState extends State<GameplayScreen>
   Color _feedbackColor = Colors.transparent;
   IconData? _feedbackIcon;
 
+  // Tutorial hints
+  bool _showTutorialHints = false;
+  int _gamesPlayed = 0;
+
   // Control mode
   bool _useManualControls = false;
   bool _isLandscapeMode = false;
 
   // Camera recording
   final _cameraRecording = CameraRecordingService.instance;
-  late bool _isCameraEnabled;
+  bool _isCameraEnabled = false;
   bool _isRecordingVideo = false;
   bool _isNavigating = false;
 
@@ -113,6 +106,7 @@ class _GameplayScreenState extends State<GameplayScreen>
   void initState() {
     super.initState();
     _initializeAnimations();
+    _checkTutorialHints();
     _checkPreferredOrientation();
     _checkCameraPreference();
     _startCountdown();
@@ -156,11 +150,37 @@ class _GameplayScreenState extends State<GameplayScreen>
     }
   }
 
+  Future<void> _checkTutorialHints() async {
+    final prefs = await SharedPreferences.getInstance();
+    _gamesPlayed = prefs.getInt('games_played') ?? 0;
+
+    // Show hints for first 3 games
+    if (_gamesPlayed < 3) {
+      setState(() {
+        _showTutorialHints = true;
+      });
+    }
+
+    // Increment games played
+    await prefs.setInt('games_played', _gamesPlayed + 1);
+  }
+
   Future<void> _checkCameraPreference() async {
     debugPrint('Checking camera preference...');
-    // Use the value passed from the widget, which comes from the toggle button
-    _isCameraEnabled = widget.isCameraEnabled;
-    debugPrint('Camera enabled from widget: $_isCameraEnabled');
+    final prefs = await SharedPreferences.getInstance();
+    _isCameraEnabled = prefs.getBool('enable_reaction_recording') ?? true;
+    debugPrint('Camera enabled preference: $_isCameraEnabled');
+
+    // Debug: Check all preferences
+    final allKeys = prefs.getKeys();
+    debugPrint('All preference keys: $allKeys');
+    for (final key in allKeys) {
+      if (key.contains('reaction') ||
+          key.contains('camera') ||
+          key.contains('record')) {
+        debugPrint('Preference $key = ${prefs.get(key)}');
+      }
+    }
 
     // Don't initialize camera here - wait until game starts
     // This ensures permissions are requested when app is fully active
@@ -222,11 +242,6 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _startGame() async {
-    debugPrint('=== GAME START ===');
-    debugPrint('Deck name: ${widget.deck.name}');
-    debugPrint('Deck cards: ${widget.deck.cards}');
-    debugPrint('Deck cards count: ${widget.deck.cards.length}');
-
     if (!_useManualControls) {
       _calibrateAccelerometer();
     }
@@ -236,39 +251,17 @@ class _GameplayScreenState extends State<GameplayScreen>
     // Initialize camera first, then start recording
     if (_isCameraEnabled) {
       debugPrint('=== CAMERA RECORDING START ===');
-      debugPrint('Game starting - checking camera...');
+      debugPrint('Game starting - initializing camera...');
       debugPrint('Camera preference enabled: $_isCameraEnabled');
 
-      // Check if camera is already initialized (from toggle)
-      bool initialized = _cameraRecording.isInitialized;
-      debugPrint('Camera already initialized: $initialized');
-
-      if (!initialized) {
-        // Try to initialize if not already done
-        debugPrint('Camera not initialized, initializing now...');
-        initialized = await _cameraRecording.initialize();
-        debugPrint('Camera initialization result: $initialized');
-      }
+      // The camera package will automatically request permissions
+      final initialized = await _cameraRecording.initialize();
+      debugPrint('Camera initialization result: $initialized');
 
       if (initialized) {
-        debugPrint('Camera ready for recording');
+        debugPrint('Camera initialized during game start');
         final recordingStarted = await _startVideoRecording();
         debugPrint('Recording started result: $recordingStarted');
-
-        if (recordingStarted) {
-          // Log the first word shown
-          final gameProvider = context.read<GameProvider>();
-          final currentWord = gameProvider.currentSession?.currentCard ?? '';
-          if (currentWord.isNotEmpty) {
-            _cameraRecording.logGameEvent(
-              type: 'word_shown',
-              word: currentWord,
-              score: 0,
-              remainingTime: gameProvider.remainingTime,
-            );
-            debugPrint('Logged first word: $currentWord');
-          }
-        }
       } else {
         debugPrint('Camera initialization failed during game start');
         _isCameraEnabled = false;
@@ -316,97 +309,100 @@ class _GameplayScreenState extends State<GameplayScreen>
     _hasTriggeredAction = false;
     _lastActionTime = null;
     _actionLocked = false;
-    _currentTiltAngle = 0.0;
-    _rotationRate = 0.0;
 
     // Wait a moment for the user to position the phone, then calibrate
     Future.delayed(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-
       accelerometerEventStream().first.then((event) {
-        if (!mounted) return;
-
         _calibrationX = event.x;
         _calibrationY = event.y;
+        _calibrationZ = event.z;
         _isCalibrated = true;
         _canDetectTilt = true;
-        _startSensors();
+        _startAccelerometer();
       });
     });
   }
 
-  void _startSensors() {
-    // Start gyroscope for rotation rate detection
-    _gyroscopeSubscription = gyroscopeEventStream().listen((event) {
-      if (!_canDetectTilt || !_isCalibrated) return;
-
-      // Get rotation rate based on orientation
-      if (_isLandscapeMode) {
-        // In landscape, pitch (nodding) is around Z-axis
-        _rotationRate = event.z;
-      } else {
-        // In portrait, pitch (nodding) is around X-axis
-        _rotationRate = event.x;
-      }
-
-      // Update tilt indicator for visual feedback
-      _updateTiltIndicator();
-    });
-
-    // Start accelerometer for angle detection
+  void _startAccelerometer() {
     _accelerometerSubscription = accelerometerEventStream().listen((event) {
       if (!_canDetectTilt || !_isCalibrated) return;
 
       // Calculate relative tilt from calibrated position
       final deltaX = event.x - _calibrationX;
       final deltaY = event.y - _calibrationY;
+      final deltaZ = event.z - _calibrationZ;
 
-      // Modern sensor approach combining accelerometer angle with gyroscope motion
+      // IMPORTANT: Understanding accelerometer axes in different orientations:
+      //
+      // Portrait mode (phone vertical):
+      // - X-axis: left(-) to right(+)
+      // - Y-axis: bottom(-) to top(+) - THIS IS OUR TILT AXIS
+      // - Z-axis: back(-) to front(+)
+      //
+      // Landscape mode (phone horizontal, rotated 90° counter-clockwise):
+      // - The axes rotate with the device!
+      // - What was Y-axis becomes X-axis
+      // - What was X-axis becomes -Y-axis
+      // - Z-axis remains the same
+      //
+      // When phone is held to forehead in landscape:
+      // - Tilting forward (away from head) = CORRECT
+      // - Tilting backward (toward head) = PASS
+      // - This is detected via Z-axis changes
+
       double tiltAngle;
-      double sidewaysMovement;
 
       if (_isLandscapeMode) {
-        // In landscape mode, use Y-axis for tilt (same as portrait)
-        // The phone is rotated but gravity still pulls down
-        tiltAngle = deltaY * 10; // Convert to degrees
-        sidewaysMovement = deltaX.abs();
-      } else {
-        // In portrait mode: Y-axis for forward/backward tilt
-        tiltAngle = deltaY * 10; // Convert to degrees
-        sidewaysMovement = deltaX.abs();
-      }
+        // In landscape mode, when phone is on forehead:
+        // Forward/backward tilt affects Z-axis (perpendicular to screen)
+        // We use Z-axis change to detect the tilt
+        tiltAngle = deltaZ * 10; // Scale for sensitivity
 
-      // Update current tilt angle for combined detection
-      _currentTiltAngle = tiltAngle;
-
-      if (_debugSensors) {
-        print(
-          'Mode: ${_isLandscapeMode ? "Landscape" : "Portrait"} | '
-          'Accel - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | '
-          'TiltAngle: ${tiltAngle.toStringAsFixed(1)}° | '
-          'GyroRate: ${_rotationRate.toStringAsFixed(2)} rad/s | '
-          'Sideways: ${sidewaysMovement.toStringAsFixed(2)}',
-        );
-      }
-
-      // Filter out excessive side movements
-      if (sidewaysMovement > 4.0) {
-        if (_debugSensors) {
-          print('Ignoring - too much side movement');
+        if (_debugAccelerometer) {
+          print(
+            'Landscape - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | '
+            'DeltaX: ${deltaX.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | '
+            'TiltAngle: ${tiltAngle.toStringAsFixed(1)}',
+          );
         }
-        return;
+
+        // Filter out side-to-side movements (rotation around vertical axis)
+        // In landscape, this would be deltaY (because axes are rotated)
+        if (deltaY.abs() > 5.0) {
+          if (_debugAccelerometer) {
+            print('Ignoring - too much rotation');
+          }
+          return;
+        }
+      } else {
+        // In portrait mode:
+        // Forward/backward tilt affects Y-axis
+        tiltAngle = deltaY * 10;
+
+        if (_debugAccelerometer) {
+          print(
+            'Portrait - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | '
+            'DeltaX: ${deltaX.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | '
+            'TiltAngle: ${tiltAngle.toStringAsFixed(1)}',
+          );
+        }
+
+        // Filter out side-to-side movements
+        if (deltaX.abs() > 5.0) {
+          if (_debugAccelerometer) {
+            print('Ignoring - too much side movement');
+          }
+          return;
+        }
       }
 
-      // Modern combined detection: angle + motion
       // Check if we're in neutral position
-      if (_currentTiltAngle.abs() < _neutralThreshold &&
-          _rotationRate.abs() < 0.5) {
+      if (tiltAngle.abs() < _neutralThreshold) {
         // Phone is in neutral position
         if (!_isInNeutralPosition) {
           _isInNeutralPosition = true;
-          _hasTriggeredAction = false;
-          _tiltIndicatorOpacity = 0.0;
-          _tiltDirection = '';
+          _hasTriggeredAction =
+              false; // Reset trigger flag when returning to neutral
         }
         return;
       }
@@ -419,71 +415,48 @@ class _GameplayScreenState extends State<GameplayScreen>
         }
       }
 
-      // Only process if we haven't triggered yet
-      if (_hasTriggeredAction || _actionLocked) {
+      // Only process tilt if we were in neutral position and haven't triggered yet
+      if (!_isInNeutralPosition || _hasTriggeredAction) {
         return;
       }
 
-      // Modern detection logic:
-      // 1. Quick flick detection (high gyro rate)
-      // 2. Sustained tilt detection (angle threshold + moderate gyro)
+      // Adjusted thresholds for better detection
+      // In landscape with Z-axis: positive deltaZ = tilt backward (toward head) = PASS
+      //                           negative deltaZ = tilt forward (away from head) = CORRECT
+      const correctThreshold =
+          -_actionThreshold; // Tilt forward (away from head) to mark correct
+      const passThreshold =
+          _actionThreshold; // Tilt backward (toward head) to pass
 
-      bool shouldTriggerCorrect = false;
-      bool shouldTriggerPass = false;
-
-      // Quick flick detection - very responsive
-      if (_rotationRate.abs() > _quickActionGyroThreshold) {
-        if (_isLandscapeMode) {
-          // Landscape: negative rotation = forward tilt = correct
-          shouldTriggerCorrect = _rotationRate < -_quickActionGyroThreshold;
-          shouldTriggerPass = _rotationRate > _quickActionGyroThreshold;
-        } else {
-          // Portrait: positive rotation = forward tilt = pass
-          shouldTriggerPass = _rotationRate > _quickActionGyroThreshold;
-          shouldTriggerCorrect = _rotationRate < -_quickActionGyroThreshold;
+      if (_isLandscapeMode) {
+        // In landscape mode, the directions are specific to Z-axis behavior
+        if (tiltAngle < correctThreshold) {
+          // Tilted forward (away from head) - Correct
+          _isInNeutralPosition = false;
+          _hasTriggeredAction = true;
+          _lastActionTime = DateTime.now();
+          _handleCorrect();
+        } else if (tiltAngle > passThreshold) {
+          // Tilted backward (toward head) - Pass
+          _isInNeutralPosition = false;
+          _hasTriggeredAction = true;
+          _lastActionTime = DateTime.now();
+          _handlePass();
         }
-      }
-      // Sustained tilt detection - requires both angle and motion
-      else if (_currentTiltAngle.abs() > _angleThreshold &&
-          _rotationRate.abs() > _gyroThreshold) {
-        if (_isLandscapeMode) {
-          // Landscape mode
-          shouldTriggerCorrect = _currentTiltAngle < -_angleThreshold;
-          shouldTriggerPass = _currentTiltAngle > _angleThreshold;
-        } else {
-          // Portrait mode
-          shouldTriggerPass = _currentTiltAngle > _angleThreshold;
-          shouldTriggerCorrect = _currentTiltAngle < -_angleThreshold;
-        }
-      }
-
-      // Trigger the appropriate action
-      if (shouldTriggerCorrect) {
-        _hasTriggeredAction = true;
-        _lastActionTime = DateTime.now();
-        _handleCorrect();
-      } else if (shouldTriggerPass) {
-        _hasTriggeredAction = true;
-        _lastActionTime = DateTime.now();
-        _handlePass();
-      }
-    });
-  }
-
-  void _updateTiltIndicator() {
-    // Update visual feedback based on tilt state
-    setState(() {
-      if (_currentTiltAngle.abs() < _neutralThreshold) {
-        _tiltIndicatorOpacity = 0.0;
-        _tiltDirection = '';
       } else {
-        _tiltIndicatorOpacity = (_currentTiltAngle.abs() / _angleThreshold)
-            .clamp(0.0, 1.0);
-
-        if (_isLandscapeMode) {
-          _tiltDirection = _currentTiltAngle < 0 ? 'CORRECT' : 'PASS';
-        } else {
-          _tiltDirection = _currentTiltAngle > 0 ? 'PASS' : 'CORRECT';
+        // In portrait mode, keep the original logic
+        if (tiltAngle > _actionThreshold) {
+          // Tilted forward - Pass
+          _isInNeutralPosition = false;
+          _hasTriggeredAction = true;
+          _lastActionTime = DateTime.now();
+          _handlePass();
+        } else if (tiltAngle < -_actionThreshold) {
+          // Tilted backward - Correct
+          _isInNeutralPosition = false;
+          _hasTriggeredAction = true;
+          _lastActionTime = DateTime.now();
+          _handleCorrect();
         }
       }
     });
@@ -598,13 +571,6 @@ class _GameplayScreenState extends State<GameplayScreen>
       } else {
         // Log word shown event
         final currentWord = gameProvider.currentSession?.currentCard ?? '';
-        debugPrint('=== WORD SHOWN EVENT ===');
-        debugPrint(
-          'Current card index: ${gameProvider.currentSession?.currentCardIndex}',
-        );
-        debugPrint('Current word from session: $currentWord');
-        debugPrint('All cards: ${gameProvider.currentSession?.cards}');
-
         if (_isRecordingVideo && currentWord.isNotEmpty) {
           _cameraRecording.logGameEvent(
             type: 'word_shown',
@@ -612,7 +578,6 @@ class _GameplayScreenState extends State<GameplayScreen>
             score: gameProvider.currentSession?.correctCount ?? 0,
             remainingTime: gameProvider.remainingTime,
           );
-          debugPrint('Logged word_shown event: $currentWord');
         }
 
         // Note: We don't reset flags here anymore
@@ -632,7 +597,6 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     debugPrint('_navigateToResults called');
     _accelerometerSubscription?.cancel();
-    _gyroscopeSubscription?.cancel();
 
     // Stop video recording and get result
     if (_isRecordingVideo) {
@@ -688,20 +652,6 @@ class _GameplayScreenState extends State<GameplayScreen>
 
         // Small delay to ensure provider updates propagate
         await Future.delayed(const Duration(milliseconds: 100));
-
-        // Now release the camera to stop the recording indicator
-        await _cameraRecording.releaseCamera();
-        debugPrint('Camera released after saving video');
-
-        // Double-check that the video was saved
-        final checkRecording = context.read<GameProvider>().lastVideoRecording;
-        debugPrint(
-          'Final check - video in provider: ${checkRecording != null}',
-        );
-        if (checkRecording != null) {
-          debugPrint('Video path: ${checkRecording.videoPath}');
-          debugPrint('Video duration: ${checkRecording.duration.inSeconds}s');
-        }
       } else {
         debugPrint('Recording result is null');
       }
@@ -750,7 +700,6 @@ class _GameplayScreenState extends State<GameplayScreen>
   void _pauseGame() {
     context.read<GameProvider>().togglePause();
     _canDetectTilt = false;
-    _tiltIndicatorOpacity = 0.0;
 
     showDialog(
       context: context,
@@ -1037,190 +986,6 @@ class _GameplayScreenState extends State<GameplayScreen>
     );
   }
 
-  void _finishGameEarly() {
-    // Pause the game first
-    context.read<GameProvider>().togglePause();
-    _canDetectTilt = false;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black.withOpacity(0.7),
-      builder:
-          (dialogContext) => Dialog(
-            elevation: 0,
-            backgroundColor: Colors.transparent,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Colors.white, Colors.white.withOpacity(0.95)],
-                ),
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
-                    blurRadius: 40,
-                    spreadRadius: 10,
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Title
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            AppTheme.warningColor.withOpacity(0.9),
-                            AppTheme.warningColor.withOpacity(0.7),
-                          ],
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.flag_rounded,
-                        size: 40,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Finish Game Early?',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                        color: AppTheme.textPrimary,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Are you sure you want to end this game?\nYour current progress will be saved.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: AppTheme.textPrimary.withOpacity(0.7),
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Buttons
-                    Row(
-                      children: [
-                        // Cancel button
-                        Expanded(
-                          child: Container(
-                            height: 54,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () {
-                                  Navigator.pop(dialogContext);
-                                  context.read<GameProvider>().togglePause();
-                                  _canDetectTilt = true;
-                                  _hapticService.lightImpact();
-                                },
-                                borderRadius: BorderRadius.circular(14),
-                                child: Center(
-                                  child: Text(
-                                    'Cancel',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppTheme.textPrimary.withOpacity(
-                                        0.7,
-                                      ),
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-
-                        // Finish button
-                        Expanded(
-                          child: Container(
-                            height: 54,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  AppTheme.warningColor,
-                                  AppTheme.warningColor.withOpacity(0.8),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(14),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppTheme.warningColor.withOpacity(0.3),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () {
-                                  Navigator.pop(dialogContext);
-                                  _hapticService.mediumImpact();
-                                  // End the game and navigate to results
-                                  _navigateToResultsScreen();
-                                },
-                                borderRadius: BorderRadius.circular(14),
-                                child: Center(
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: const [
-                                      Icon(
-                                        Icons.flag_rounded,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                      SizedBox(width: 6),
-                                      Text(
-                                        'Finish Game',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-    );
-  }
-
   @override
   void dispose() {
     // Remove game state listener
@@ -1240,7 +1005,6 @@ class _GameplayScreenState extends State<GameplayScreen>
     _glowController.dispose();
     _countdownTimer?.cancel();
     _accelerometerSubscription?.cancel();
-    _gyroscopeSubscription?.cancel();
     // Reset orientation to default
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -1261,12 +1025,6 @@ class _GameplayScreenState extends State<GameplayScreen>
               );
             }
           });
-    } else {
-      // Ensure camera is released even if not recording
-      debugPrint('Releasing camera in gameplay dispose');
-      _cameraRecording.releaseCamera().then((_) {
-        debugPrint('Camera released in dispose');
-      });
     }
 
     super.dispose();
@@ -1306,6 +1064,17 @@ class _GameplayScreenState extends State<GameplayScreen>
 
               // Feedback overlay
               _buildFeedbackOverlay(),
+
+              // Tutorial hints
+              if (_showTutorialHints && !_isCountingDown)
+                TutorialHintOverlay(
+                  showHints: true,
+                  onDismiss: () {
+                    setState(() {
+                      _showTutorialHints = false;
+                    });
+                  },
+                ),
             ],
           ),
         ),
@@ -1527,10 +1296,6 @@ class _GameplayScreenState extends State<GameplayScreen>
 
               // Control mode toggle
               _buildControlToggle(),
-
-              // Tilt indicator (visual feedback)
-              if (!_useManualControls && !_isCountingDown)
-                _buildTiltIndicator(),
             ],
           ),
         ),
@@ -1544,83 +1309,87 @@ class _GameplayScreenState extends State<GameplayScreen>
   Widget _buildModernHeader(GameProvider gameProvider) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Stack(
-        alignment: Alignment.center,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Timer with modern design (absolutely centered)
-          Center(
-            child: AnimatedBuilder(
-              animation: _timerPulseController,
-              builder: (context, child) {
-                final scale = 1.0 + (_timerPulseController.value * 0.05);
-                final remainingTime =
-                    gameProvider.currentSession?.remainingTime.inSeconds ?? 60;
-                final isLowTime = remainingTime <= 10;
+          // Pause button
+          _buildGlassButton(icon: Icons.pause_rounded, onTap: _pauseGame),
 
-                return Transform.scale(
-                  scale: isLowTime ? scale : 1.0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 14,
+          // Timer with modern design
+          AnimatedBuilder(
+            animation: _timerPulseController,
+            builder: (context, child) {
+              final scale = 1.0 + (_timerPulseController.value * 0.05);
+              final remainingTime =
+                  gameProvider.currentSession?.remainingTime.inSeconds ?? 60;
+              final isLowTime = remainingTime <= 10;
+
+              return Transform.scale(
+                scale: isLowTime ? scale : 1.0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color:
+                          isLowTime
+                              ? Colors.redAccent.withOpacity(0.5)
+                              : Colors.white.withOpacity(0.3),
+                      width: 2,
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(
+                    boxShadow: [
+                      BoxShadow(
                         color:
                             isLowTime
-                                ? Colors.redAccent.withOpacity(0.5)
-                                : Colors.white.withOpacity(0.3),
-                        width: 2,
+                                ? Colors.redAccent.withOpacity(0.3)
+                                : Colors.black.withOpacity(0.1),
+                        blurRadius: 20,
+                        spreadRadius: isLowTime ? 5 : 0,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color:
-                              isLowTime
-                                  ? Colors.redAccent.withOpacity(0.3)
-                                  : Colors.black.withOpacity(0.1),
-                          blurRadius: 20,
-                          spreadRadius: isLowTime ? 5 : 0,
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.timer_outlined,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          '${remainingTime}s',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ],
-                    ),
+                    ],
                   ),
-                );
-              },
-            ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.timer_outlined, color: Colors.white, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${remainingTime}s',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
 
-          // Finish button positioned on the right
-          Positioned(
-            right: 0,
-            child: _buildGlassButton(
-              icon: Icons.stop_rounded,
-              onTap: _finishGameEarly,
-              label: 'Finish',
-            ),
-          ),
+          // Team indicator (if team mode)
+          if (widget.isTeamMode)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                widget.teamNames![widget.currentTeamIndex!],
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            )
+          else
+            const SizedBox(width: 48),
         ],
       ),
     );
@@ -1629,17 +1398,12 @@ class _GameplayScreenState extends State<GameplayScreen>
   Widget _buildGlassButton({
     required IconData icon,
     required VoidCallback onTap,
-    String? label,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding:
-            label != null
-                ? const EdgeInsets.symmetric(horizontal: 16, vertical: 12)
-                : null,
-        width: label != null ? null : 48,
-        height: label != null ? null : 48,
+        width: 48,
+        height: 48,
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.15),
           borderRadius: BorderRadius.circular(16),
@@ -1652,26 +1416,7 @@ class _GameplayScreenState extends State<GameplayScreen>
             ),
           ],
         ),
-        child: Center(
-          child:
-              label != null
-                  ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(icon, color: Colors.white, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        label,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  )
-                  : Icon(icon, color: Colors.white, size: 24),
-        ),
+        child: Center(child: Icon(icon, color: Colors.white, size: 24)),
       ),
     );
   }
@@ -1994,10 +1739,6 @@ class _GameplayScreenState extends State<GameplayScreen>
             _hasTriggeredAction = false;
             _lastActionTime = null;
             _actionLocked = false;
-            _currentTiltAngle = 0.0;
-            _rotationRate = 0.0;
-            _tiltIndicatorOpacity = 0.0;
-            _tiltDirection = '';
 
             if (!_useManualControls && !_isCalibrated) {
               _calibrateAccelerometer();
@@ -2132,62 +1873,6 @@ class _GameplayScreenState extends State<GameplayScreen>
           ),
         );
       },
-    );
-  }
-
-  Widget _buildTiltIndicator() {
-    return Positioned(
-      top: 100,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: AnimatedOpacity(
-          opacity: _tiltIndicatorOpacity * 0.8,
-          duration: const Duration(milliseconds: 100),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            decoration: BoxDecoration(
-              color:
-                  _tiltDirection == 'CORRECT'
-                      ? AppTheme.successColor.withOpacity(0.9)
-                      : AppTheme.warningColor.withOpacity(0.9),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: (_tiltDirection == 'CORRECT'
-                          ? AppTheme.successColor
-                          : AppTheme.warningColor)
-                      .withOpacity(0.3),
-                  blurRadius: 10,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _tiltDirection == 'CORRECT'
-                      ? Icons.arrow_downward_rounded
-                      : Icons.arrow_upward_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  _tiltDirection,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
