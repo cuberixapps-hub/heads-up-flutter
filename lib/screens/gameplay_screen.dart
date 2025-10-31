@@ -697,6 +697,136 @@ class _GameplayScreenState extends State<GameplayScreen>
     _handlePass();
   }
 
+  void _handleFinishGame() {
+    // Show confirmation dialog
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.7),
+      builder:
+          (dialogContext) => Dialog(
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.white, Colors.white.withOpacity(0.95)],
+                ),
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.deck.color.withOpacity(0.3),
+                    blurRadius: 30,
+                    spreadRadius: 5,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.flag_rounded,
+                      size: 48,
+                      color: widget.deck.color,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Finish Game?',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Are you sure you want to end this game?',
+                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  widget.deck.color,
+                                  widget.deck.color.withOpacity(0.8),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: widget.deck.color.withOpacity(0.3),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  Navigator.pop(dialogContext);
+                                  _hapticService.mediumImpact();
+
+                                  // End the current game and navigate
+                                  context.read<GameProvider>().endGame();
+                                  _navigateToResults();
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Finish',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+    );
+  }
+
   void _pauseGame() {
     context.read<GameProvider>().togglePause();
     _canDetectTilt = false;
@@ -1249,6 +1379,37 @@ class _GameplayScreenState extends State<GameplayScreen>
         // Modern header with timer
         _buildModernHeader(gameProvider),
 
+        // Team indicator (if team mode)
+        if (widget.isTeamMode)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(25),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.group_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  widget.teamNames![widget.currentTeamIndex!],
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
         // Card area
         Expanded(
           child: Stack(
@@ -1316,80 +1477,74 @@ class _GameplayScreenState extends State<GameplayScreen>
           _buildGlassButton(icon: Icons.pause_rounded, onTap: _pauseGame),
 
           // Timer with modern design
-          AnimatedBuilder(
-            animation: _timerPulseController,
-            builder: (context, child) {
-              final scale = 1.0 + (_timerPulseController.value * 0.05);
-              final remainingTime =
-                  gameProvider.currentSession?.remainingTime.inSeconds ?? 60;
-              final isLowTime = remainingTime <= 10;
+          Expanded(
+            child: Center(
+              child: AnimatedBuilder(
+                animation: _timerPulseController,
+                builder: (context, child) {
+                  final scale = 1.0 + (_timerPulseController.value * 0.05);
+                  final remainingTime =
+                      gameProvider.currentSession?.remainingTime.inSeconds ??
+                      60;
+                  final isLowTime = remainingTime <= 10;
 
-              return Transform.scale(
-                scale: isLowTime ? scale : 1.0,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(
-                      color:
-                          isLowTime
-                              ? Colors.redAccent.withOpacity(0.5)
-                              : Colors.white.withOpacity(0.3),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color:
-                            isLowTime
-                                ? Colors.redAccent.withOpacity(0.3)
-                                : Colors.black.withOpacity(0.1),
-                        blurRadius: 20,
-                        spreadRadius: isLowTime ? 5 : 0,
+                  return Transform.scale(
+                    scale: isLowTime ? scale : 1.0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
                       ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.timer_outlined, color: Colors.white, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${remainingTime}s',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color:
+                              isLowTime
+                                  ? Colors.redAccent.withOpacity(0.5)
+                                  : Colors.white.withOpacity(0.3),
+                          width: 2,
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                isLowTime
+                                    ? Colors.redAccent.withOpacity(0.3)
+                                    : Colors.black.withOpacity(0.1),
+                            blurRadius: 20,
+                            spreadRadius: isLowTime ? 5 : 0,
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              );
-            },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.timer_outlined,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${remainingTime}s',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
 
-          // Team indicator (if team mode)
-          if (widget.isTeamMode)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                widget.teamNames![widget.currentTeamIndex!],
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            )
-          else
-            const SizedBox(width: 48),
+          // Finish button in top right
+          _buildFinishButton(),
         ],
       ),
     );
@@ -1417,6 +1572,35 @@ class _GameplayScreenState extends State<GameplayScreen>
           ],
         ),
         child: Center(child: Icon(icon, color: Colors.white, size: 24)),
+      ),
+    );
+  }
+
+  Widget _buildFinishButton() {
+    return GestureDetector(
+      onTap: _handleFinishGame,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Text(
+          'Finish',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
@@ -1728,7 +1912,7 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   Widget _buildControlToggle() {
     return Positioned(
-      top: 16,
+      bottom: 20,
       right: 20,
       child: GestureDetector(
         onTap: () {

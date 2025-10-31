@@ -1,4 +1,4 @@
-package com.headsup
+package com.cuberix.charades
 
 import android.graphics.*
 import android.media.*
