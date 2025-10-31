@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 import '../screens/splash_screen.dart';
 import '../screens/onboarding_screen.dart';
 import '../screens/home_screen.dart';
+import '../screens/home_screen_v2.dart';
 import '../screens/category_selection_screen.dart';
 import '../screens/results_screen.dart';
 import '../screens/settings_screen.dart';
@@ -23,7 +24,14 @@ class AppRouter {
         path: '/onboarding',
         builder: (context, state) => const OnboardingScreen(),
       ),
-      GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+      GoRoute(
+        path: '/home-v2',
+        builder: (context, state) => const HomeScreenV2(),
+      ),
+      GoRoute(
+        path: '/home-v1',
+        builder: (context, state) => const HomeScreen(),
+      ),
       GoRoute(
         path: '/categories',
         builder: (context, state) => const CategorySelectionScreen(),

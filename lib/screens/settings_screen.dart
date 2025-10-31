@@ -12,6 +12,7 @@ import '../providers/game_provider.dart';
 
 import '../services/audio_service.dart';
 import '../services/haptic_service.dart';
+import '../widgets/version_switcher.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -379,6 +380,12 @@ class _SettingsScreenState extends State<SettingsScreen>
                       },
                     ),
                   ]),
+                  const SizedBox(height: 24),
+
+                  // App Appearance Section
+                  _buildSectionTitle('App Appearance', Icons.palette_rounded),
+                  const SizedBox(height: 12),
+                  const VersionSwitcher(),
                   const SizedBox(height: 24),
 
                   // About Section

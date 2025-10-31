@@ -80,7 +80,11 @@ class _SplashScreenState extends State<SplashScreen>
       try {
         final prefs = await SharedPreferences.getInstance();
         final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
-        final destination = hasSeenOnboarding ? '/home' : '/onboarding';
+        final useV2 = prefs.getBool('use_home_v2') ?? false;
+        
+        // Determine home screen version based on user preference
+        final homeRoute = useV2 ? '/home-v2' : '/home';
+        final destination = hasSeenOnboarding ? homeRoute : '/onboarding';
 
         if (mounted) {
           context.go(destination);
