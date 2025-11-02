@@ -28,10 +28,6 @@ class _DeckDetailsScreenState extends State<DeckDetailsScreen> {
   double _borderRadius = 0;
   bool _isDragging = false;
   final ScrollController _scrollController = ScrollController();
-  bool _isScrolling = false;
-  Offset? _initialPosition;
-  double _accumulatedDrag = 0;
-  bool _hasScrolledDown = false;
 
   @override
   void initState() {
@@ -44,68 +40,29 @@ class _DeckDetailsScreenState extends State<DeckDetailsScreen> {
     super.dispose();
   }
 
-  void _handlePointerDown(PointerDownEvent event) {
-    _initialPosition = event.position;
-    _accumulatedDrag = 0;
-    _isScrolling = false;
-
-    // Track if we've scrolled down in the content
-    if (_scrollController.hasClients && _scrollController.offset > 0) {
-      _hasScrolledDown = true;
-    }
-  }
-
-  void _handlePointerMove(PointerMoveEvent event) {
-    if (_initialPosition == null) return;
-
-    _accumulatedDrag += event.delta.dy;
-
-    // Get current scroll state
-    final isAtTop =
-        _scrollController.hasClients ? _scrollController.offset <= 0 : true;
-    final isDraggingDown = event.delta.dy > 0;
-
-    // If already dismissing, continue
-    if (_isDragging) {
+  void _handlePanUpdate(DragUpdateDetails details) {
+    // Allow drag if moving down OR already dragging
+    if ((details.delta.dy > 0 || _isDragging) &&
+        _scrollController.offset <= 0) {
       setState(() {
-        _dragOffsetY += event.delta.dy;
-        _dragOffsetX += event.delta.dx;
+        _isDragging = true;
+        _dragOffsetY += details.delta.dy; // Track vertical movement
+        _dragOffsetX += details.delta.dx; // Track horizontal movement
+
+        // Only allow downward movement, clamp to prevent going up
         _dragOffsetY = _dragOffsetY.clamp(0, double.infinity);
 
+        // Scale down as user drags (max 30% reduction at 400px drag)
         final scaleReduction = (_dragOffsetY / 400).clamp(0.0, 0.30);
         _dragScale = 1.0 - scaleReduction;
+
+        // Increase border radius as user drags (0 → 24px)
         _borderRadius = (_dragOffsetY / 200 * 24).clamp(0.0, 24.0);
       });
-      return;
-    }
-
-    // If we've scrolled down before, don't dismiss on upward scroll
-    if (_hasScrolledDown && !isAtTop) {
-      // Let the scroll view handle it
-      _isScrolling = true;
-      return;
-    }
-
-    // Only start dismiss if:
-    // 1. We're at the top AND dragging down significantly
-    // 2. OR we haven't scrolled and made a large downward gesture
-    if (isAtTop && isDraggingDown && _accumulatedDrag > 10) {
-      // We're at top and dragging down - start dismiss
-      setState(() {
-        _isDragging = true;
-      });
-    } else if (!_hasScrolledDown && _accumulatedDrag > 30 && !_isScrolling) {
-      // Large downward drag from initial position - start dismiss
-      setState(() {
-        _isDragging = true;
-      });
-    } else if (_accumulatedDrag < -5) {
-      // Scrolling up - mark as scrolling
-      _isScrolling = true;
     }
   }
 
-  void _handlePointerUp(PointerUpEvent event) {
+  void _handlePanEnd(DragEndDetails details) {
     if (_dragOffsetY > 120) {
       // Dismiss if dragged down more than 120px
       HapticService().lightImpact();
@@ -120,25 +77,15 @@ class _DeckDetailsScreenState extends State<DeckDetailsScreen> {
         _borderRadius = 0;
       });
     }
-
-    // Reset state
-    _initialPosition = null;
-    _isScrolling = false;
-
-    // Reset scroll tracking when at top
-    if (_scrollController.hasClients && _scrollController.offset <= 0) {
-      _hasScrolledDown = false;
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final hapticService = HapticService();
 
-    return Listener(
-      onPointerDown: _handlePointerDown,
-      onPointerMove: _handlePointerMove,
-      onPointerUp: _handlePointerUp,
+    return GestureDetector(
+      onPanUpdate: _handlePanUpdate,
+      onPanEnd: _handlePanEnd,
       child: Transform(
         transform:
             Matrix4.identity()
@@ -260,229 +207,233 @@ class _DeckDetailsScreenState extends State<DeckDetailsScreen> {
                         color: Colors.transparent,
                         child: SingleChildScrollView(
                           controller: _scrollController,
-                          physics:
-                              _isDragging
-                                  ? const NeverScrollableScrollPhysics()
-                                  : const AlwaysScrollableScrollPhysics(
-                                    parent: BouncingScrollPhysics(),
-                                  ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Column(
-                              children: [
-                                const SizedBox(height: 20),
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: BouncingScrollPhysics(),
+                          ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                              child: Column(
+                                children: [
+                                  const SizedBox(height: 20),
 
-                                // Deck cover image - portrait orientation
-                                Center(
-                                  child: Container(
-                                    width: 200,
-                                    height: 280,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.06),
-                                        width: 1,
+                                  // Deck cover image - portrait orientation
+                                  Center(
+                                    child: Container(
+                                      width: 200,
+                                      height: 280,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.06),
+                                          width: 1,
+                                        ),
                                       ),
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(15),
-                                      child: Stack(
-                                        fit: StackFit.expand,
-                                        children: [
-                                          // Background image or color
-                                          if (widget.deck.imageUrl != null &&
-                                              widget.deck.imageUrl!.isNotEmpty)
-                                            Image.network(
-                                              widget.deck.imageUrl!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (
-                                                context,
-                                                error,
-                                                stackTrace,
-                                              ) {
-                                                return Container(
-                                                  decoration: BoxDecoration(
-                                                    color: widget.deck.color
-                                                        .withOpacity(0.15),
-                                                  ),
-                                                  child: Center(
-                                                    child: Icon(
-                                                      widget.deck.icon,
-                                                      color: widget.deck.color,
-                                                      size: 64,
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(15),
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            // Background image or color
+                                            if (widget.deck.imageUrl != null &&
+                                                widget
+                                                    .deck
+                                                    .imageUrl!
+                                                    .isNotEmpty)
+                                              Image.network(
+                                                widget.deck.imageUrl!,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (
+                                                  context,
+                                                  error,
+                                                  stackTrace,
+                                                ) {
+                                                  return Container(
+                                                    decoration: BoxDecoration(
+                                                      color: widget.deck.color
+                                                          .withOpacity(0.15),
                                                     ),
+                                                    child: Center(
+                                                      child: Icon(
+                                                        widget.deck.icon,
+                                                        color:
+                                                            widget.deck.color,
+                                                        size: 64,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              )
+                                            else
+                                              Container(
+                                                decoration: BoxDecoration(
+                                                  color: widget.deck.color
+                                                      .withOpacity(0.15),
+                                                ),
+                                                child: Center(
+                                                  child: Icon(
+                                                    widget.deck.icon,
+                                                    color: widget.deck.color,
+                                                    size: 64,
                                                   ),
-                                                );
-                                              },
-                                            )
-                                          else
+                                                ),
+                                              ),
+
+                                            // Subtle gradient overlay for depth
                                             Container(
                                               decoration: BoxDecoration(
-                                                color: widget.deck.color
-                                                    .withOpacity(0.15),
+                                                gradient: LinearGradient(
+                                                  begin: Alignment.topCenter,
+                                                  end: Alignment.bottomCenter,
+                                                  colors: [
+                                                    Colors.transparent,
+                                                    Colors.black.withOpacity(
+                                                      0.15,
+                                                    ),
+                                                  ],
+                                                  stops: const [0.6, 1.0],
+                                                ),
                                               ),
-                                              child: Center(
+                                            ),
+
+                                            // Deck icon overlay (bottom right)
+                                            Positioned(
+                                              bottom: 12,
+                                              right: 12,
+                                              child: Container(
+                                                width: 48,
+                                                height: 48,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black
+                                                      .withOpacity(0.5),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  border: Border.all(
+                                                    color: Colors.white
+                                                        .withOpacity(0.1),
+                                                    width: 1,
+                                                  ),
+                                                ),
                                                 child: Icon(
                                                   widget.deck.icon,
                                                   color: widget.deck.color,
-                                                  size: 64,
+                                                  size: 24,
                                                 ),
                                               ),
                                             ),
-
-                                          // Subtle gradient overlay for depth
-                                          Container(
-                                            decoration: BoxDecoration(
-                                              gradient: LinearGradient(
-                                                begin: Alignment.topCenter,
-                                                end: Alignment.bottomCenter,
-                                                colors: [
-                                                  Colors.transparent,
-                                                  Colors.black.withOpacity(
-                                                    0.15,
-                                                  ),
-                                                ],
-                                                stops: const [0.6, 1.0],
-                                              ),
-                                            ),
-                                          ),
-
-                                          // Deck icon overlay (bottom right)
-                                          Positioned(
-                                            bottom: 12,
-                                            right: 12,
-                                            child: Container(
-                                              width: 48,
-                                              height: 48,
-                                              decoration: BoxDecoration(
-                                                color: Colors.black.withOpacity(
-                                                  0.5,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                                border: Border.all(
-                                                  color: Colors.white
-                                                      .withOpacity(0.1),
-                                                  width: 1,
-                                                ),
-                                              ),
-                                              child: Icon(
-                                                widget.deck.icon,
-                                                color: widget.deck.color,
-                                                size: 24,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
 
-                                const SizedBox(height: 24),
+                                  const SizedBox(height: 24),
 
-                                // Deck name - refined typography
-                                Text(
-                                      widget.deck.name,
+                                  // Deck name - refined typography
+                                  Text(
+                                        widget.deck.name,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                          letterSpacing: -0.6,
+                                          height: 1.2,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      )
+                                      .animate()
+                                      .fadeIn(delay: 150.ms, duration: 400.ms)
+                                      .slideY(
+                                        begin: 0.1,
+                                        end: 0,
+                                        delay: 150.ms,
+                                        duration: 400.ms,
+                                        curve: Curves.easeOut,
+                                      ),
+
+                                  const SizedBox(height: 10),
+
+                                  // Description - clean and readable
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                    ),
+                                    child: Text(
+                                      widget.deck.description,
                                       style: GoogleFonts.inter(
-                                        fontSize: 28,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
-                                        letterSpacing: -0.6,
-                                        height: 1.2,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w400,
+                                        color: Colors.white.withOpacity(0.55),
+                                        letterSpacing: -0.15,
+                                        height: 1.5,
                                       ),
                                       textAlign: TextAlign.center,
-                                    )
-                                    .animate()
-                                    .fadeIn(delay: 150.ms, duration: 400.ms)
-                                    .slideY(
-                                      begin: 0.1,
-                                      end: 0,
-                                      delay: 150.ms,
-                                      duration: 400.ms,
-                                      curve: Curves.easeOut,
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-
-                                const SizedBox(height: 10),
-
-                                // Description - clean and readable
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
+                                  ).animate().fadeIn(
+                                    delay: 200.ms,
+                                    duration: 400.ms,
                                   ),
-                                  child: Text(
-                                    widget.deck.description,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w400,
-                                      color: Colors.white.withOpacity(0.55),
-                                      letterSpacing: -0.15,
-                                      height: 1.5,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
+
+                                  const SizedBox(height: 28),
+
+                                  // Stats row - minimal and clean
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          Icons.style_rounded,
+                                          '${widget.deck.cards.length}',
+                                          'Cards',
+                                          const Color(0xFF0A84FF),
+                                          0,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          Icons.timer_rounded,
+                                          '60',
+                                          'Seconds',
+                                          const Color(0xFFFF6B35),
+                                          1,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: _buildStatCard(
+                                          Icons.people_rounded,
+                                          '2-10',
+                                          'Players',
+                                          const Color(0xFFBF5AF2),
+                                          2,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ).animate().fadeIn(
-                                  delay: 200.ms,
-                                  duration: 400.ms,
-                                ),
 
-                                const SizedBox(height: 28),
+                                  const SizedBox(height: 24),
 
-                                // Stats row - minimal and clean
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildStatCard(
-                                        Icons.style_rounded,
-                                        '${widget.deck.cards.length}',
-                                        'Cards',
-                                        const Color(0xFF0A84FF),
-                                        0,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _buildStatCard(
-                                        Icons.timer_rounded,
-                                        '60',
-                                        'Seconds',
-                                        const Color(0xFFFF6B35),
-                                        1,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _buildStatCard(
-                                        Icons.people_rounded,
-                                        '2-10',
-                                        'Players',
-                                        const Color(0xFFBF5AF2),
-                                        2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                  // Features section
+                                  _buildFeaturesSection(),
 
-                                const SizedBox(height: 24),
-
-                                // Features section
-                                _buildFeaturesSection(),
-
-                                const SizedBox(height: 80),
-                              ],
+                                  const SizedBox(height: 80),
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
+                ),
 
-                  // Bottom action buttons
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
-                    decoration: BoxDecoration(
+                // Bottom action buttons
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
+                  decoration: BoxDecoration(
                       color: Colors.black,
                       border: Border(
                         top: BorderSide(
