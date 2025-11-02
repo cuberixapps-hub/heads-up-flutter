@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:ui';
 import '../models/deck.dart';
 import '../services/haptic_service.dart';
 
@@ -134,6 +136,7 @@ class _DeckDetailsScreenState extends State<DeckDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final hapticService = HapticService();
+    final size = MediaQuery.of(context).size;
 
     return Listener(
       onPointerDown: _handlePointerDown,
@@ -154,110 +157,127 @@ class _DeckDetailsScreenState extends State<DeckDetailsScreen> {
           ),
           clipBehavior: Clip.antiAlias,
           child: Scaffold(
-            backgroundColor: Colors.black,
-            body: SafeArea(
-              child: Column(
-                children: [
-                  // Custom app bar
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      children: [
-                        // Back button
-                        Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () {
-                                  hapticService.lightImpact();
-                                  Navigator.pop(context);
-                                },
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Icon(
-                                    Icons.arrow_back_ios_new_rounded,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                ),
-                              ),
-                            )
-                            .animate()
-                            .fadeIn(duration: 300.ms)
-                            .slideX(
-                              begin: -0.3,
-                              end: 0,
-                              duration: 300.ms,
-                              curve: Curves.easeOut,
-                            ),
-
-                        const Spacer(),
-
-                        // Share button
-                        Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () {
-                                  hapticService.lightImpact();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Share feature coming soon!',
-                                        style: GoogleFonts.inter(),
-                                      ),
-                                      behavior: SnackBarBehavior.floating,
-                                      backgroundColor: const Color(0xFF2C2C2E),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                  );
-                                },
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Icon(
-                                    Icons.share_rounded,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                ),
-                              ),
-                            )
-                            .animate()
-                            .fadeIn(duration: 300.ms)
-                            .slideX(
-                              begin: 0.3,
-                              end: 0,
-                              duration: 300.ms,
-                              curve: Curves.easeOut,
-                            ),
-                      ],
+            backgroundColor: const Color(0xFF0A0A0A),
+            extendBodyBehindAppBar: true,
+            body: Stack(
+              children: [
+                // Background gradient effect
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: size.height * 0.6,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: Alignment.topCenter,
+                        radius: 1.0,
+                        colors: [
+                          widget.deck.color.withOpacity(0.3),
+                          widget.deck.color.withOpacity(0.1),
+                          Colors.transparent,
+                        ],
+                        stops: const [0.0, 0.5, 1.0],
+                      ),
                     ),
                   ),
+                ),
 
-                  // Content wrapped in Hero for Netflix-style transition
-                  Expanded(
-                    child: Hero(
-                      tag: widget.heroTag,
-                      createRectTween: (begin, end) {
-                        return MaterialRectArcTween(begin: begin, end: end);
-                      },
-                      child: Material(
-                        color: Colors.transparent,
+                // Main content
+                SafeArea(
+                  child: Column(
+                    children: [
+                      // Custom app bar with blur effect
+                      ClipRRect(
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 16,
+                            ),
+                            child: Row(
+                              children: [
+                                // Back button - minimalist design
+                                GestureDetector(
+                                      onTap: () {
+                                        hapticService.lightImpact();
+                                        Navigator.pop(context);
+                                      },
+                                      child: Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.1),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.white.withOpacity(
+                                              0.05,
+                                            ),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.arrow_back_rounded,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      ),
+                                    )
+                                    .animate()
+                                    .fadeIn(duration: 400.ms)
+                                    .scale(
+                                      begin: const Offset(0.8, 0.8),
+                                      end: const Offset(1, 1),
+                                      duration: 400.ms,
+                                      curve: Curves.easeOutBack,
+                                    ),
+
+                                const Spacer(),
+
+                                // More options button
+                                GestureDetector(
+                                      onTap: () {
+                                        hapticService.lightImpact();
+                                        _showOptionsSheet(context);
+                                      },
+                                      child: Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.1),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.white.withOpacity(
+                                              0.05,
+                                            ),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.more_horiz_rounded,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      ),
+                                    )
+                                    .animate()
+                                    .fadeIn(duration: 400.ms, delay: 50.ms)
+                                    .scale(
+                                      begin: const Offset(0.8, 0.8),
+                                      end: const Offset(1, 1),
+                                      duration: 400.ms,
+                                      delay: 50.ms,
+                                      curve: Curves.easeOutBack,
+                                    ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Scrollable content
+                      Expanded(
                         child: SingleChildScrollView(
                           controller: _scrollController,
                           physics:
@@ -266,353 +286,390 @@ class _DeckDetailsScreenState extends State<DeckDetailsScreen> {
                                   : const AlwaysScrollableScrollPhysics(
                                     parent: BouncingScrollPhysics(),
                                   ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Column(
-                              children: [
-                                const SizedBox(height: 20),
+                          child: Column(
+                            children: [
+                              const SizedBox(height: 30),
 
-                                // Deck cover image - portrait orientation
-                                Center(
-                                  child: Container(
-                                    width: 200,
-                                    height: 280,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.06),
-                                        width: 1,
+                              // Hero card with deck image
+                              Center(
+                                child: Hero(
+                                  tag: widget.heroTag,
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: Container(
+                                      width:
+                                          210, // Larger but same aspect ratio (0.75)
+                                      height:
+                                          280, // Maintains 3:4 ratio like home screen
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: widget.deck.color
+                                                .withOpacity(0.3),
+                                            blurRadius: 40,
+                                            spreadRadius: -5,
+                                            offset: const Offset(0, 20),
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(15),
-                                      child: Stack(
-                                        fit: StackFit.expand,
-                                        children: [
-                                          // Background image or color
-                                          if (widget.deck.imageUrl != null &&
-                                              widget.deck.imageUrl!.isNotEmpty)
-                                            Image.network(
-                                              widget.deck.imageUrl!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (
-                                                context,
-                                                error,
-                                                stackTrace,
-                                              ) {
-                                                return Container(
-                                                  decoration: BoxDecoration(
-                                                    color: widget.deck.color
-                                                        .withOpacity(0.15),
-                                                  ),
-                                                  child: Center(
-                                                    child: Icon(
-                                                      widget.deck.icon,
-                                                      color: widget.deck.color,
-                                                      size: 64,
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(15),
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            // Background image or gradient
+                                            if (widget.deck.imageUrl != null &&
+                                                widget
+                                                    .deck
+                                                    .imageUrl!
+                                                    .isNotEmpty)
+                                              Image.network(
+                                                widget.deck.imageUrl!,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (
+                                                  context,
+                                                  error,
+                                                  stackTrace,
+                                                ) {
+                                                  return Container(
+                                                    decoration: BoxDecoration(
+                                                      gradient: LinearGradient(
+                                                        begin:
+                                                            Alignment.topLeft,
+                                                        end:
+                                                            Alignment
+                                                                .bottomRight,
+                                                        colors: [
+                                                          widget.deck.color,
+                                                          widget.deck.color
+                                                              .withOpacity(0.7),
+                                                        ],
+                                                      ),
                                                     ),
+                                                    child: Center(
+                                                      child: Icon(
+                                                        widget.deck.icon,
+                                                        color: Colors.white,
+                                                        size: 100,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              )
+                                            else
+                                              Container(
+                                                decoration: BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    begin: Alignment.topLeft,
+                                                    end: Alignment.bottomRight,
+                                                    colors: [
+                                                      widget.deck.color,
+                                                      widget.deck.color
+                                                          .withOpacity(0.7),
+                                                    ],
                                                   ),
-                                                );
-                                              },
-                                            )
-                                          else
+                                                ),
+                                                child: Center(
+                                                  child: Icon(
+                                                    widget.deck.icon,
+                                                    color: Colors.white,
+                                                    size: 100,
+                                                  ),
+                                                ),
+                                              ),
+
+                                            // Subtle overlay gradient for depth
                                             Container(
                                               decoration: BoxDecoration(
-                                                color: widget.deck.color
-                                                    .withOpacity(0.15),
-                                              ),
-                                              child: Center(
-                                                child: Icon(
-                                                  widget.deck.icon,
-                                                  color: widget.deck.color,
-                                                  size: 64,
+                                                gradient: LinearGradient(
+                                                  begin: Alignment.topCenter,
+                                                  end: Alignment.bottomCenter,
+                                                  colors: [
+                                                    Colors.transparent,
+                                                    Colors.black.withOpacity(
+                                                      0.2,
+                                                    ),
+                                                  ],
+                                                  stops: const [0.7, 1.0],
                                                 ),
                                               ),
                                             ),
 
-                                          // Subtle gradient overlay for depth
-                                          Container(
-                                            decoration: BoxDecoration(
-                                              gradient: LinearGradient(
-                                                begin: Alignment.topCenter,
-                                                end: Alignment.bottomCenter,
-                                                colors: [
-                                                  Colors.transparent,
-                                                  Colors.black.withOpacity(
-                                                    0.15,
+                                            // Play button overlay (subtle)
+                                            if (widget.deck.imageUrl != null &&
+                                                widget
+                                                    .deck
+                                                    .imageUrl!
+                                                    .isNotEmpty)
+                                              Center(
+                                                child: Container(
+                                                  width: 80,
+                                                  height: 80,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black
+                                                        .withOpacity(0.4),
+                                                    shape: BoxShape.circle,
                                                   ),
-                                                ],
-                                                stops: const [0.6, 1.0],
+                                                  child: const Icon(
+                                                    Icons.play_arrow_rounded,
+                                                    color: Colors.white,
+                                                    size: 50,
+                                                  ),
+                                                ),
                                               ),
-                                            ),
-                                          ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
 
-                                          // Deck icon overlay (bottom right)
-                                          Positioned(
-                                            bottom: 12,
-                                            right: 12,
-                                            child: Container(
-                                              width: 48,
-                                              height: 48,
-                                              decoration: BoxDecoration(
-                                                color: Colors.black.withOpacity(
-                                                  0.5,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                                border: Border.all(
-                                                  color: Colors.white
-                                                      .withOpacity(0.1),
-                                                  width: 1,
-                                                ),
-                                              ),
-                                              child: Icon(
-                                                widget.deck.icon,
-                                                color: widget.deck.color,
-                                                size: 24,
-                                              ),
+                              const SizedBox(height: 40),
+
+                              // Title and description
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 30,
+                                ),
+                                child: Column(
+                                  children: [
+                                    // Deck name with elegant typography
+                                    Text(
+                                          widget.deck.name,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                            height: 1.2,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        )
+                                        .animate()
+                                        .fadeIn(delay: 200.ms, duration: 500.ms)
+                                        .slideY(
+                                          begin: 0.2,
+                                          end: 0,
+                                          delay: 200.ms,
+                                          duration: 500.ms,
+                                          curve: Curves.easeOutCubic,
+                                        ),
+
+                                    const SizedBox(height: 12),
+
+                                    // Description with subtle styling
+                                    Text(
+                                      widget.deck.description,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w400,
+                                        color: Colors.white.withOpacity(0.7),
+                                        height: 1.6,
+                                        letterSpacing: 0.2,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                    ).animate().fadeIn(
+                                      delay: 300.ms,
+                                      duration: 500.ms,
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              const SizedBox(height: 40),
+
+                              // Modern stats grid
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 30,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildModernStatCard(
+                                        icon: Icons.style_rounded,
+                                        value: '${widget.deck.cards.length}',
+                                        label: 'Cards',
+                                        color: widget.deck.color,
+                                        index: 0,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildModernStatCard(
+                                        icon: Icons.timer_rounded,
+                                        value: '60s',
+                                        label: 'Timer',
+                                        color: widget.deck.color,
+                                        index: 1,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildModernStatCard(
+                                        icon: Icons.group_rounded,
+                                        value: '2-10',
+                                        label: 'Players',
+                                        color: widget.deck.color,
+                                        index: 2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              const SizedBox(height: 40),
+
+                              // Features section with elegant cards
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 30,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Game Features',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ).animate().fadeIn(
+                                      delay: 500.ms,
+                                      duration: 500.ms,
+                                    ),
+
+                                    const SizedBox(height: 16),
+
+                                    _buildFeatureCard(
+                                      icon: Icons.celebration_rounded,
+                                      title: 'Party Mode',
+                                      description:
+                                          'Perfect for groups and celebrations',
+                                      index: 0,
+                                    ),
+                                    _buildFeatureCard(
+                                      icon: Icons.speed_rounded,
+                                      title: 'Fast Gameplay',
+                                      description:
+                                          'Quick rounds keep everyone engaged',
+                                      index: 1,
+                                    ),
+                                    _buildFeatureCard(
+                                      icon: Icons.emoji_events_rounded,
+                                      title: 'Score Tracking',
+                                      description:
+                                          'Compete and track your progress',
+                                      index: 2,
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              const SizedBox(height: 100),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Floating bottom action area with blur
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: ClipRRect(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(30, 20, 30, 30),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withOpacity(0.0),
+                              Colors.black.withOpacity(0.8),
+                            ],
+                          ),
+                        ),
+                        child: SafeArea(
+                          top: false,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Primary Play button with gradient
+                              GestureDetector(
+                                    onTap: () {
+                                      HapticService().mediumImpact();
+                                      Navigator.pop(context);
+                                      widget.onPlay();
+                                    },
+                                    child: Container(
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            widget.deck.color,
+                                            widget.deck.color.withOpacity(0.8),
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: widget.deck.color
+                                                .withOpacity(0.4),
+                                            blurRadius: 20,
+                                            offset: const Offset(0, 8),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(
+                                            Icons.play_arrow_rounded,
+                                            color: Colors.white,
+                                            size: 28,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            'Start Game',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 17,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white,
+                                              letterSpacing: 0.5,
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
+                                  )
+                                  .animate()
+                                  .fadeIn(delay: 700.ms, duration: 400.ms)
+                                  .slideY(
+                                    begin: 0.3,
+                                    end: 0,
+                                    delay: 700.ms,
+                                    duration: 400.ms,
+                                    curve: Curves.easeOutCubic,
                                   ),
-                                ),
-
-                                const SizedBox(height: 24),
-
-                                // Deck name - refined typography
-                                Text(
-                                      widget.deck.name,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 28,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
-                                        letterSpacing: -0.6,
-                                        height: 1.2,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    )
-                                    .animate()
-                                    .fadeIn(delay: 150.ms, duration: 400.ms)
-                                    .slideY(
-                                      begin: 0.1,
-                                      end: 0,
-                                      delay: 150.ms,
-                                      duration: 400.ms,
-                                      curve: Curves.easeOut,
-                                    ),
-
-                                const SizedBox(height: 10),
-
-                                // Description - clean and readable
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                  ),
-                                  child: Text(
-                                    widget.deck.description,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w400,
-                                      color: Colors.white.withOpacity(0.55),
-                                      letterSpacing: -0.15,
-                                      height: 1.5,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ).animate().fadeIn(
-                                  delay: 200.ms,
-                                  duration: 400.ms,
-                                ),
-
-                                const SizedBox(height: 28),
-
-                                // Stats row - minimal and clean
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildStatCard(
-                                        Icons.style_rounded,
-                                        '${widget.deck.cards.length}',
-                                        'Cards',
-                                        const Color(0xFF0A84FF),
-                                        0,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _buildStatCard(
-                                        Icons.timer_rounded,
-                                        '60',
-                                        'Seconds',
-                                        const Color(0xFFFF6B35),
-                                        1,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _buildStatCard(
-                                        Icons.people_rounded,
-                                        '2-10',
-                                        'Players',
-                                        const Color(0xFFBF5AF2),
-                                        2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-
-                                const SizedBox(height: 24),
-
-                                // Features section
-                                _buildFeaturesSection(),
-
-                                const SizedBox(height: 80),
-                              ],
-                            ),
+                            ],
                           ),
                         ),
                       ),
                     ),
                   ),
-
-                  // Bottom action buttons
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      border: Border(
-                        top: BorderSide(
-                          color: Colors.white.withOpacity(0.06),
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Play button - primary action
-                        Material(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(14),
-                              child: InkWell(
-                                onTap: () {
-                                  HapticService().lightImpact();
-                                  Navigator.pop(context);
-                                  widget.onPlay();
-                                },
-                                borderRadius: BorderRadius.circular(14),
-                                child: Container(
-                                  height: 54,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.play_arrow_rounded,
-                                        color: Colors.black,
-                                        size: 24,
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Text(
-                                        'Play Now',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.black,
-                                          letterSpacing: -0.2,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            )
-                            .animate()
-                            .fadeIn(delay: 600.ms, duration: 300.ms)
-                            .slideY(
-                              begin: 0.2,
-                              end: 0,
-                              delay: 600.ms,
-                              duration: 300.ms,
-                              curve: Curves.easeOut,
-                            ),
-
-                        const SizedBox(height: 10),
-
-                        // Add to favorites button - secondary action
-                        Material(
-                              color: Colors.white.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(14),
-                              child: InkWell(
-                                onTap: () {
-                                  HapticService().lightImpact();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Added to favorites',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      behavior: SnackBarBehavior.floating,
-                                      backgroundColor: const Color(0xFF2C2C2E),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                  );
-                                },
-                                borderRadius: BorderRadius.circular(14),
-                                child: Container(
-                                  height: 54,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.08),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.favorite_border_rounded,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Text(
-                                        'Add to Favorites',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.white,
-                                          letterSpacing: -0.2,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            )
-                            .animate()
-                            .fadeIn(delay: 650.ms, duration: 300.ms)
-                            .slideY(
-                              begin: 0.2,
-                              end: 0,
-                              delay: 650.ms,
-                              duration: 300.ms,
-                              curve: Curves.easeOut,
-                            ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -620,183 +677,172 @@ class _DeckDetailsScreenState extends State<DeckDetailsScreen> {
     );
   }
 
-  Widget _buildStatCard(
-    IconData icon,
-    String value,
-    String label,
-    Color color,
-    int index,
-  ) {
+  void _showOptionsSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder:
+          (context) => Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1C1C1E),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 5,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(2.5),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.share_rounded, color: Colors.white),
+                  title: Text(
+                    'Share Deck',
+                    style: GoogleFonts.inter(color: Colors.white),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    HapticService().lightImpact();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.favorite_border_rounded,
+                    color: Colors.white,
+                  ),
+                  title: Text(
+                    'Add to Favorites',
+                    style: GoogleFonts.inter(color: Colors.white),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    HapticService().lightImpact();
+                  },
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Widget _buildModernStatCard({
+    required IconData icon,
+    required String value,
+    required String label,
+    required Color color,
+    required int index,
+  }) {
     return Container(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: const Color(0xFF1C1C1E),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withOpacity(0.06), width: 1),
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withOpacity(0.2), width: 1),
           ),
           child: Column(
             children: [
-              // Icon - minimal size
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 22),
-              ),
-              const SizedBox(height: 10),
-
-              // Value - bold and clear
+              Icon(icon, color: color, size: 28),
+              const SizedBox(height: 12),
               Text(
                 value,
-                style: GoogleFonts.inter(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
+                style: GoogleFonts.poppins(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
                   color: Colors.white,
-                  letterSpacing: -0.4,
-                  height: 1.0,
+                  height: 1,
                 ),
               ),
-              const SizedBox(height: 3),
-
-              // Label - subtle
+              const SizedBox(height: 4),
               Text(
                 label,
                 style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white.withOpacity(0.45),
-                  letterSpacing: 0.05,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.white.withOpacity(0.6),
                 ),
               ),
             ],
           ),
         )
         .animate()
-        .fadeIn(delay: (250 + index * 50).ms, duration: 400.ms)
+        .fadeIn(delay: (400 + index * 100).ms, duration: 500.ms)
         .scale(
-          begin: const Offset(0.95, 0.95),
+          begin: const Offset(0.8, 0.8),
           end: const Offset(1, 1),
-          delay: (250 + index * 50).ms,
-          duration: 400.ms,
-          curve: Curves.easeOut,
+          delay: (400 + index * 100).ms,
+          duration: 500.ms,
+          curve: Curves.easeOutBack,
         );
   }
 
-  Widget _buildFeaturesSection() {
-    final features = [
-      {
-        'icon': Icons.groups_rounded,
-        'title': 'Multiplayer Fun',
-        'description': 'Perfect for parties and gatherings',
-      },
-      {
-        'icon': Icons.bolt_rounded,
-        'title': 'Quick Rounds',
-        'description': 'Fast-paced engaging gameplay',
-      },
-      {
-        'icon': Icons.emoji_emotions_rounded,
-        'title': 'Lots of Laughs',
-        'description': 'Guaranteed fun and memories',
-      },
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Section title - minimal
-        Text(
-          'Features',
-          style: GoogleFonts.inter(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-            letterSpacing: -0.3,
+  Widget _buildFeatureCard({
+    required IconData icon,
+    required String title,
+    required String description,
+    required int index,
+  }) {
+    return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.03),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
           ),
-        ).animate().fadeIn(delay: 400.ms, duration: 300.ms),
-
-        const SizedBox(height: 14),
-
-        // Feature items - clean and minimal
-        ...features.asMap().entries.map((entry) {
-          final index = entry.key;
-          final feature = entry.value;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1C1C1E),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.06),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      // Icon - compact
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: widget.deck.color.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          feature['icon'] as IconData,
-                          color: widget.deck.color,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-
-                      // Text content - refined
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              feature['title'] as String,
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                                letterSpacing: -0.15,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              feature['description'] as String,
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: Colors.white.withOpacity(0.5),
-                                letterSpacing: -0.05,
-                                height: 1.4,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-                .animate()
-                .fadeIn(delay: (450 + index * 50).ms, duration: 300.ms)
-                .slideX(
-                  begin: 0.1,
-                  end: 0,
-                  delay: (450 + index * 50).ms,
-                  duration: 300.ms,
-                  curve: Curves.easeOut,
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: widget.deck.color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-          );
-        }),
-      ],
-    );
+                child: Icon(icon, color: widget.deck.color, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.white.withOpacity(0.6),
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        )
+        .animate()
+        .fadeIn(delay: (600 + index * 100).ms, duration: 500.ms)
+        .slideX(
+          begin: -0.1,
+          end: 0,
+          delay: (600 + index * 100).ms,
+          duration: 500.ms,
+          curve: Curves.easeOutCubic,
+        );
   }
 }
