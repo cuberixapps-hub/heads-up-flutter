@@ -13,6 +13,7 @@ import '../services/audio_service.dart';
 import '../services/daily_deck_service.dart';
 import '../models/daily_deck.dart';
 import 'gameplay_screen.dart';
+import 'deck_details_screen.dart';
 
 class HomeScreenV2 extends StatefulWidget {
   const HomeScreenV2({super.key});
@@ -26,26 +27,54 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   final _hapticService = HapticService();
   final _audioService = AudioService();
   final _dailyDeckService = DailyDeckService();
-  
+
   DailyDeck? _todaysDeck;
   bool _hasPlayedDaily = false;
   List<Deck> _recentDecks = [];
   final ScrollController _scrollController = ScrollController();
-  bool _showTitle = false;
+
+  // Gradient fade configuration
+  static const double _gradientFadeDistance =
+      200.0; // Pixels to scroll for complete fade
+
+  // Gradient colors that will transition to black
+  Color _gradientColor1 = const Color(0xFF84292D);
+  Color _gradientColor2 = const Color(0xFF601F20);
+  Color _gradientColor3 = const Color(0xFF000000);
 
   @override
   void initState() {
     super.initState();
     _loadDailyDeck();
     _loadRecentDecks();
-    
-    _scrollController.addListener(() {
-      if (_scrollController.offset > 200 && !_showTitle) {
-        setState(() => _showTitle = true);
-      } else if (_scrollController.offset <= 200 && _showTitle) {
-        setState(() => _showTitle = false);
-      }
-    });
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    // Fade gradient colors to black as user scrolls
+    final offset = _scrollController.offset;
+    final fadeProgress = (offset / _gradientFadeDistance).clamp(0.0, 1.0);
+
+    // Original colors
+    const originalColor1 = Color(0xFF84292D);
+    const originalColor2 = Color(0xFF601F20);
+    const originalColor3 = Color(0xFF120506);
+    const targetColor = Color(0xFF000000); // Black
+
+    // Interpolate colors
+    final newColor1 = Color.lerp(originalColor1, targetColor, fadeProgress)!;
+    final newColor2 = Color.lerp(originalColor2, targetColor, fadeProgress)!;
+    final newColor3 = Color.lerp(originalColor3, targetColor, fadeProgress)!;
+
+    if (_gradientColor1 != newColor1 ||
+        _gradientColor2 != newColor2 ||
+        _gradientColor3 != newColor3) {
+      setState(() {
+        _gradientColor1 = newColor1;
+        _gradientColor2 = newColor2;
+        _gradientColor3 = newColor3;
+      });
+    }
   }
 
   @override
@@ -58,7 +87,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     try {
       final deck = await _dailyDeckService.getTodaysDeck();
       final hasPlayed = await _dailyDeckService.hasPlayedToday();
-      
+
       if (mounted) {
         setState(() {
           _todaysDeck = deck;
@@ -73,7 +102,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   Future<void> _loadRecentDecks() async {
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
     final recent = await deckProvider.getRecentDecks();
-    
+
     if (mounted) {
       setState(() {
         _recentDecks = recent.take(10).toList();
@@ -81,50 +110,19 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     }
   }
 
-
   void _playDeck(Deck deck) {
     final gameProvider = Provider.of<GameProvider>(context, listen: false);
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
-    
+
     _hapticService.lightImpact();
     _audioService.playCorrect();
-    
+
     gameProvider.startGame(deck: deck);
     deckProvider.addToRecentDecks(deck.id);
-    
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => GameplayScreen(deck: deck),
-      ),
-    );
-  }
 
-  void _quickPlay() {
-    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
-    
-    // Get a random deck from free decks
-    if (deckProvider.freeDecks.isNotEmpty) {
-      final randomIndex = DateTime.now().millisecondsSinceEpoch % deckProvider.freeDecks.length;
-      final randomDeck = deckProvider.freeDecks[randomIndex];
-      
-      _hapticService.mediumImpact();
-      _playDeck(randomDeck);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'No decks available',
-            style: GoogleFonts.poppins(),
-          ),
-          backgroundColor: Colors.red.withOpacity(0.8),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-          margin: const EdgeInsets.all(20),
-        ),
-      );
-    }
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => GameplayScreen(deck: deck)));
   }
 
   @override
@@ -134,80 +132,33 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       extendBodyBehindAppBar: true,
       body: Stack(
         children: [
-          // Main scrollable content
+          // Black background
+          Container(color: Colors.black),
+          // Gradient overlay with fixed height
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              height: 780,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    _gradientColor1, // Dark red at top
+                    _gradientColor2, // Medium red
+                    _gradientColor3, // Almost black
+                  ],
+                  stops: const [0.0, 0.61, 1.0],
+                ),
+              ),
+            ),
+          ),
+          // Content
           CustomScrollView(
             controller: _scrollController,
             slivers: [
-              // Custom app bar
-              SliverAppBar(
-                expandedHeight: 0,
-                pinned: true,
-                backgroundColor: _showTitle 
-                    ? Colors.black.withOpacity(0.95)
-                    : Colors.transparent,
-                elevation: 0,
-                title: AnimatedOpacity(
-                  opacity: _showTitle ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: Text(
-                    'Heads Up!',
-                    style: GoogleFonts.poppins(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                actions: [
-                  // Quick Play button - Most useful for a party game
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    child: TextButton.icon(
-                      onPressed: () {
-                        _hapticService.lightImpact();
-                        _quickPlay();
-                      },
-                      icon: const Icon(
-                        Icons.flash_on_rounded,
-                        color: Colors.amber,
-                        size: 20,
-                      ),
-                      label: Text(
-                        'Quick Play',
-                        style: GoogleFonts.poppins(
-                          color: Colors.amber,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        backgroundColor: Colors.amber.withOpacity(0.2),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Profile/Stats button
-                  IconButton(
-                    icon: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.person_outline_rounded, color: Colors.white, size: 22),
-                    ),
-                    onPressed: () {
-                      _hapticService.lightImpact();
-                      // TODO: Navigate to profile/stats
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              ),
-              
               // Content
               SliverToBoxAdapter(
                 child: Column(
@@ -215,36 +166,36 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   children: [
                     // Header with user greeting
                     _buildHeader(),
-                    
+
                     const SizedBox(height: 20),
-                    
-                    // Category chips
-                    _buildCategoryChips(),
-                    
-                    const SizedBox(height: 20),
-                    
+
                     // Featured deck
                     _buildFeaturedDeck(),
-                    
+
+                    const SizedBox(height: 20),
+
+                    // Category chips
+                    _buildCategoryChips(),
+
                     const SizedBox(height: 30),
-                    
+
                     // Daily deck section
                     if (_todaysDeck != null) ...[
                       _buildDailyDeckSection(),
                       const SizedBox(height: 30),
                     ],
-                    
+
                     // Continue playing section with larger cards
                     if (_recentDecks.isNotEmpty) ...[
                       _buildContinueWatchingSection(),
                       const SizedBox(height: 24),
                     ],
-                    
+
                     // Quick stats banner
                     _buildStatsSection(),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Recommended for you
                     Consumer<DeckProvider>(
                       builder: (context, deckProvider, _) {
@@ -256,23 +207,26 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         );
                       },
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Party favorites
                     Consumer<DeckProvider>(
                       builder: (context, deckProvider, _) {
                         return _buildSection(
                           title: 'Party Favorites',
-                          decks: deckProvider.freeDecks.where((d) => d.cards.length > 15).toList(),
+                          decks:
+                              deckProvider.freeDecks
+                                  .where((d) => d.cards.length > 15)
+                                  .toList(),
                           icon: Icons.celebration_rounded,
                           iconColor: Colors.pink,
                         );
                       },
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Custom decks with better presentation
                     Consumer<DeckProvider>(
                       builder: (context, deckProvider, _) {
@@ -288,9 +242,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         );
                       },
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Premium decks with better presentation
                     Consumer<DeckProvider>(
                       builder: (context, deckProvider, _) {
@@ -306,20 +260,12 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         return const SizedBox();
                       },
                     ),
-                    
+
                     const SizedBox(height: 100),
                   ],
                 ),
               ),
             ],
-          ),
-          
-          // Bottom navigation bar
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: _buildBottomNav(),
           ),
         ],
       ),
@@ -328,61 +274,101 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 60, 20, 0),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        MediaQuery.of(context).padding.top,
+        20,
+        0,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Main header row
           Row(
-            children: [
-              Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Welcome Back!',
-                    style: GoogleFonts.poppins(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                      letterSpacing: 0.5,
+                  // Greeting section
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Welcome back',
+                          style: GoogleFonts.inter(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            letterSpacing: -0.5,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'What would you like to play today?',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w400,
+                            color: Colors.white.withOpacity(0.6),
+                            letterSpacing: -0.2,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Ready for another game?',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: Colors.white.withOpacity(0.7),
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              // Stats widget
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.star_rounded, color: Colors.amber, size: 20),
-                    const SizedBox(width: 6),
-                    Text(
-                      '5 Streak',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+
+                  // Minimal stats badge
+                  Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.local_fire_department_rounded,
+                              color: Colors.amber,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '5 day streak',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.amber,
+                                letterSpacing: -0.1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                      .animate()
+                      .fadeIn(delay: 400.ms, duration: 600.ms)
+                      .scale(
+                        begin: const Offset(0.8, 0.8),
+                        end: const Offset(1, 1),
+                        delay: 400.ms,
+                        duration: 600.ms,
+                        curve: Curves.easeOutBack,
                       ),
-                    ),
-                  ],
-                ),
+                ],
+              )
+              .animate()
+              .fadeIn(duration: 500.ms)
+              .slideY(
+                begin: -0.1,
+                end: 0,
+                duration: 500.ms,
+                curve: Curves.easeOut,
               ),
-            ],
-          ).animate().fadeIn(duration: 600.ms).slideX(begin: -0.2, end: 0),
         ],
       ),
     );
@@ -391,80 +377,108 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   Widget _buildCategoryChips() {
     final categories = [
       {
-        'name': 'Popular', 
-        'icon': Icons.whatshot_rounded,
-        'color': Colors.orange,
+        'name': 'Trending',
+        'icon': Icons.trending_up_rounded,
+        'isSelected': true,
+      },
+      {'name': 'Quick Play', 'icon': Icons.bolt_rounded, 'isSelected': false},
+      {
+        'name': 'Multiplayer',
+        'icon': Icons.people_outline_rounded,
+        'isSelected': false,
       },
       {
-        'name': 'Quick Games',
-        'icon': Icons.timer_rounded,
-        'color': Colors.blue,
-      },
-      {
-        'name': 'Team Play',
-        'icon': Icons.groups_rounded,
-        'color': Colors.green,
-      },
-      {
-        'name': 'Kids Safe',
-        'icon': Icons.child_care_rounded,
-        'color': Colors.purple,
+        'name': 'Family',
+        'icon': Icons.favorite_outline_rounded,
+        'isSelected': false,
       },
     ];
-    
+
     return Container(
-      height: 44,
-      margin: const EdgeInsets.symmetric(vertical: 12),
+      height: 36,
+      margin: const EdgeInsets.symmetric(vertical: 8),
       child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
         itemCount: categories.length,
         itemBuilder: (context, index) {
           final category = categories[index];
+          final isSelected = category['isSelected'] as bool;
+
           return Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.only(right: 10),
             child: Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(22),
-              child: InkWell(
-                onTap: () {
-                  _hapticService.lightImpact();
-                  // TODO: Filter by category
-                },
-                borderRadius: BorderRadius.circular(22),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: (category['color'] as Color).withOpacity(0.4),
-                      width: 1,
-                    ),
-                    color: (category['color'] as Color).withOpacity(0.1),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        category['icon'] as IconData,
-                        color: category['color'] as Color,
-                        size: 16,
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      _hapticService.selection();
+                      // TODO: Update selection state
+                    },
+                    borderRadius: BorderRadius.circular(18),
+                    splashColor: Colors.white.withOpacity(0.1),
+                    highlightColor: Colors.white.withOpacity(0.05),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        category['name'] as String,
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 13,
-                          letterSpacing: 0.1,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        color:
+                            isSelected
+                                ? Colors.white.withOpacity(0.15)
+                                : Colors.white.withOpacity(0.05),
+                        border: Border.all(
+                          color:
+                              isSelected
+                                  ? Colors.white.withOpacity(0.3)
+                                  : Colors.white.withOpacity(0.1),
+                          width: 1,
                         ),
                       ),
-                    ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            category['icon'] as IconData,
+                            color:
+                                isSelected
+                                    ? Colors.white
+                                    : Colors.white.withOpacity(0.7),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            category['name'] as String,
+                            style: GoogleFonts.inter(
+                              color:
+                                  isSelected
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.7),
+                              fontWeight:
+                                  isSelected
+                                      ? FontWeight.w500
+                                      : FontWeight.w400,
+                              fontSize: 13,
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
+                )
+                .animate()
+                .fadeIn(delay: (100 * index).ms, duration: 400.ms)
+                .slideX(
+                  begin: 0.2,
+                  end: 0,
+                  delay: (100 * index).ms,
+                  duration: 400.ms,
+                  curve: Curves.easeOutQuart,
                 ),
-              ),
-            ),
           );
         },
       ),
@@ -477,42 +491,64 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         if (deckProvider.allDecks.isEmpty) {
           return const SizedBox();
         }
-        
+
         // Get a random featured deck (or the first one)
-        final featuredDeck = deckProvider.freeDecks.isNotEmpty 
-            ? deckProvider.freeDecks.first
-            : deckProvider.allDecks.first;
-        
+        final featuredDeck =
+            deckProvider.freeDecks.isNotEmpty
+                ? deckProvider.freeDecks.first
+                : deckProvider.allDecks.first;
+
         // Use test image URL or fallback to gradient
-        const testImageUrl = 'https://resizing.flixster.com/ZUhHpJCOJmPu7ro7DxecAetusnE=/ems.cHJkLWVtcy1hc3NldHMvdHZzZXJpZXMvNmI5OGY3ZWMtYjY1Mi00NGEwLTgxYmEtNjUyNjRmNGE2MDQ5LmpwZw==';
+        const testImageUrl =
+            'https://resizing.flixster.com/ZUhHpJCOJmPu7ro7DxecAetusnE=/ems.cHJkLWVtcy1hc3NldHMvdHZzZXJpZXMvNmI5OGY3ZWMtYjY1Mi00NGEwLTgxYmEtNjUyNjRmNGE2MDQ5LmpwZw==';
         final imageUrl = featuredDeck.imageUrl ?? testImageUrl;
-        
+
         return Container(
-          margin: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              height: 580,
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.4),
-                    blurRadius: 24,
-                    offset: const Offset(0, 12),
-                    spreadRadius: -8,
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              child: Container(
+                height: 580,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.15),
+                    width: 1.5,
                   ),
-                ],
-              ),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Background image or gradient
-                  if (imageUrl.isNotEmpty)
-                    Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.35),
+                      blurRadius: 52.5,
+                      offset: const Offset(19.5, 16.5),
+                      spreadRadius: 1.88,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(15),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Background image or gradient
+                      if (imageUrl.isNotEmpty)
+                        Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    featuredDeck.color,
+                                    featuredDeck.color.withOpacity(0.6),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      else
+                        Container(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
@@ -523,422 +559,584 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               ],
                             ),
                           ),
-                        );
-                      },
-                    )
-                  else
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            featuredDeck.color,
-                            featuredDeck.color.withOpacity(0.6),
+                        ),
+
+                      // Gradient overlay for text readability
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withOpacity(0.1),
+                              Colors.black.withOpacity(0.3),
+                              Colors.black.withOpacity(0.5),
+                              Colors.black.withOpacity(0.8),
+                              Colors.black.withOpacity(0.95),
+                            ],
+                            stops: const [0.0, 0.15, 0.4, 0.7, 1.0],
+                          ),
+                        ),
+                      ),
+
+                      // Inner glass border effect
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.08),
+                            width: 0.5,
+                          ),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.white.withOpacity(0.05),
+                              Colors.transparent,
+                              Colors.transparent,
+                              Colors.white.withOpacity(0.02),
+                            ],
+                            stops: const [0.0, 0.3, 0.7, 1.0],
+                          ),
+                        ),
+                      ),
+
+                      // Game info badges
+                      Positioned(
+                        left: 20,
+                        top: 20,
+                        child: Row(
+                          children: [
+                            // Player count badge
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.6),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.2),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.people_rounded,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '2-10',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Time badge
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.6),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.2),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.timer_rounded,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '60s',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Difficulty badge
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.green.withOpacity(0.4),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                'Easy',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                    ),
-                  
-                  // Gradient overlay for text readability
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.4),
-                          Colors.black.withOpacity(0.8),
-                          Colors.black.withOpacity(0.95),
-                        ],
-                        stops: const [0.0, 0.4, 0.65, 0.85, 1.0],
-                      ),
-                    ),
-                  ),
-                  
-                  // Game info badges
-                  Positioned(
-                    left: 20,
-                    top: 20,
-                    child: Row(
-                      children: [
-                        // Player count badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-                          ),
-                          child: Row(
+
+                      // Content at bottom
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.people_rounded, color: Colors.white, size: 16),
-                              const SizedBox(width: 4),
+                              // Deck name
                               Text(
-                                '2-10',
+                                featuredDeck.name,
                                 style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
+                                  fontSize: 48,
+                                  fontWeight: FontWeight.w800,
                                   color: Colors.white,
+                                  height: 1.05,
+                                  letterSpacing: -1,
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Time badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.timer_rounded, color: Colors.white, size: 16),
-                              const SizedBox(width: 4),
-                              Text(
-                                '60s',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Difficulty badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.green.withOpacity(0.4), width: 1),
-                          ),
-                          child: Text(
-                            'Easy',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  // Content at bottom
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Deck name
-                          Text(
-                            featuredDeck.name,
-                            style: GoogleFonts.poppins(
-                              fontSize: 48,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                              height: 1.05,
-                              letterSpacing: -1,
-                            ),
-                          ),
-                          
-                          const SizedBox(height: 12),
-                          
-                          // Tags row
-                          Row(
-                            children: [
-                              Text(
-                                'Fun',
-                                style: GoogleFonts.poppins(
-                                  color: Colors.white.withOpacity(0.9),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 6),
-                                child: Container(
-                                  width: 4,
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.7),
-                                    shape: BoxShape.circle,
+
+                              const SizedBox(height: 12),
+
+                              // Tags row
+                              Row(
+                                children: [
+                                  Text(
+                                    'Fun',
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.white.withOpacity(0.9),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
-                                ),
-                              ),
-                              Text(
-                                'Exciting',
-                                style: GoogleFonts.poppins(
-                                  color: Colors.white.withOpacity(0.9),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 6),
-                                child: Container(
-                                  width: 4,
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.7),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                'Party Game',
-                                style: GoogleFonts.poppins(
-                                  color: Colors.white.withOpacity(0.9),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                          
-                          const SizedBox(height: 24),
-                          
-                          // Action buttons with elegant styling
-                          Row(
-                            children: [
-                              // Play button - Premium Netflix style
-                              Expanded(
-                                child: Material(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: InkWell(
-                                    onTap: () => _playDeck(featuredDeck),
-                                    borderRadius: BorderRadius.circular(8),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                    ),
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      width: 4,
+                                      height: 4,
                                       decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          const Icon(
-                                            Icons.play_arrow_rounded,
-                                            size: 32,
-                                            color: Colors.black,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'Play',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.black,
-                                              letterSpacing: 0.2,
-                                            ),
-                                          ),
-                                        ],
+                                        color: Colors.white.withOpacity(0.7),
+                                        shape: BoxShape.circle,
                                       ),
                                     ),
                                   ),
-                                ).animate()
-                                  .fadeIn(delay: 600.ms, duration: 400.ms)
-                                  .slideY(begin: 0.1, end: 0, delay: 600.ms, duration: 400.ms),
-                              ),
-                              
-                              const SizedBox(width: 12),
-                              
-                              // My List button - Elegant glass morphism
-                              Expanded(
-                                child: Material(
-                                  color: Colors.white.withOpacity(0.3),
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: InkWell(
-                                    onTap: () {
-                                      _hapticService.lightImpact();
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Added to My List',
-                                            style: GoogleFonts.poppins(),
-                                          ),
-                                          duration: const Duration(seconds: 1),
-                                          backgroundColor: Colors.black.withOpacity(0.8),
-                                          behavior: SnackBarBehavior.floating,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          margin: const EdgeInsets.all(20),
-                                        ),
-                                      );
-                                    },
-                                    borderRadius: BorderRadius.circular(8),
+                                  Text(
+                                    'Exciting',
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.white.withOpacity(0.9),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                    ),
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      width: 4,
+                                      height: 4,
                                       decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: Colors.white.withOpacity(0.2),
-                                          width: 1,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          const Icon(
-                                            Icons.add,
-                                            size: 28,
-                                            color: Colors.white,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'My List',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.white,
-                                              letterSpacing: 0.2,
-                                            ),
-                                          ),
-                                        ],
+                                        color: Colors.white.withOpacity(0.7),
+                                        shape: BoxShape.circle,
                                       ),
                                     ),
                                   ),
-                                ).animate()
-                                  .fadeIn(delay: 700.ms, duration: 400.ms)
-                                  .slideY(begin: 0.1, end: 0, delay: 700.ms, duration: 400.ms),
+                                  Text(
+                                    'Party Game',
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.white.withOpacity(0.9),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 24),
+
+                              // Action buttons with elegant styling
+                              Row(
+                                children: [
+                                  // Play button - Premium Netflix style
+                                  Expanded(
+                                    child: Material(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          child: InkWell(
+                                            onTap:
+                                                () => _playDeck(featuredDeck),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 12,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  const Icon(
+                                                    Icons.play_arrow_rounded,
+                                                    size: 32,
+                                                    color: Colors.black,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    'Play',
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.black,
+                                                      letterSpacing: 0.2,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                        .animate()
+                                        .fadeIn(delay: 600.ms, duration: 400.ms)
+                                        .slideY(
+                                          begin: 0.1,
+                                          end: 0,
+                                          delay: 600.ms,
+                                          duration: 400.ms,
+                                        ),
+                                  ),
+
+                                  const SizedBox(width: 12),
+
+                                  // My List button - Elegant glass morphism
+                                  Expanded(
+                                    child: Material(
+                                          color: Colors.white.withOpacity(0.3),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          child: InkWell(
+                                            onTap: () {
+                                              _hapticService.lightImpact();
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'Added to My List',
+                                                    style:
+                                                        GoogleFonts.poppins(),
+                                                  ),
+                                                  duration: const Duration(
+                                                    seconds: 1,
+                                                  ),
+                                                  backgroundColor: Colors.black
+                                                      .withOpacity(0.8),
+                                                  behavior:
+                                                      SnackBarBehavior.floating,
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                  ),
+                                                  margin: const EdgeInsets.all(
+                                                    20,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 12,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: Colors.white
+                                                      .withOpacity(0.2),
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  const Icon(
+                                                    Icons.add,
+                                                    size: 28,
+                                                    color: Colors.white,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    'My List',
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.white,
+                                                      letterSpacing: 0.2,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                        .animate()
+                                        .fadeIn(delay: 700.ms, duration: 400.ms)
+                                        .slideY(
+                                          begin: 0.1,
+                                          end: 0,
+                                          delay: 700.ms,
+                                          duration: 400.ms,
+                                        ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-        ).animate()
-          .fadeIn(duration: 1000.ms, curve: Curves.easeOutCubic)
-          .scale(
-            begin: const Offset(0.97, 0.97), 
-            end: const Offset(1, 1),
-            duration: 1200.ms,
-            curve: Curves.easeOutCubic,
-          );
+            )
+            .animate()
+            .fadeIn(duration: 1000.ms, curve: Curves.easeOutCubic)
+            .scale(
+              begin: const Offset(0.97, 0.97),
+              end: const Offset(1, 1),
+              duration: 1200.ms,
+              curve: Curves.easeOutCubic,
+            );
       },
     );
   }
 
-
   Widget _buildDailyDeckSection() {
     if (_todaysDeck == null) return const SizedBox();
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Section header with subtle styling
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: Text(
-            'Daily Challenge',
-            style: GoogleFonts.poppins(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: Text(
+                'Daily Challenge',
+                style: GoogleFonts.inter(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  letterSpacing: -0.5,
+                  height: 1.2,
+                ),
+              ),
+            )
+            .animate()
+            .fadeIn(delay: 200.ms, duration: 500.ms)
+            .slideY(begin: 0.2, end: 0, delay: 200.ms, duration: 500.ms),
+
+        // Daily challenge card
         Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.amber.withOpacity(0.25),
-                Colors.orange.withOpacity(0.25),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: Colors.amber.withOpacity(0.3),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.3),
-                  shape: BoxShape.circle,
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C1E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.08),
+                  width: 1,
                 ),
-                child: const Icon(
-                  FontAwesomeIcons.trophy,
-                  color: Colors.amber,
-                  size: 20,
-                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                    spreadRadius: -4,
+                  ),
+                ],
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _todaysDeck!.title,
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap:
+                      _hasPlayedDaily
+                          ? null
+                          : () {
+                            _hapticService.lightImpact();
+                            // TODO: Play daily deck
+                          },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      children: [
+                        // Icon container with subtle glow
+                        Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFFFFC107,
+                                ).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  FontAwesomeIcons.trophy,
+                                  color: const Color(0xFFFFC107),
+                                  size: 26,
+                                ),
+                              ),
+                            )
+                            .animate(
+                              onPlay:
+                                  (controller) =>
+                                      controller.repeat(reverse: true),
+                            )
+                            .scale(
+                              begin: const Offset(1, 1),
+                              end: const Offset(1.05, 1.05),
+                              duration: 2000.ms,
+                              curve: Curves.easeInOut,
+                            ),
+
+                        const SizedBox(width: 16),
+
+                        // Content
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _todaysDeck!.title.toUpperCase(),
+                                style: GoogleFonts.inter(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                  height: 1.3,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Play today\'s special deck!',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w400,
+                                  color: Colors.white.withOpacity(0.5),
+                                  letterSpacing: -0.1,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        // Play button
+                        Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color:
+                                    _hasPlayedDaily
+                                        ? const Color(0xFF34C759)
+                                        : const Color(0xFFFFC107),
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: (_hasPlayedDaily
+                                            ? const Color(0xFF34C759)
+                                            : const Color(0xFFFFC107))
+                                        .withOpacity(0.3),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                _hasPlayedDaily
+                                    ? Icons.check_rounded
+                                    : Icons.play_arrow_rounded,
+                                color: Colors.white,
+                                size: 26,
+                              ),
+                            )
+                            .animate()
+                            .fadeIn(delay: 400.ms, duration: 500.ms)
+                            .scale(
+                              begin: const Offset(0.8, 0.8),
+                              end: const Offset(1, 1),
+                              delay: 400.ms,
+                              duration: 500.ms,
+                              curve: Curves.easeOutBack,
+                            ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Play today\'s special deck!',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: Colors.white.withOpacity(0.7),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-              IconButton(
-                onPressed: _hasPlayedDaily
-                    ? null
-                    : () {
-                        _hapticService.lightImpact();
-                        // TODO: Play daily deck
-                      },
-                icon: Icon(
-                  _hasPlayedDaily ? Icons.check_circle : Icons.play_circle_filled,
-                  color: _hasPlayedDaily ? Colors.green : Colors.amber,
-                  size: 32,
-                ),
-              ),
-            ],
-          ),
-        ),
+            )
+            .animate()
+            .fadeIn(delay: 300.ms, duration: 600.ms)
+            .slideY(begin: 0.3, end: 0, delay: 300.ms, duration: 600.ms),
       ],
     );
   }
 
   Widget _buildContinueWatchingSection() {
     if (_recentDecks.isEmpty) return const SizedBox();
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -990,38 +1188,33 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      deck.color,
-                      deck.color.withOpacity(0.7),
-                    ],
+                    colors: [deck.color, deck.color.withOpacity(0.7)],
                   ),
                 ),
               ),
-              
+
               // Image if available
               if (deck.imageUrl != null && deck.imageUrl!.isNotEmpty)
                 Positioned.fill(
                   child: Image.network(
                     deck.imageUrl!,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                    errorBuilder:
+                        (context, error, stackTrace) => const SizedBox(),
                   ),
                 ),
-              
+
               // Gradient overlay
               Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.7),
-                    ],
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
                   ),
                 ),
               ),
-              
+
               // Play button
               Center(
                 child: Container(
@@ -1030,10 +1223,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.3),
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white,
-                      width: 2,
-                    ),
+                    border: Border.all(color: Colors.white, width: 2),
                   ),
                   child: const Icon(
                     Icons.play_arrow,
@@ -1042,7 +1232,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   ),
                 ),
               ),
-              
+
               // Info button (bottom left)
               Positioned(
                 bottom: 8,
@@ -1061,7 +1251,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   ),
                 ),
               ),
-              
+
               // More button (bottom right)
               Positioned(
                 bottom: 8,
@@ -1096,77 +1286,113 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     bool isPremium = false,
   }) {
     if (decks.isEmpty) return const SizedBox();
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Section header
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
           child: Row(
             children: [
               if (icon != null) ...[
                 Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: (iconColor ?? Colors.white).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: iconColor ?? Colors.white, size: 18),
-                ),
-                const SizedBox(width: 10),
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: (iconColor ?? Colors.white).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        icon,
+                        color: iconColor ?? Colors.white,
+                        size: 20,
+                      ),
+                    )
+                    .animate()
+                    .fadeIn(delay: 200.ms, duration: 500.ms)
+                    .scale(
+                      begin: const Offset(0.8, 0.8),
+                      end: const Offset(1, 1),
+                      delay: 200.ms,
+                      duration: 500.ms,
+                      curve: Curves.easeOutBack,
+                    ),
+                const SizedBox(width: 12),
               ],
               Text(
-                title,
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                  letterSpacing: 0.2,
-                ),
-              ),
+                    title,
+                    style: GoogleFonts.inter(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      letterSpacing: -0.5,
+                      height: 1.2,
+                    ),
+                  )
+                  .animate()
+                  .fadeIn(delay: 250.ms, duration: 500.ms)
+                  .slideY(begin: 0.2, end: 0, delay: 250.ms, duration: 500.ms),
               const Spacer(),
               if (showSeeAll)
-                TextButton(
-                  onPressed: () {
-                    _hapticService.lightImpact();
-                    if (title.contains('Creations')) {
-                      context.push('/custom-decks');
-                    } else {
-                      context.push('/categories');
-                    }
-                  },
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'See All',
-                        style: GoogleFonts.poppins(
-                          color: Colors.white.withOpacity(0.6),
-                          fontWeight: FontWeight.w500,
-                          fontSize: 13,
-                        ),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      _hapticService.lightImpact();
+                      if (title.contains('Creations')) {
+                        context.push('/custom-decks');
+                      } else {
+                        context.push('/categories');
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
                       ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.arrow_forward_rounded,
-                        color: Colors.white.withOpacity(0.6),
-                        size: 16,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'See All',
+                            style: GoogleFonts.inter(
+                              color: Colors.white.withOpacity(0.6),
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            color: Colors.white.withOpacity(0.6),
+                            size: 12,
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ).animate().fadeIn(delay: 300.ms, duration: 500.ms),
             ],
           ),
         ),
-        const SizedBox(height: 8),
+
+        // Deck cards scroll view
         SizedBox(
           height: 200,
           child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.only(left: 20, right: 12),
             scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
             itemCount: decks.length,
             itemBuilder: (context, index) {
-              return _buildDeckCard(decks[index], isPremium: isPremium);
+              return _buildDeckCard(
+                decks[index],
+                isPremium: isPremium,
+                index: index,
+              );
             },
           ),
         ),
@@ -1174,198 +1400,272 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     );
   }
 
-  Widget _buildDeckCard(Deck deck, {bool isPremium = false}) {
+  Widget _buildDeckCard(Deck deck, {bool isPremium = false, int index = 0}) {
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
     final isUnlocked = deckProvider.isDeckUnlocked(deck.id);
-    
-    return Container(
-      width: 130,
-      margin: const EdgeInsets.only(right: 8),
-      child: InkWell(
-        onTap: () {
-          _hapticService.lightImpact();
-          if (isPremium && !isUnlocked) {
-            _showPremiumDialog(deck);
-          } else {
-            _showDeckDetails(deck);
-          }
-        },
-        borderRadius: BorderRadius.circular(6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Card image/icon with elegant rounded corners
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                height: 180,
-                width: 130,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      deck.color.withOpacity(0.9),
-                      deck.color.withOpacity(0.6),
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: deck.color.withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                      spreadRadius: -4,
-                    ),
-                  ],
-                ),
-                child: Stack(
+
+    // Create unique hero tag for this specific card instance
+    final heroTag =
+        'deck_card_${deck.id}_${DateTime.now().millisecondsSinceEpoch}_$index';
+
+    return Hero(
+          tag: heroTag,
+          createRectTween: (begin, end) {
+            return MaterialRectArcTween(begin: begin, end: end);
+          },
+          child: Container(
+            width: 150,
+            margin: const EdgeInsets.only(right: 16),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  _hapticService.lightImpact();
+                  if (isPremium && !isUnlocked) {
+                    _showPremiumDialog(deck);
+                  } else {
+                    _showDeckDetails(deck, heroTag: heroTag);
+                  }
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // If deck has imageUrl, show it
-                    if (deck.imageUrl != null && deck.imageUrl!.isNotEmpty)
-                      Image.network(
-                        deck.imageUrl!,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Center(
-                            child: Icon(
-                              deck.icon,
-                              color: Colors.white,
-                              size: 48,
+                    // Card container
+                    Container(
+                      height: 200,
+                      width: 150,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2C2C2E),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.08),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                            spreadRadius: -4,
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(15),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            // Background image or color
+                            if (deck.imageUrl != null &&
+                                deck.imageUrl!.isNotEmpty)
+                              Image.network(
+                                deck.imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      color: deck.color.withOpacity(0.2),
+                                    ),
+                                    child: Center(
+                                      child: Icon(
+                                        deck.icon,
+                                        color: deck.color,
+                                        size: 40,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              )
+                            else
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: deck.color.withOpacity(0.15),
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    deck.icon,
+                                    color: deck.color,
+                                    size: 40,
+                                  ),
+                                ),
+                              ),
+
+                            // Subtle gradient overlay for depth
+                            Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withOpacity(0.2),
+                                  ],
+                                  stops: const [0.5, 1.0],
+                                ),
+                              ),
                             ),
-                          );
-                        },
-                      )
-                    else
-                      Center(
-                        child: Icon(
-                          deck.icon,
-                          color: Colors.white,
-                          size: 48,
+
+                            // Deck info overlay
+                            Positioned(
+                              bottom: 12,
+                              left: 12,
+                              right: 12,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    deck.name,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                      letterSpacing: -0.2,
+                                      height: 1.2,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${deck.cards.length} cards',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.white.withOpacity(0.6),
+                                      letterSpacing: 0.1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Premium lock overlay
+                            if (isPremium && !isUnlocked)
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.5),
+                                ),
+                                child: Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.3),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: const Color(
+                                          0xFFFFC107,
+                                        ).withOpacity(0.3),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.lock_rounded,
+                                      color: Color(0xFFFFC107),
+                                      size: 24,
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                            // Play icon hint (top right)
+                            if (!isPremium || isUnlocked)
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Container(
+                                      width: 32,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.9),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Icon(
+                                        Icons.play_arrow_rounded,
+                                        color: deck.color,
+                                        size: 20,
+                                      ),
+                                    )
+                                    .animate(delay: (500 + index * 100).ms)
+                                    .fadeIn(duration: 300.ms)
+                                    .scale(
+                                      begin: const Offset(0.6, 0.6),
+                                      end: const Offset(1, 1),
+                                      duration: 300.ms,
+                                      curve: Curves.easeOutBack,
+                                    ),
+                              ),
+                          ],
                         ),
                       ),
-                    
-                    // Premium lock badge
-                    if (isPremium && !isUnlocked)
-                      Positioned(
-                        top: 6,
-                        right: 6,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.6),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.lock,
-                            color: Colors.amber,
-                            size: 16,
-                          ),
-                        ),
-                      ),
+                    ),
                   ],
                 ),
               ),
             ),
-          ],
-        ),
-      ),
-    ).animate().fadeIn(duration: 400.ms, delay: (30 * deck.cards.length % 300).ms);
+          ),
+        )
+        .animate()
+        .fadeIn(delay: (300 + index * 50).ms, duration: 500.ms)
+        .slideX(
+          begin: 0.3,
+          end: 0,
+          delay: (300 + index * 50).ms,
+          duration: 500.ms,
+          curve: Curves.easeOutQuart,
+        );
   }
 
-  void _showDeckDetails(Deck deck) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              deck.color.withOpacity(0.95),
-              deck.color.withOpacity(0.85),
-            ],
-          ),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(2),
-              ),
+  void _showDeckDetails(Deck deck, {required String heroTag}) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder:
+            (context, animation, secondaryAnimation) => DeckDetailsScreen(
+              deck: deck,
+              heroTag: heroTag,
+              onPlay: () => _playDeck(deck),
             ),
-            const SizedBox(height: 24),
-            Icon(deck.icon, color: Colors.white, size: 64),
-            const SizedBox(height: 16),
-            Text(
-              deck.name,
-              style: GoogleFonts.poppins(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+        transitionDuration: const Duration(milliseconds: 500),
+        reverseTransitionDuration: const Duration(milliseconds: 450),
+        opaque: false,
+        barrierColor: Colors.black.withOpacity(0.6),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          // Premium iOS-style spring animation
+          const curve = Curves.fastOutSlowIn;
+
+          final curvedAnimation = CurvedAnimation(
+            parent: animation,
+            curve: curve,
+            reverseCurve: curve,
+          );
+
+          // Subtle slide from bottom (iOS style)
+          final slideAnimation = Tween<Offset>(
+            begin: const Offset(0, 0.06),
+            end: Offset.zero,
+          ).animate(curvedAnimation);
+
+          // Gentle scale for depth
+          final scaleAnimation = Tween<double>(
+            begin: 0.96,
+            end: 1.0,
+          ).animate(curvedAnimation);
+
+          // Smooth fade for elegance
+          final fadeAnimation = Tween<double>(
+            begin: 0.0,
+            end: 1.0,
+          ).animate(curvedAnimation);
+
+          return SlideTransition(
+            position: slideAnimation,
+            child: FadeTransition(
+              opacity: fadeAnimation,
+              child: ScaleTransition(scale: scaleAnimation, child: child),
             ),
-            const SizedBox(height: 8),
-            Text(
-              deck.description,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                color: Colors.white.withOpacity(0.9),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${deck.cards.length} cards',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.white.withOpacity(0.7),
-              ),
-            ),
-            const SizedBox(height: 32),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _playDeck(deck);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: deck.color,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  minimumSize: const Size(double.infinity, 56),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.play_arrow, size: 28),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Play Now',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -1373,58 +1673,63 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   void _showPremiumDialog(Deck deck) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1a1a1a),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(Icons.workspace_premium, color: Colors.amber),
-            const SizedBox(width: 8),
-            Text(
-              'Premium Deck',
-              style: GoogleFonts.poppins(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1a1a1a),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.workspace_premium, color: Colors.amber),
+                const SizedBox(width: 8),
+                Text(
+                  'Premium Deck',
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              'Unlock "${deck.name}" and all premium content!',
+              style: GoogleFonts.poppins(color: Colors.white.withOpacity(0.9)),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Maybe Later',
+                  style: GoogleFonts.poppins(
+                    color: Colors.white.withOpacity(0.7),
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
-        content: Text(
-          'Unlock "${deck.name}" and all premium content!',
-          style: GoogleFonts.poppins(
-            color: Colors.white.withOpacity(0.9),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Maybe Later',
-              style: GoogleFonts.poppins(color: Colors.white.withOpacity(0.7)),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Implement unlock functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Premium unlock coming soon!')),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // TODO: Implement unlock functionality
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Premium unlock coming soon!'),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  'Unlock',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-            child: Text(
-              'Unlock',
-              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-            ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -1513,7 +1818,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               label,
               style: GoogleFonts.poppins(
                 fontSize: 11,
-                color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
+                color:
+                    isSelected ? Colors.white : Colors.white.withOpacity(0.5),
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
@@ -1525,56 +1831,152 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
   Widget _buildStatsSection() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.purple.withOpacity(0.2),
-            Colors.blue.withOpacity(0.2),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildStatItem(Icons.emoji_events_rounded, '12', 'Games Won', Colors.amber),
-          _buildStatItem(Icons.local_fire_department_rounded, '3', 'Win Streak', Colors.orange),
-          _buildStatItem(Icons.groups_rounded, '48', 'Players Met', Colors.blue),
-          _buildStatItem(Icons.star_rounded, '4.8', 'Avg Score', Colors.purple),
-        ],
-      ),
-    ).animate().fadeIn(delay: 400.ms, duration: 600.ms);
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1E),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+                spreadRadius: -4,
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildStatItem(
+                  Icons.emoji_events_rounded,
+                  '12',
+                  'Games Won',
+                  const Color(0xFFFFC107),
+                  0,
+                ),
+                _buildStatDivider(),
+                _buildStatItem(
+                  Icons.local_fire_department_rounded,
+                  '3',
+                  'Win Streak',
+                  const Color(0xFFFF6B35),
+                  1,
+                ),
+                _buildStatDivider(),
+                _buildStatItem(
+                  Icons.groups_rounded,
+                  '48',
+                  'Players Met',
+                  const Color(0xFF0A84FF),
+                  2,
+                ),
+                _buildStatDivider(),
+                _buildStatItem(
+                  Icons.star_rounded,
+                  '4.8',
+                  'Avg Score',
+                  const Color(0xFFBF5AF2),
+                  3,
+                ),
+              ],
+            ),
+          ),
+        )
+        .animate()
+        .fadeIn(delay: 500.ms, duration: 700.ms)
+        .slideY(begin: 0.2, end: 0, delay: 500.ms, duration: 700.ms);
   }
 
-  Widget _buildStatItem(IconData icon, String value, String label, Color color) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 28),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-          ),
+  Widget _buildStatDivider() {
+    return Container(
+      width: 1,
+      height: 40,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white.withOpacity(0.0),
+            Colors.white.withOpacity(0.1),
+            Colors.white.withOpacity(0.0),
+          ],
         ),
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 11,
-            color: Colors.white.withOpacity(0.6),
-          ),
-        ),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(
+    IconData icon,
+    String value,
+    String label,
+    Color color,
+    int index,
+  ) {
+    return Expanded(
+      child: Column(
+        children: [
+          // Icon with subtle background
+          Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 22),
+              )
+              .animate()
+              .fadeIn(delay: (600 + index * 100).ms, duration: 500.ms)
+              .scale(
+                begin: const Offset(0.8, 0.8),
+                end: const Offset(1, 1),
+                delay: (600 + index * 100).ms,
+                duration: 500.ms,
+                curve: Curves.easeOutBack,
+              ),
+
+          const SizedBox(height: 12),
+
+          // Value
+          Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: -0.5,
+                  height: 1.0,
+                ),
+              )
+              .animate()
+              .fadeIn(delay: (650 + index * 100).ms, duration: 500.ms)
+              .slideY(
+                begin: 0.3,
+                end: 0,
+                delay: (650 + index * 100).ms,
+                duration: 500.ms,
+              ),
+
+          const SizedBox(height: 4),
+
+          // Label
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: Colors.white.withOpacity(0.4),
+              letterSpacing: 0.2,
+              height: 1.2,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+          ).animate().fadeIn(delay: (700 + index * 100).ms, duration: 500.ms),
+        ],
+      ),
     );
   }
 
@@ -1592,10 +1994,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.2),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
       ),
       child: Column(
         children: [
@@ -1605,11 +2004,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               shape: BoxShape.circle,
               color: Colors.white.withOpacity(0.1),
             ),
-            child: Icon(
-              Icons.add_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
+            child: Icon(Icons.add_rounded, color: Colors.white, size: 32),
           ),
           const SizedBox(height: 16),
           Text(
@@ -1645,9 +2040,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             ),
             child: Text(
               'Create Deck',
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600,
-              ),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -1655,4 +2048,3 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     ).animate().fadeIn(duration: 600.ms);
   }
 }
-
