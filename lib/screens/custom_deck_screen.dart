@@ -7,7 +7,7 @@ import '../providers/deck_provider.dart';
 import '../services/haptic_service.dart';
 import '../widgets/icon_picker_dialog.dart';
 import '../widgets/color_picker_dialog.dart';
-
+rrrrrrrrrr
 class CustomDeckScreen extends StatefulWidget {
   final Deck? existingDeck;
 
@@ -229,29 +229,233 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
   Future<bool> _onWillPop() async {
     if (!_hasChanges) return true;
 
+    await _hapticService.mediumImpact();
+
     final result = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Discard Changes?'),
-            content: const Text(
-              'You have unsaved changes. Are you sure you want to leave?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('Discard'),
-              ),
-            ],
-          ),
+      barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.6),
+      builder: (context) => _buildPremiumDiscardDialog(),
     );
 
     return result ?? false;
+  }
+
+  // Premium Discard Dialog Widget
+  Widget _buildPremiumDiscardDialog() {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 40,
+                  offset: const Offset(0, 20),
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header Section
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(28, 32, 28, 20),
+                  child: Column(
+                    children: [
+                      // Icon
+                      Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  const Color(0xFFEF4444).withOpacity(0.12),
+                                  const Color(0xFFDC2626).withOpacity(0.08),
+                                ],
+                              ),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.warning_rounded,
+                              size: 32,
+                              color: const Color(0xFFEF4444).withOpacity(0.9),
+                            ),
+                          )
+                          .animate()
+                          .fadeIn(duration: 400.ms, curve: Curves.easeOutCubic)
+                          .scale(
+                            begin: const Offset(0.7, 0.7),
+                            curve: Curves.easeOutBack,
+                          ),
+
+                      const SizedBox(height: 24),
+
+                      // Title
+                      Text(
+                            'Discard Changes?',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF1A1A1A).withOpacity(0.95),
+                              letterSpacing: -0.8,
+                              height: 1.2,
+                            ),
+                          )
+                          .animate()
+                          .fadeIn(
+                            delay: 100.ms,
+                            duration: 500.ms,
+                            curve: Curves.easeOutCubic,
+                          )
+                          .slideY(begin: 0.1, curve: Curves.easeOutCubic),
+
+                      const SizedBox(height: 12),
+
+                      // Description
+                      Text(
+                            'You have unsaved changes. Are you sure you want to leave?',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w400,
+                              color: const Color(0xFF1A1A1A).withOpacity(0.55),
+                              letterSpacing: -0.2,
+                              height: 1.5,
+                            ),
+                          )
+                          .animate()
+                          .fadeIn(
+                            delay: 200.ms,
+                            duration: 500.ms,
+                            curve: Curves.easeOutCubic,
+                          )
+                          .slideY(begin: 0.1, curve: Curves.easeOutCubic),
+                    ],
+                  ),
+                ),
+
+                // Buttons Section
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  child: Column(
+                    children: [
+                      // Discard Button
+                      _buildDialogButton(
+                        label: 'Discard',
+                        isPrimary: false,
+                        onTap: () async {
+                          await _hapticService.lightImpact();
+                          Navigator.pop(context, true);
+                        },
+                        delay: 300.ms,
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Cancel Button
+                      _buildDialogButton(
+                        label: 'Cancel',
+                        isPrimary: true,
+                        onTap: () async {
+                          await _hapticService.lightImpact();
+                          Navigator.pop(context, false);
+                        },
+                        delay: 350.ms,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          )
+          .animate()
+          .fadeIn(duration: 300.ms, curve: Curves.easeOutCubic)
+          .scale(begin: const Offset(0.9, 0.9), curve: Curves.easeOutCubic),
+    );
+  }
+
+  // Dialog Button Widget
+  Widget _buildDialogButton({
+    required String label,
+    required bool isPrimary,
+    required VoidCallback onTap,
+    required Duration delay,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              gradient:
+                  isPrimary
+                      ? const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF1A1A1A), Color(0xFF2D2D2D)],
+                      )
+                      : null,
+              color:
+                  isPrimary ? null : const Color(0xFF1A1A1A).withOpacity(0.04),
+              borderRadius: BorderRadius.circular(16),
+              border:
+                  !isPrimary
+                      ? Border.all(
+                        color: Colors.white.withOpacity(0.1),
+                        width: 1,
+                      )
+                      : null,
+              boxShadow:
+                  isPrimary
+                      ? [
+                        BoxShadow(
+                          color: const Color(0xFF1A1A1A).withOpacity(0.15),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                      : null,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (!isPrimary)
+                  Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: const Color(0xFFEF4444).withOpacity(0.9),
+                  ),
+                if (!isPrimary) const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color:
+                        isPrimary
+                            ? Colors.white.withOpacity(0.95)
+                            : const Color(0xFFEF4444).withOpacity(0.9),
+                    letterSpacing: -0.3,
+                    height: 1.2,
+                  ),
+                ),
+              ],
+            ),
+          )
+          .animate()
+          .fadeIn(delay: delay, duration: 400.ms, curve: Curves.easeOutCubic)
+          .slideY(begin: 0.15, curve: Curves.easeOutCubic),
+    );
   }
 
   @override
@@ -259,139 +463,105 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF7F9FC),
+        backgroundColor: const Color(0xFF0A0A0A),
         body: SafeArea(
           child: Column(
             children: [
-              // Modern Header
+              // Ultra-Minimal Header
               Container(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0A0A0A),
+                      border: Border(
+                        bottom: BorderSide(
+                          color: Colors.white.withOpacity(0.05),
+                          width: 1,
+                        ),
+                      ),
                     ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () => Navigator.maybePop(context),
-                          child: Container(
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.grey.shade100,
-                                  Colors.grey.shade50,
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.arrow_back_rounded,
-                              size: 22,
-                              color: Colors.black87,
-                            ),
-                          ),
+                    child: SafeArea(
+                      bottom: false,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 14,
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.existingDeck != null
-                                    ? 'Edit Deck'
-                                    : 'Create Deck',
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.black87,
-                                  letterSpacing: -0.5,
-                                ),
-                              ),
-                              Text(
-                                widget.existingDeck != null
-                                    ? 'Modify your custom deck'
-                                    : 'Build your own custom deck',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Save button
-                        GestureDetector(
-                          onTap: _isLoading ? null : _saveDeck,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF10B981), Color(0xFF059669)],
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (_isLoading)
-                                  const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white,
+                        child: Row(
+                          children: [
+                            // Ultra-Minimal Back Button
+                            _buildUltraPremiumBackButton(),
+                            const SizedBox(width: 20),
+
+                            // Title Section - Netflix-like typography
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                        widget.existingDeck != null
+                                            ? 'Edit Deck'
+                                            : 'Create Deck',
+                                        style: const TextStyle(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.w800,
+                                          color: const Color(0xFF1A1A1A),
+                                          letterSpacing: -0.8,
+                                          height: 1.1,
+                                        ),
+                                      )
+                                      .animate()
+                                      .fadeIn(
+                                        duration: 450.ms,
+                                        curve: Curves.easeOutCubic,
+                                      )
+                                      .slideX(
+                                        begin: -0.02,
+                                        curve: Curves.easeOutCubic,
                                       ),
-                                    ),
-                                  )
-                                else ...[
-                                  const Icon(
-                                    Icons.check_rounded,
-                                    color: Colors.white,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  const Text(
-                                    'Save',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                        widget.existingDeck != null
+                                            ? 'Refine and perfect your deck'
+                                            : 'Craft something unique',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.white.withOpacity(0.5),
+                                          fontWeight: FontWeight.w400,
+                                          letterSpacing: -0.2,
+                                          height: 1.3,
+                                        ),
+                                      )
+                                      .animate()
+                                      .fadeIn(
+                                        delay: 150.ms,
+                                        duration: 600.ms,
+                                        curve: Curves.easeOutCubic,
+                                      )
+                                      .slideX(
+                                        begin: -0.02,
+                                        curve: Curves.easeOutCubic,
+                                      ),
                                 ],
-                              ],
+                              ),
                             ),
-                          ),
+
+                            const SizedBox(width: 16),
+
+                            // Ultra-Premium Save Button
+                            _buildUltraPremiumSaveButton(),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ],
-                ),
-              ),
+                  )
+                  .animate()
+                  .fadeIn(duration: 400.ms, curve: Curves.easeOutCubic)
+                  .slideY(begin: -0.05, curve: Curves.easeOutCubic),
 
               // Form content
               Expanded(child: _buildModernFormContent()),
             ],
           ),
         ),
-
-        // Floating Action Button for AI
-        floatingActionButton: _buildModernFloatingActionButton(),
       ),
     );
   }
@@ -400,157 +570,21 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
     return SingleChildScrollView(
       controller: _scrollController,
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
       child: Form(
         key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Deck Info Card
-            _buildModernSection(
-              title: 'Deck Information',
-              icon: Icons.info_outline_rounded,
-              iconColor: const Color(0xFF6366F1),
-              child: Column(
-                children: [
-                  // Name Field
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: InputDecoration(
-                      labelText: 'Deck Name',
-                      hintText: 'Enter a unique name',
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF6366F1),
-                          width: 2,
-                        ),
-                      ),
-                      prefixIcon: const Icon(Icons.title_rounded),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a deck name';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  // Description Field
-                  TextFormField(
-                    controller: _descriptionController,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      labelText: 'Description (Optional)',
-                      hintText: 'Describe your deck',
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF6366F1),
-                          width: 2,
-                        ),
-                      ),
-                      prefixIcon: const Icon(Icons.description_outlined),
-                    ),
-                  ),
-                ],
-              ),
-            ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.05),
+            // Premium Deck Info Section
+            _buildPremiumInfoSection(),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // Customization Card
-            _buildModernSection(
-                  title: 'Customization',
-                  icon: Icons.palette_outlined,
-                  iconColor: const Color(0xFF8B5CF6),
-                  child: Column(
-                    children: [
-                      // Icon and Color Pickers
-                      Row(
-                        children: [
-                          // Icon Picker
-                          Expanded(
-                            child: _buildCustomizationOption(
-                              label: 'Icon',
-                              child: GestureDetector(
-                                onTap: _pickIcon,
-                                child: Container(
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    color: _selectedColor.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: _selectedColor.withOpacity(0.3),
-                                      width: 2,
-                                    ),
-                                  ),
-                                  child: Icon(
-                                    _selectedIcon,
-                                    size: 32,
-                                    color: _selectedColor,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          // Color Picker
-                          Expanded(
-                            child: _buildCustomizationOption(
-                              label: 'Color',
-                              child: GestureDetector(
-                                onTap: _pickColor,
-                                child: Container(
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        _selectedColor.withOpacity(0.8),
-                                        _selectedColor,
-                                      ],
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(
-                                    Icons.palette_rounded,
-                                    color: Colors.white,
-                                    size: 32,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                )
-                .animate()
-                .fadeIn(delay: 100.ms, duration: 500.ms)
-                .slideY(begin: 0.05),
+            // Premium Customization Section
+            _buildPremiumCustomizationSection(),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             // Cards Section
             _buildModernCardsSection(),
@@ -560,309 +594,430 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
     );
   }
 
-  Widget _buildModernSection({
-    required String title,
-    required IconData icon,
-    required Color iconColor,
-    required Widget child,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: iconColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, size: 22, color: iconColor),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-            child: child,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCustomizationOption({
-    required String label,
-    required Widget child,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade700,
-          ),
-        ),
-        const SizedBox(height: 8),
-        child,
-      ],
-    );
-  }
-
   Widget _buildModernCardsSection() {
-    return _buildModernSection(
-      title: 'Cards (${_cards.length})',
-      icon: Icons.style_rounded,
-      iconColor: const Color(0xFFEC4899),
-      child: Column(
-        children: [
-          // Add Card Input
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _cardController,
-                  decoration: InputDecoration(
-                    hintText: 'Enter card text...',
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: Color(0xFFEC4899),
-                        width: 2,
-                      ),
-                    ),
-                    prefixIcon: const Icon(Icons.add_rounded),
-                  ),
-                  onSubmitted: (_) => _addCard(),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFEC4899), Color(0xFFDB2777)],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    onTap: _addCard,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      child: const Icon(
-                        Icons.add_rounded,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+    return _buildPremiumCardsSection();
+  }
 
-          if (_cards.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            // Cards List
-            Container(
-              constraints: const BoxConstraints(maxHeight: 300),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: _cards.length,
-                separatorBuilder:
-                    (_, __) => Divider(height: 1, color: Colors.grey.shade200),
-                itemBuilder: (context, index) {
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
+  // Premium Cards Section Widget
+  Widget _buildPremiumCardsSection() {
+    return Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.04),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.04), width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Section Header - Ultra Minimal
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+                child: Row(
+                  children: [
+                    Icon(
+                          Icons.layers_rounded,
+                          size: 18,
+                          color: Colors.white.withOpacity(0.7),
+                        )
+                        .animate()
+                        .fadeIn(duration: 400.ms, curve: Curves.easeOutCubic)
+                        .scale(
+                          begin: const Offset(0.8, 0.8),
+                          curve: Curves.easeOutBack,
+                        ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                            'Cards (${_cards.length})',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withOpacity(0.85),
+                              letterSpacing: -0.3,
+                              height: 1.2,
+                            ),
+                          )
+                          .animate()
+                          .fadeIn(
+                            delay: 50.ms,
+                            duration: 500.ms,
+                            curve: Curves.easeOutCubic,
+                          )
+                          .slideX(begin: -0.02, curve: Curves.easeOutCubic),
                     ),
-                    leading: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEC4899).withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${index + 1}',
-                          style: const TextStyle(
-                            color: Color(0xFFEC4899),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                    // Card status badge - Minimalist
+                    if (_cards.isNotEmpty)
+                      AnimatedContainer(
+                            duration: const Duration(milliseconds: 400),
+                            curve: Curves.easeOutCubic,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  _cards.length >= 5
+                                      ? const Color(
+                                        0xFF10B981,
+                                      ).withOpacity(0.12)
+                                      : Colors.white.withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _cards.length >= 5
+                                      ? Icons.check_circle
+                                      : Icons.schedule_rounded,
+                                  size: 12,
+                                  color:
+                                      _cards.length >= 5
+                                          ? const Color(
+                                            0xFF10B981,
+                                          ).withOpacity(0.9)
+                                          : Colors.white.withOpacity(0.5),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _cards.length >= 5
+                                      ? 'Ready'
+                                      : '${5 - _cards.length} more',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color:
+                                        _cards.length >= 5
+                                            ? const Color(
+                                              0xFF10B981,
+                                            ).withOpacity(0.9)
+                                            : Colors.white.withOpacity(0.5),
+                                    letterSpacing: -0.15,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                          .animate()
+                          .fadeIn(duration: 350.ms, curve: Curves.easeOutCubic)
+                          .scale(
+                            begin: const Offset(0.9, 0.9),
+                            curve: Curves.easeOutBack,
                           ),
+                  ],
+                ),
+              ),
+
+              // Card Input - Refined Design
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.025),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.08),
+                          width: 1,
                         ),
                       ),
-                    ),
-                    title: Text(
-                      _cards[index],
-                      style: const TextStyle(fontSize: 15),
-                    ),
-                    trailing: IconButton(
-                      icon: Icon(
-                        Icons.close_rounded,
-                        size: 20,
-                        color: Colors.grey.shade600,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                                  controller: _cardController,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white.withOpacity(0.9),
+                                    letterSpacing: -0.2,
+                                    height: 1.4,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: 'Add a card...',
+                                    hintStyle: TextStyle(
+                                      color: Colors.white.withOpacity(0.35),
+                                      fontWeight: FontWeight.w400,
+                                      letterSpacing: -0.15,
+                                    ),
+                                    filled: false,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                  ),
+                                  onSubmitted: (_) => _addCard(),
+                                )
+                                .animate()
+                                .fadeIn(
+                                  delay: 100.ms,
+                                  duration: 500.ms,
+                                  curve: Curves.easeOutCubic,
+                                )
+                                .slideX(
+                                  begin: -0.02,
+                                  curve: Curves.easeOutCubic,
+                                ),
+                          ),
+                          // Elegant Add Button
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: GestureDetector(
+                              onTap: () async {
+                                await _hapticService.lightImpact();
+                                _addCard();
+                              },
+                              child: Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(
+                                      Icons.add_rounded,
+                                      color: Colors.white.withOpacity(0.8),
+                                      size: 20,
+                                    ),
+                                  )
+                                  .animate()
+                                  .fadeIn(
+                                    delay: 150.ms,
+                                    duration: 500.ms,
+                                    curve: Curves.easeOutCubic,
+                                  )
+                                  .scale(
+                                    begin: const Offset(0.9, 0.9),
+                                    curve: Curves.easeOutBack,
+                                  ),
+                            ),
+                          ),
+                        ],
                       ),
-                      onPressed: () => _removeCard(index),
-                    ),
-                  );
-                },
+                    )
+                    .animate()
+                    .fadeIn(
+                      delay: 100.ms,
+                      duration: 600.ms,
+                      curve: Curves.easeOutCubic,
+                    )
+                    .slideY(begin: 0.03, curve: Curves.easeOutCubic),
               ),
-            ),
-            const SizedBox(height: 12),
-            // Card count indicator
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color:
-                    _cards.length >= 5
-                        ? const Color(0xFF10B981).withOpacity(0.1)
-                        : const Color(0xFFF59E0B).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    _cards.length >= 5
-                        ? Icons.check_circle_outline_rounded
-                        : Icons.info_outline_rounded,
-                    size: 16,
-                    color:
-                        _cards.length >= 5
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFF59E0B),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    _cards.length >= 5
-                        ? '${_cards.length} cards - Ready to play!'
-                        : 'Need at least 5 cards (${5 - _cards.length} more)',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color:
-                          _cards.length >= 5
-                              ? const Color(0xFF10B981)
-                              : const Color(0xFFF59E0B),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
 
-          if (_showAISuggestions && _aiSuggestions.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _buildAISuggestionsWidget(),
-          ],
-        ],
-      ),
-    ).animate().fadeIn(delay: 200.ms, duration: 500.ms).slideY(begin: 0.05);
+              // Cards List
+              if (_cards.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  child: Column(
+                    children: [
+                      Container(
+                            constraints: const BoxConstraints(maxHeight: 300),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.03),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(
+                                  0xFF1A1A1A,
+                                ).withOpacity(0.05),
+                                width: 1,
+                              ),
+                            ),
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              padding: const EdgeInsets.all(6),
+                              itemCount: _cards.length,
+                              separatorBuilder:
+                                  (_, __) => const SizedBox(height: 3),
+                              itemBuilder: (context, index) {
+                                return _buildCardItem(index)
+                                    .animate()
+                                    .fadeIn(
+                                      delay: (index * 25).ms,
+                                      duration: 300.ms,
+                                      curve: Curves.easeOutCubic,
+                                    )
+                                    .slideX(
+                                      begin: -0.03,
+                                      curve: Curves.easeOutCubic,
+                                    );
+                              },
+                            ),
+                          )
+                          .animate()
+                          .fadeIn(
+                            delay: 200.ms,
+                            duration: 350.ms,
+                            curve: Curves.easeOutCubic,
+                          )
+                          .slideY(begin: 0.02, curve: Curves.easeOutCubic),
+                    ],
+                  ),
+                ),
+
+              // AI Suggestions Section (moved to bottom)
+              if (!_showAISuggestions && _cards.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                  child: _buildAISuggestionButton(),
+                ),
+
+              if (_showAISuggestions && _aiSuggestions.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                  child: _buildAISuggestionsWidget(),
+                ),
+            ],
+          ),
+        )
+        .animate()
+        .fadeIn(delay: 150.ms, duration: 350.ms, curve: Curves.easeOutCubic)
+        .slideY(begin: 0.03, curve: Curves.easeOutCubic);
   }
 
-  Widget _buildModernFloatingActionButton() {
+  // Premium Card Item Widget
+  Widget _buildCardItem(int index) {
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF6366F1).withOpacity(0.25),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
       ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: _generateAISuggestions,
-          borderRadius: BorderRadius.circular(16),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        leading: Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: Text(
+              '${index + 1}',
+              style: TextStyle(
+                color: const Color(0xFF1A1A1A).withOpacity(0.6),
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ),
+        ),
+        title: Text(
+          _cards[index],
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Colors.white.withOpacity(0.95),
+            letterSpacing: -0.2,
+            height: 1.3,
+          ),
+        ),
+        trailing: GestureDetector(
+          onTap: () async {
+            await _hapticService.lightImpact();
+            _removeCard(index);
+          },
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A).withOpacity(0.03),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.close_rounded,
+              size: 16,
+              color: Colors.white.withOpacity(0.5),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // AI Suggestion Button Widget - Refined
+  Widget _buildAISuggestionButton() {
+    return GestureDetector(
+      onTap: () async {
+        await _hapticService.mediumImpact();
+        _generateAISuggestions();
+      },
+      child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF6366F1).withOpacity(0.95),
+                  const Color(0xFF8B5CF6).withOpacity(0.95),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6366F1).withOpacity(0.25),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (_isLoadingAI)
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
+                  SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white.withOpacity(0.9),
+                          ),
+                        ),
+                      )
+                      .animate(onPlay: (controller) => controller.repeat())
+                      .rotate(duration: 1200.ms, curve: Curves.linear)
                 else
-                  const Icon(
-                    Icons.auto_awesome_rounded,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                const SizedBox(width: 8),
+                  Icon(
+                        Icons.auto_awesome,
+                        color: Colors.white.withOpacity(0.95),
+                        size: 16,
+                      )
+                      .animate(
+                        onPlay:
+                            (controller) => controller.repeat(reverse: true),
+                      )
+                      .scale(
+                        begin: const Offset(1.0, 1.0),
+                        end: const Offset(1.15, 1.15),
+                        duration: 1800.ms,
+                        curve: Curves.easeInOut,
+                      ),
+                const SizedBox(width: 9),
                 Text(
                   _isLoadingAI ? 'Generating...' : 'AI Suggestions',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.95),
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
+                    height: 1.2,
                   ),
                 ),
               ],
             ),
-          ),
-        ),
-      ),
+          )
+          .animate()
+          .fadeIn(delay: 200.ms, duration: 500.ms, curve: Curves.easeOutCubic)
+          .slideY(begin: 0.03, curve: Curves.easeOutCubic)
+          .then(delay: 300.ms)
+          .shimmer(duration: 1500.ms, color: Colors.white.withOpacity(0.2)),
     );
   }
 
@@ -919,7 +1074,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: const Color(0xFF1A1A1A),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: const Color(0xFF6366F1).withOpacity(0.3),
@@ -973,5 +1128,556 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
         _hasChanges = true;
       });
     }
+  }
+
+  // Ultra-Premium Back Button Widget
+  Widget _buildUltraPremiumBackButton() {
+    return GestureDetector(
+      onTap: () async {
+        await _hapticService.lightImpact();
+        Navigator.maybePop(context);
+      },
+      child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.05),
+                width: 1,
+              ),
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 15,
+                color: const Color(0xFF1A1A1A),
+              ),
+            ),
+          )
+          .animate()
+          .fadeIn(duration: 350.ms, curve: Curves.easeOutCubic)
+          .scale(begin: const Offset(0.9, 0.9), curve: Curves.easeOutCubic),
+    );
+  }
+
+  // Ultra-Premium Save Button Widget
+  Widget _buildUltraPremiumSaveButton() {
+    return GestureDetector(
+      onTap:
+          _isLoading
+              ? null
+              : () async {
+                await _hapticService.mediumImpact();
+                _saveDeck();
+              },
+      child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOutCubic,
+            padding: EdgeInsets.symmetric(
+              horizontal: _isLoading ? 20 : 18,
+              vertical: _isLoading ? 11 : 10,
+            ),
+            decoration: BoxDecoration(
+              gradient:
+                  _isLoading
+                      ? LinearGradient(
+                        colors: [
+                          Colors.white.withOpacity(0.15),
+                          Colors.white.withOpacity(0.1),
+                        ],
+                      )
+                      : const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Colors.white, Color(0xFFE8E8E8)],
+                      ),
+              borderRadius: BorderRadius.circular(11),
+              boxShadow: [
+                if (!_isLoading)
+                  BoxShadow(
+                    color: Colors.white.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                    spreadRadius: 0,
+                  ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_isLoading)
+                  SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            const Color(0xFF0A0A0A).withOpacity(0.7),
+                          ),
+                        ),
+                      )
+                      .animate(onPlay: (controller) => controller.repeat())
+                      .rotate(duration: 1200.ms, curve: Curves.linear)
+                else ...[
+                  const Icon(
+                        Icons.check_circle_rounded,
+                        color: Color(0xFF0A0A0A),
+                        size: 15,
+                      )
+                      .animate()
+                      .fadeIn(duration: 250.ms, curve: Curves.easeOutCubic)
+                      .scale(
+                        begin: const Offset(0.7, 0.7),
+                        curve: Curves.easeOutBack,
+                      ),
+                  const SizedBox(width: 6),
+                  const Text(
+                        'Save',
+                        style: TextStyle(
+                          color: Color(0xFF0A0A0A),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.3,
+                          height: 1.1,
+                        ),
+                      )
+                      .animate()
+                      .fadeIn(duration: 250.ms, curve: Curves.easeOutCubic)
+                      .slideX(begin: -0.1, curve: Curves.easeOutCubic),
+                ],
+              ],
+            ),
+          )
+          .animate()
+          .fadeIn(delay: 200.ms, duration: 450.ms, curve: Curves.easeOutCubic)
+          .scale(begin: const Offset(0.9, 0.9), curve: Curves.easeOutCubic),
+    );
+  }
+
+  // Premium Info Section Widget
+  Widget _buildPremiumInfoSection() {
+    return Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Section Header - Minimal & Elegant
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                child: Row(
+                  children: [
+                    Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.info_outline_rounded,
+                            size: 18,
+                            color: Colors.white.withOpacity(0.7),
+                          ),
+                        )
+                        .animate()
+                        .fadeIn(duration: 350.ms, curve: Curves.easeOutCubic)
+                        .scale(
+                          begin: const Offset(0.85, 0.85),
+                          curve: Curves.easeOutCubic,
+                        ),
+                    const SizedBox(width: 12),
+                    Text(
+                          'Deck Information',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white.withOpacity(0.95),
+                            letterSpacing: -0.4,
+                            height: 1.2,
+                          ),
+                        )
+                        .animate()
+                        .fadeIn(
+                          delay: 50.ms,
+                          duration: 350.ms,
+                          curve: Curves.easeOutCubic,
+                        )
+                        .slideX(begin: -0.015, curve: Curves.easeOutCubic),
+                  ],
+                ),
+              ),
+
+              // Form Fields
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: Column(
+                  children: [
+                    // Deck Name Field
+                    _buildPremiumTextField(
+                          controller: _nameController,
+                          label: 'Deck Name',
+                          placeholder: 'Enter a unique name',
+                          icon: Icons.edit_note_rounded,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter a deck name';
+                            }
+                            return null;
+                          },
+                        )
+                        .animate()
+                        .fadeIn(
+                          delay: 100.ms,
+                          duration: 450.ms,
+                          curve: Curves.easeOutCubic,
+                        )
+                        .slideY(begin: 0.02, curve: Curves.easeOutCubic),
+
+                    const SizedBox(height: 16),
+
+                    // Description Field
+                    _buildPremiumTextField(
+                          controller: _descriptionController,
+                          label: 'Description',
+                          placeholder: 'Tell us about your deck (optional)',
+                          icon: Icons.article_outlined,
+                          maxLines: 3,
+                          isOptional: true,
+                        )
+                        .animate()
+                        .fadeIn(
+                          delay: 150.ms,
+                          duration: 450.ms,
+                          curve: Curves.easeOutCubic,
+                        )
+                        .slideY(begin: 0.02, curve: Curves.easeOutCubic),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        )
+        .animate()
+        .fadeIn(duration: 350.ms, curve: Curves.easeOutCubic)
+        .slideY(begin: 0.03, curve: Curves.easeOutCubic);
+  }
+
+  // Premium Customization Section Widget
+  Widget _buildPremiumCustomizationSection() {
+    return Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.04),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.04), width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Section Header - Ultra Minimal
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+                child: Text(
+                      'Customization',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withOpacity(0.85),
+                        letterSpacing: -0.3,
+                        height: 1.2,
+                      ),
+                    )
+                    .animate()
+                    .fadeIn(
+                      delay: 50.ms,
+                      duration: 500.ms,
+                      curve: Curves.easeOutCubic,
+                    )
+                    .slideY(begin: -0.1, curve: Curves.easeOutCubic),
+              ),
+
+              // Customization Options
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: Row(
+                  children: [
+                    // Icon Picker
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () async {
+                          await _hapticService.lightImpact();
+                          _pickIcon();
+                        },
+                        child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 400),
+                              curve: Curves.easeOutCubic,
+                              height: 88,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.03),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.06),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                      _selectedIcon,
+                                      size: 32,
+                                      color: _selectedColor.withOpacity(0.9),
+                                    )
+                                    .animate(key: ValueKey(_selectedIcon))
+                                    .fadeIn(
+                                      duration: 250.ms,
+                                      curve: Curves.easeOutCubic,
+                                    )
+                                    .scale(
+                                      begin: const Offset(0.8, 0.8),
+                                      end: const Offset(1.0, 1.0),
+                                      curve: Curves.easeOutBack,
+                                    ),
+                              ),
+                            )
+                            .animate()
+                            .fadeIn(
+                              delay: 100.ms,
+                              duration: 600.ms,
+                              curve: Curves.easeOutCubic,
+                            )
+                            .slideY(
+                              begin: 0.05,
+                              end: 0,
+                              curve: Curves.easeOutCubic,
+                            )
+                            .then(delay: 200.ms)
+                            .shimmer(
+                              duration: 1200.ms,
+                              color: Colors.white.withOpacity(0.05),
+                            ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Color Picker
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () async {
+                          await _hapticService.lightImpact();
+                          _pickColor();
+                        },
+                        child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 400),
+                              curve: Curves.easeOutCubic,
+                              height: 88,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    _selectedColor.withOpacity(0.9),
+                                    _selectedColor,
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _selectedColor.withOpacity(0.2),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Container(
+                                      width: 32,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.water_drop_rounded,
+                                        color: Colors.white,
+                                        size: 18,
+                                      ),
+                                    )
+                                    .animate(
+                                      onPlay:
+                                          (controller) =>
+                                              controller.repeat(reverse: true),
+                                    )
+                                    .scale(
+                                      begin: const Offset(1.0, 1.0),
+                                      end: const Offset(1.08, 1.08),
+                                      duration: 2000.ms,
+                                      curve: Curves.easeInOut,
+                                    ),
+                              ),
+                            )
+                            .animate()
+                            .fadeIn(
+                              delay: 150.ms,
+                              duration: 600.ms,
+                              curve: Curves.easeOutCubic,
+                            )
+                            .slideY(
+                              begin: 0.05,
+                              end: 0,
+                              curve: Curves.easeOutCubic,
+                            )
+                            .then(delay: 300.ms)
+                            .shimmer(
+                              duration: 1500.ms,
+                              color: Colors.white.withOpacity(0.3),
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        )
+        .animate()
+        .fadeIn(delay: 100.ms, duration: 500.ms, curve: Curves.easeOutCubic)
+        .slideY(begin: 0.03, curve: Curves.easeOutCubic);
+  }
+
+  // Premium Text Field Widget
+  Widget _buildPremiumTextField({
+    required TextEditingController controller,
+    required String label,
+    required String placeholder,
+    required IconData icon,
+    String? Function(String?)? validator,
+    int maxLines = 1,
+    bool isOptional = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Label
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 10),
+          child: Row(
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withOpacity(0.7),
+                  letterSpacing: -0.2,
+                  height: 1.2,
+                ),
+              ),
+              if (isOptional) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Optional',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withOpacity(0.4),
+                      letterSpacing: -0.1,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+
+        // Text Field
+        TextFormField(
+          controller: controller,
+          maxLines: maxLines,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: const Color(0xFF1A1A1A),
+            letterSpacing: -0.3,
+            height: 1.4,
+          ),
+          decoration: InputDecoration(
+            hintText: placeholder,
+            hintStyle: TextStyle(
+              color: Colors.white.withOpacity(0.3),
+              fontWeight: FontWeight.w400,
+              letterSpacing: -0.2,
+            ),
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.03),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: maxLines > 1 ? 16 : 18,
+            ),
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(left: 14, right: 12),
+              child: Icon(icon, size: 20, color: Colors.white.withOpacity(0.4)),
+            ),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 46,
+              minHeight: 46,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color: Colors.white.withOpacity(0.1),
+                width: 1,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color: Colors.white.withOpacity(0.1),
+                width: 1,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color: Colors.white.withOpacity(0.5),
+                width: 1.5,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(
+                color: Color(0xFFEF4444),
+                width: 1.5,
+              ),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(
+                color: Color(0xFFEF4444),
+                width: 1.5,
+              ),
+            ),
+            errorStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFFEF4444),
+              height: 1.3,
+            ),
+          ),
+          validator: validator,
+        ),
+      ],
+    );
   }
 }
