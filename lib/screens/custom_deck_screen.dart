@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
@@ -463,142 +464,140 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        backgroundColor: const Color(0xFF0A0A0A),
-        body: SafeArea(
-          child: Column(
-            children: [
-              // Ultra-Minimal Header
-              Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0A0A0A),
-                      border: Border(
-                        bottom: BorderSide(
-                          color: Colors.white.withOpacity(0.05),
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: SafeArea(
-                      bottom: false,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 14,
-                        ),
-                        child: Row(
-                          children: [
-                            // Ultra-Minimal Back Button
-                            _buildUltraPremiumBackButton(),
-                            const SizedBox(width: 20),
-
-                            // Title Section - Netflix-like typography
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                        widget.existingDeck != null
-                                            ? 'Edit Deck'
-                                            : 'Create Deck',
-                                        style: const TextStyle(
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.w800,
-                                          color: const Color(0xFF1A1A1A),
-                                          letterSpacing: -0.8,
-                                          height: 1.1,
-                                        ),
-                                      )
-                                      .animate()
-                                      .fadeIn(
-                                        duration: 450.ms,
-                                        curve: Curves.easeOutCubic,
-                                      )
-                                      .slideX(
-                                        begin: -0.02,
-                                        curve: Curves.easeOutCubic,
-                                      ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                        widget.existingDeck != null
-                                            ? 'Refine and perfect your deck'
-                                            : 'Craft something unique',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.white.withOpacity(0.5),
-                                          fontWeight: FontWeight.w400,
-                                          letterSpacing: -0.2,
-                                          height: 1.3,
-                                        ),
-                                      )
-                                      .animate()
-                                      .fadeIn(
-                                        delay: 150.ms,
-                                        duration: 600.ms,
-                                        curve: Curves.easeOutCubic,
-                                      )
-                                      .slideX(
-                                        begin: -0.02,
-                                        curve: Curves.easeOutCubic,
-                                      ),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(width: 16),
-
-                            // Ultra-Premium Save Button
-                            _buildUltraPremiumSaveButton(),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
-                  .animate()
-                  .fadeIn(duration: 400.ms, curve: Curves.easeOutCubic)
-                  .slideY(begin: -0.05, curve: Curves.easeOutCubic),
-
-              // Form content
-              Expanded(child: _buildModernFormContent()),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildModernFormContent() {
-    return SingleChildScrollView(
-      controller: _scrollController,
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        backgroundColor: const Color(0xFF0D0D0D),
+        body: Stack(
           children: [
-            // Premium Deck Info Section
-            _buildPremiumInfoSection(),
-
-            const SizedBox(height: 16),
-
-            // Premium Customization Section
-            _buildPremiumCustomizationSection(),
-
-            const SizedBox(height: 16),
-
-            // Cards Section
-            _buildModernCardsSection(),
+            // Subtle gradient background
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFF0D0D0D),
+                      const Color(0xFF0D0D0D).withBlue(8),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Column(
+                children: [
+                  // Refined Header
+                  _buildElegantHeader(),
+                  // Form content
+                  Expanded(child: _buildModernFormContent()),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildModernCardsSection() {
-    return _buildPremiumCardsSection();
+  Widget _buildElegantHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        children: [
+          // Elegant Back Button
+          _buildElegantBackButton(),
+          const SizedBox(width: 24),
+
+          // Title Section with refined typography
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                      widget.existingDeck != null ? 'Edit Deck' : 'Create Deck',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
+                        height: 1,
+                      ),
+                    )
+                    .animate()
+                    .fadeIn(duration: 600.ms, curve: Curves.easeOut)
+                    .slideX(begin: -0.02, end: 0, curve: Curves.easeOutQuart),
+
+                const SizedBox(height: 4),
+
+                Text(
+                      widget.existingDeck != null
+                          ? 'Refine and perfect'
+                          : 'Craft something unique',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white.withOpacity(0.5),
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: 0.1,
+                        height: 1.2,
+                      ),
+                    )
+                    .animate()
+                    .fadeIn(
+                      delay: 200.ms,
+                      duration: 600.ms,
+                      curve: Curves.easeOut,
+                    )
+                    .slideX(begin: -0.02, end: 0, curve: Curves.easeOutQuart),
+              ],
+            ),
+          ),
+
+          // Refined Save Button
+          _buildElegantSaveButton(),
+        ],
+      ),
+    ).animate().fadeIn(duration: 400.ms);
   }
 
-  // Premium Cards Section Widget
+  Widget _buildModernFormContent() {
+    return SingleChildScrollView(
+      controller: _scrollController,
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 100),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Refined Deck Info Section
+            _buildRefinedInfoSection()
+                .animate()
+                .fadeIn(delay: 200.ms, duration: 600.ms)
+                .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuart),
+
+            const SizedBox(height: 20),
+
+            // Elegant Customization Section
+            _buildElegantCustomizationSection()
+                .animate()
+                .fadeIn(delay: 300.ms, duration: 600.ms)
+                .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuart),
+
+            const SizedBox(height: 20),
+
+            // Refined Cards Section
+            _buildRefinedCardsSection()
+                .animate()
+                .fadeIn(delay: 400.ms, duration: 600.ms)
+                .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuart),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Legacy methods - kept temporarily for reference
   Widget _buildPremiumCardsSection() {
     return Container(
           decoration: BoxDecoration(
@@ -1130,7 +1129,6 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
     }
   }
 
-  // Ultra-Premium Back Button Widget
   Widget _buildUltraPremiumBackButton() {
     return GestureDetector(
       onTap: () async {
@@ -1162,7 +1160,6 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
     );
   }
 
-  // Ultra-Premium Save Button Widget
   Widget _buildUltraPremiumSaveButton() {
     return GestureDetector(
       onTap:
@@ -1256,7 +1253,6 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
     );
   }
 
-  // Premium Info Section Widget
   Widget _buildPremiumInfoSection() {
     return Container(
           decoration: BoxDecoration(
@@ -1368,7 +1364,6 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
         .slideY(begin: 0.03, curve: Curves.easeOutCubic);
   }
 
-  // Premium Customization Section Widget
   Widget _buildPremiumCustomizationSection() {
     return Container(
           decoration: BoxDecoration(
@@ -1547,7 +1542,6 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
         .slideY(begin: 0.03, curve: Curves.easeOutCubic);
   }
 
-  // Premium Text Field Widget
   Widget _buildPremiumTextField({
     required TextEditingController controller,
     required String label,
@@ -1678,6 +1672,712 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
           validator: validator,
         ),
       ],
+    );
+  }
+
+  // New elegant button implementations
+  Widget _buildElegantBackButton() {
+    return GestureDetector(
+      onTap: () async {
+        await _hapticService.lightImpact();
+        if (_hasChanges) {
+          final shouldPop = await _onWillPop();
+          if (shouldPop) {
+            Navigator.maybePop(context);
+          }
+        } else {
+          Navigator.maybePop(context);
+        }
+      },
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.arrow_back_ios_new,
+            size: 18,
+            color: Colors.white.withOpacity(0.8),
+          ),
+        ),
+      ).animate().scale(
+        begin: const Offset(0.8, 0.8),
+        duration: 400.ms,
+        curve: Curves.easeOutBack,
+      ),
+    );
+  }
+
+  Widget _buildElegantSaveButton() {
+    final bool isReady =
+        _nameController.text.trim().isNotEmpty &&
+        _cards.length >= 5 &&
+        !_isLoading;
+
+    return GestureDetector(
+      onTap:
+          isReady
+              ? () async {
+                await _hapticService.mediumImpact();
+                _saveDeck();
+              }
+              : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: isReady ? Colors.white : Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_isLoading)
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    isReady
+                        ? const Color(0xFF0D0D0D)
+                        : Colors.white.withOpacity(0.5),
+                  ),
+                ),
+              )
+            else
+              Icon(
+                Icons.check,
+                size: 18,
+                color:
+                    isReady
+                        ? const Color(0xFF0D0D0D)
+                        : Colors.white.withOpacity(0.5),
+              ),
+            const SizedBox(width: 8),
+            Text(
+              _isLoading ? 'Saving...' : 'Save',
+              style: TextStyle(
+                color:
+                    isReady
+                        ? const Color(0xFF0D0D0D)
+                        : Colors.white.withOpacity(0.5),
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
+        ),
+      ).animate().scale(
+        begin: const Offset(0.9, 0.9),
+        duration: 400.ms,
+        curve: Curves.easeOutBack,
+      ),
+    );
+  }
+
+  // Refined section builders
+  Widget _buildRefinedInfoSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section header with icon
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.info_outline_rounded,
+                    size: 16,
+                    color: Colors.white.withOpacity(0.7),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Deck Information',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withOpacity(0.9),
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
+          ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.02, end: 0),
+
+          const SizedBox(height: 18),
+
+          // Name field
+          _buildElegantTextField(
+            controller: _nameController,
+            label: 'Deck Name',
+            placeholder: 'Enter a unique name',
+            icon: Icons.edit_rounded,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Please enter a deck name';
+              }
+              return null;
+            },
+          ),
+
+          const SizedBox(height: 16),
+
+          // Description field
+          _buildElegantTextField(
+            controller: _descriptionController,
+            label: 'Description',
+            placeholder: 'Tell us about your deck',
+            icon: Icons.description_outlined,
+            maxLines: 2,
+            isOptional: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildElegantTextField({
+    required TextEditingController controller,
+    required String label,
+    required String placeholder,
+    required IconData icon,
+    String? Function(String?)? validator,
+    int maxLines = 1,
+    bool isOptional = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Label row
+        Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.white.withOpacity(0.7),
+                letterSpacing: 0,
+              ),
+            ),
+            if (isOptional) ...[
+              const SizedBox(width: 6),
+              Text(
+                'Optional',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.white.withOpacity(0.4),
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        // Text field
+        TextFormField(
+          controller: controller,
+          maxLines: maxLines,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w400,
+            color: Colors.white.withOpacity(0.9),
+            letterSpacing: 0,
+            height: 1.4,
+          ),
+          decoration: InputDecoration(
+            hintText: placeholder,
+            hintStyle: TextStyle(
+              color: Colors.white.withOpacity(0.3),
+              fontWeight: FontWeight.w400,
+            ),
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.04),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: maxLines > 1 ? 12 : 14,
+            ),
+            prefixIcon:
+                maxLines == 1
+                    ? Icon(icon, size: 18, color: Colors.white.withOpacity(0.5))
+                    : null,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Colors.white.withOpacity(0.08),
+                width: 1,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Colors.white.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE53935), width: 1),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE53935), width: 1),
+            ),
+          ),
+          validator: validator,
+          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildElegantCustomizationSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Customization',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withOpacity(0.9),
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          Row(
+            children: [
+              // Icon selector
+              Expanded(
+                child: GestureDetector(
+                  onTap: () async {
+                    await _hapticService.lightImpact();
+                    _pickIcon();
+                  },
+                  child: Container(
+                    height: 90,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withOpacity(0.05),
+                          Colors.white.withOpacity(0.02),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.08),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                              _selectedIcon,
+                              size: 32,
+                              color: Colors.white.withOpacity(0.8),
+                            )
+                            .animate(key: ValueKey(_selectedIcon))
+                            .scale(
+                              begin: const Offset(0.5, 0.5),
+                              duration: 300.ms,
+                              curve: Curves.easeOutBack,
+                            )
+                            .fadeIn(),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Icon',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white.withOpacity(0.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ).animate().shimmer(
+                    duration: 2000.ms,
+                    delay: 1000.ms,
+                    color: Colors.white.withOpacity(0.05),
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              // Color selector
+              Expanded(
+                child: GestureDetector(
+                  onTap: () async {
+                    await _hapticService.lightImpact();
+                    _pickColor();
+                  },
+                  child: Container(
+                        height: 90,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              _selectedColor.withOpacity(0.8),
+                              _selectedColor.withOpacity(0.6),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _selectedColor.withOpacity(0.25),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Icon(
+                              Icons.palette_rounded,
+                              size: 28,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                            Positioned(
+                              bottom: 10,
+                              child: Text(
+                                'Color',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                      .animate(key: ValueKey(_selectedColor))
+                      .scale(
+                        begin: const Offset(0.95, 0.95),
+                        duration: 300.ms,
+                        curve: Curves.easeOutCubic,
+                      ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRefinedCardsSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.style_rounded,
+                  size: 18,
+                  color: Colors.white.withOpacity(0.7),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Cards',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withOpacity(0.9),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color:
+                        _cards.length >= 5
+                            ? Colors.green.withOpacity(0.15)
+                            : Colors.white.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${_cards.length}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color:
+                          _cards.length >= 5
+                              ? Colors.green.withOpacity(0.9)
+                              : Colors.white.withOpacity(0.7),
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                if (_cards.length < 5)
+                  Text(
+                    '${5 - _cards.length} more needed',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.white.withOpacity(0.4),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          // Card input
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.08),
+                        width: 1,
+                      ),
+                    ),
+                    child: TextField(
+                      controller: _cardController,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Add a card...',
+                        hintStyle: TextStyle(
+                          color: Colors.white.withOpacity(0.3),
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                      ),
+                      onSubmitted: (_) => _addCard(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                GestureDetector(
+                  onTap: _addCard,
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF4F46E5), Color(0xFF6366F1)],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.add, color: Colors.white, size: 20),
+                  ).animate().scale(
+                    delay: 500.ms,
+                    duration: 300.ms,
+                    curve: Curves.easeOutBack,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Cards list
+          if (_cards.isNotEmpty)
+            Container(
+              constraints: const BoxConstraints(maxHeight: 240),
+              margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.all(8),
+                itemCount: _cards.length,
+                itemBuilder: (context, index) {
+                  return _buildElegantCardItem(index)
+                      .animate()
+                      .fadeIn(delay: (index * 50).ms, duration: 300.ms)
+                      .slideX(begin: -0.05, end: 0);
+                },
+              ),
+            ),
+
+          // AI suggestions button
+          if (_cards.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: _buildElegantAISuggestionButton(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildElegantCardItem(int index) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        dense: true,
+        leading: Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Center(
+            child: Text(
+              '${index + 1}',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.6),
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+        title: Text(
+          _cards[index],
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.white.withOpacity(0.9),
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        trailing: GestureDetector(
+          onTap: () {
+            _removeCard(index);
+          },
+          child: Icon(
+            Icons.close,
+            size: 16,
+            color: Colors.white.withOpacity(0.4),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildElegantAISuggestionButton() {
+    return GestureDetector(
+      onTap: _generateAISuggestions,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF6366F1).withOpacity(0.8),
+              const Color(0xFF8B5CF6).withOpacity(0.8),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6366F1).withOpacity(0.25),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_isLoadingAI)
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Colors.white.withOpacity(0.9),
+                  ),
+                ),
+              )
+            else
+              Icon(
+                    Icons.auto_awesome,
+                    color: Colors.white.withOpacity(0.9),
+                    size: 18,
+                  )
+                  .animate(onPlay: (controller) => controller.repeat())
+                  .shimmer(
+                    duration: 2000.ms,
+                    color: Colors.white.withOpacity(0.3),
+                  ),
+            const SizedBox(width: 8),
+            Text(
+              _isLoadingAI ? 'Generating...' : 'AI Suggestions',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
+        ),
+      ).animate().shimmer(
+        delay: 1000.ms,
+        duration: 2000.ms,
+        color: Colors.white.withOpacity(0.1),
+      ),
     );
   }
 }

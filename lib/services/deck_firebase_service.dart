@@ -37,6 +37,66 @@ class DeckFirebaseService {
         null,
         reason: 'Failed to get default decks',
       );
+      throw Exception('Failed to load decks. Please check your internet connection.');
+    }
+  }
+
+  // Get decks filtered by country
+  Future<List<Deck>> getDecksByCountry(String countryCode) async {
+    try {
+      // Simplified query to avoid index requirement initially
+      Query query = _defaultDecksRef
+          .where('country', whereIn: ['UNIVERSAL', countryCode]);
+
+      final QuerySnapshot snapshot = await query.get();
+
+      final decks = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return _deckFromFirestore(data, doc.id);
+      }).where((deck) => deck.isActive).toList(); // Filter active decks client-side
+
+      // Sort by priority (lower number = higher priority)
+      decks.sort((a, b) => a.priority.compareTo(b.priority));
+
+      return decks;
+    } catch (e) {
+      debugPrint('Error getting decks by country: $e');
+      await _firebaseService.crashlytics.recordError(
+        e,
+        null,
+        reason: 'Failed to get decks by country: $countryCode',
+      );
+      throw Exception('Failed to load decks. Please check your internet connection.');
+    }
+  }
+
+  // Search decks across all countries
+  Future<List<Deck>> searchDecksGlobally(String searchTerm) async {
+    try {
+      // For global search, we get all active decks and filter client-side
+      final QuerySnapshot snapshot = await _defaultDecksRef
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      final allDecks = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return _deckFromFirestore(data, doc.id);
+      }).toList();
+
+      final searchLower = searchTerm.toLowerCase();
+      return allDecks.where((deck) {
+        return deck.name.toLowerCase().contains(searchLower) ||
+            deck.description.toLowerCase().contains(searchLower) ||
+            deck.tags.any((tag) => tag.toLowerCase().contains(searchLower)) ||
+            deck.cards.any((card) => card.toLowerCase().contains(searchLower));
+      }).toList();
+    } catch (e) {
+      debugPrint('Error searching decks globally: $e');
+      await _firebaseService.crashlytics.recordError(
+        e,
+        null,
+        reason: 'Failed to search decks globally',
+      );
       return [];
     }
   }
@@ -48,6 +108,23 @@ class DeckFirebaseService {
         final data = doc.data() as Map<String, dynamic>;
         return _deckFromFirestore(data, doc.id);
       }).toList();
+    });
+  }
+
+  // Stream of decks filtered by country
+  Stream<List<Deck>> streamDecksByCountry(String countryCode) {
+    return _defaultDecksRef
+        .where('country', whereIn: ['UNIVERSAL', countryCode])
+        .snapshots()
+        .map((snapshot) {
+      final decks = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return _deckFromFirestore(data, doc.id);
+      }).where((deck) => deck.isActive).toList(); // Filter active decks client-side
+
+      // Sort by priority
+      decks.sort((a, b) => a.priority.compareTo(b.priority));
+      return decks;
     });
   }
 
@@ -271,6 +348,10 @@ class DeckFirebaseService {
           'isPremium': deckData['isPremium'] ?? false,
           'cards': deckData['cards'],
           'createdAt': FieldValue.serverTimestamp(),
+            'country': deckData['country'] ?? 'UNIVERSAL',
+            'tags': deckData['tags'] ?? [],
+            'priority': deckData['priority'] ?? 0,
+            'isActive': deckData['isActive'] ?? true,
         });
       }
 
@@ -308,6 +389,12 @@ class DeckFirebaseService {
       cards: List<String>.from(data['cards'] ?? []),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+      country: data['country'] as String?,
+      tags: data['tags'] != null 
+          ? List<String>.from(data['tags'] as List)
+          : [],
+      priority: data['priority'] as int? ?? 0,
+      isActive: data['isActive'] as bool? ?? true,
     );
   }
 
@@ -325,6 +412,10 @@ class DeckFirebaseService {
       'cards': deck.cards,
       'createdAt': deck.createdAt,
       'updatedAt': deck.updatedAt,
+      'country': deck.country,
+      'tags': deck.tags,
+      'priority': deck.priority,
+      'isActive': deck.isActive,
     };
   }
 }

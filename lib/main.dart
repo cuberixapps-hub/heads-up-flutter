@@ -10,6 +10,25 @@ import 'services/firebase_service.dart';
 import 'services/ad_service.dart';
 import 'utils/app_router.dart';
 
+// Custom scroll behavior for smooth, elegant scrolling
+class SmoothScrollBehavior extends MaterialScrollBehavior {
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    // Use BouncingScrollPhysics for iOS-like smooth bouncing
+    // with AlwaysScrollableScrollPhysics as parent for consistent behavior
+    return const BouncingScrollPhysics(
+      parent: AlwaysScrollableScrollPhysics(),
+    );
+  }
+
+  @override
+  Widget buildOverscrollIndicator(
+      BuildContext context, Widget child, ScrollableDetails details) {
+    // Remove the overscroll glow indicator for a cleaner, more elegant look
+    return child;
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -79,6 +98,7 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         routerConfig: AppRouter.router,
+        scrollBehavior: SmoothScrollBehavior(),
         builder: (context, child) {
           // Wrap the child with NetworkStatusWidget after MaterialApp provides Directionality
           return NetworkStatusWidget(child: child ?? const SizedBox.shrink());

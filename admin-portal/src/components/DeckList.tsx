@@ -13,6 +13,10 @@ interface Deck {
     iconFontFamily: string;
     colorValue: number;
     isPremium: boolean;
+    country?: string;
+    tags?: string[];
+    priority?: number;
+    isActive?: boolean;
     createdAt: any;
     updatedAt: any;
 }
@@ -38,8 +42,13 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
                     ...doc.data()
                 } as Deck));
 
-                // Sort by creation date (newest first)
+                // Sort by priority first, then by creation date
                 deckData.sort((a, b) => {
+                    // Sort by priority (lower number = higher priority)
+                    if ((a.priority || 0) !== (b.priority || 0)) {
+                        return (a.priority || 0) - (b.priority || 0);
+                    }
+                    // Then by creation date (newest first)
                     const dateA = a.createdAt?.toDate?.() || new Date(0);
                     const dateB = b.createdAt?.toDate?.() || new Date(0);
                     return dateB.getTime() - dateA.getTime();
@@ -93,6 +102,38 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
 
     const colorToHex = (colorValue: number): string => {
         return '#' + (colorValue & 0xFFFFFF).toString(16).padStart(6, '0');
+    };
+
+    const getCountryLabel = (country: string): string => {
+        const labels: { [key: string]: string } = {
+            'UNIVERSAL': '🌍 Universal',
+            'IN': '🇮🇳 India',
+            'JP': '🇯🇵 Japan',
+            'KR': '🇰🇷 Korea',
+            'BR': '🇧🇷 Brazil',
+            'CN': '🇨🇳 China',
+            'US': '🇺🇸 USA',
+            'GB': '🇬🇧 UK',
+            'MX': '🇲🇽 LATAM',
+            'TRENDING': '🔥 Trending'
+        };
+        return labels[country] || country;
+    };
+
+    const getCountryColor = (country: string): string => {
+        const colors: { [key: string]: string } = {
+            'UNIVERSAL': '#4CAF50',
+            'IN': '#FF9933',
+            'JP': '#DC143C',
+            'KR': '#0066CC',
+            'BR': '#009B3A',
+            'CN': '#DE2910',
+            'US': '#3C3B6E',
+            'GB': '#012169',
+            'MX': '#006341',
+            'TRENDING': '#FF6B6B'
+        };
+        return colors[country] || '#757575';
     };
 
     const renderIcon = (deck: Deck) => {
@@ -177,10 +218,47 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
                                     <h3>
                                         {deck.name}
                                         {deck.isPremium && (
-                                            <Crown size={16} className="premium-icon" />
+                                            <Crown size={16} className="premium-icon" title="Premium" />
+                                        )}
+                                        {deck.isActive === false && (
+                                            <span className="inactive-badge" style={{
+                                                marginLeft: '8px',
+                                                padding: '2px 8px',
+                                                backgroundColor: '#f44336',
+                                                color: 'white',
+                                                fontSize: '11px',
+                                                borderRadius: '4px',
+                                                fontWeight: 'normal'
+                                            }}>Inactive</span>
                                         )}
                                     </h3>
                                     <p className="deck-description">{deck.description || 'No description'}</p>
+                                    <div style={{ marginTop: '6px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                        {deck.country && (
+                                            <span style={{
+                                                padding: '2px 10px',
+                                                backgroundColor: getCountryColor(deck.country),
+                                                color: 'white',
+                                                fontSize: '12px',
+                                                borderRadius: '12px',
+                                                fontWeight: '500'
+                                            }}>
+                                                {getCountryLabel(deck.country)}
+                                            </span>
+                                        )}
+                                        {deck.priority !== undefined && deck.priority !== 0 && (
+                                            <span style={{
+                                                padding: '2px 10px',
+                                                backgroundColor: '#9e9e9e',
+                                                color: 'white',
+                                                fontSize: '12px',
+                                                borderRadius: '12px',
+                                                fontWeight: '500'
+                                            }}>
+                                                Priority: {deck.priority}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 

@@ -13,6 +13,10 @@ class Deck {
   final List<String> cards;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final String? country; // 'UNIVERSAL', 'IN', 'JP', 'KR', 'BR', 'CN', 'US', 'GB', 'MX', 'TRENDING'
+  final List<String> tags;
+  final int priority; // Lower number = higher priority
+  final bool isActive; // Enable/disable deck remotely
 
   Deck({
     String? id,
@@ -26,6 +30,10 @@ class Deck {
     required this.cards,
     DateTime? createdAt,
     this.updatedAt,
+    this.country,
+    this.tags = const [],
+    this.priority = 0,
+    this.isActive = true,
   }) : id = id ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now();
 
@@ -48,6 +56,12 @@ class Deck {
           map['updatedAt'] != null
               ? DateTime.parse(map['updatedAt'] as String)
               : null,
+      country: map['country'] as String?,
+      tags: map['tags'] != null 
+          ? List<String>.from(map['tags'] as List)
+          : [],
+      priority: map['priority'] as int? ?? 0,
+      isActive: map['isActive'] as bool? ?? true,
     );
   }
 
@@ -65,6 +79,10 @@ class Deck {
       'cards': cards,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
+      'country': country,
+      'tags': tags,
+      'priority': priority,
+      'isActive': isActive,
     };
   }
 
@@ -80,6 +98,10 @@ class Deck {
     List<String>? cards,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? country,
+    List<String>? tags,
+    int? priority,
+    bool? isActive,
   }) {
     return Deck(
       id: id ?? this.id,
@@ -93,6 +115,10 @@ class Deck {
       cards: cards ?? this.cards,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      country: country ?? this.country,
+      tags: tags ?? this.tags,
+      priority: priority ?? this.priority,
+      isActive: isActive ?? this.isActive,
     );
   }
 

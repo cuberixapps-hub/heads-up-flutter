@@ -49,6 +49,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   Timer? _deckRotationTimer;
   static const Duration _rotationInterval = Duration(seconds: 5);
   bool _isAutoRotationPaused = false;
+  
+  // Streak badge collapse state
+  bool _streakBadgeExpanded = true;
+  Timer? _badgeCollapseTimer;
 
   @override
   void initState() {
@@ -57,6 +61,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     _loadRecentDecks();
     _scrollController.addListener(_onScroll);
     _startDeckRotation();
+    _startBadgeCollapseTimer();
     
     // Initialize gradient with first deck's color after frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -71,11 +76,25 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       }
     });
   }
+  
+  void _startBadgeCollapseTimer() {
+    // Collapse the streak badge after 3.5 seconds to save space
+    _badgeCollapseTimer = Timer(const Duration(milliseconds: 3500), () {
+      if (mounted) {
+        setState(() {
+          _streakBadgeExpanded = false;
+        });
+      }
+    });
+  }
 
   void _onScroll() {
     // Fade gradient colors to black as user scrolls
     final offset = _scrollController.offset;
     final fadeProgress = (offset / _gradientFadeDistance).clamp(0.0, 1.0);
+    
+    // Apply easing curve for smoother transition
+    final easedProgress = Curves.easeOutCubic.transform(fadeProgress);
 
     // Original colors
     const originalColor1 = Color(0xFF84292D);
@@ -83,14 +102,15 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     const originalColor3 = Color(0xFF120506);
     const targetColor = Color(0xFF000000); // Black
 
-    // Interpolate colors
-    final newColor1 = Color.lerp(originalColor1, targetColor, fadeProgress)!;
-    final newColor2 = Color.lerp(originalColor2, targetColor, fadeProgress)!;
-    final newColor3 = Color.lerp(originalColor3, targetColor, fadeProgress)!;
+    // Interpolate colors with eased progress
+    final newColor1 = Color.lerp(originalColor1, targetColor, easedProgress)!;
+    final newColor2 = Color.lerp(originalColor2, targetColor, easedProgress)!;
+    final newColor3 = Color.lerp(originalColor3, targetColor, easedProgress)!;
 
-    if (_gradientColor1 != newColor1 ||
-        _gradientColor2 != newColor2 ||
-        _gradientColor3 != newColor3) {
+    // Throttle setState calls - only update if there's a meaningful change
+    if ((_gradientColor1.value - newColor1.value).abs() > 2 ||
+        (_gradientColor2.value - newColor2.value).abs() > 2 ||
+        (_gradientColor3.value - newColor3.value).abs() > 2) {
       setState(() {
         _gradientColor1 = newColor1;
         _gradientColor2 = newColor2;
@@ -103,6 +123,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   void dispose() {
     _scrollController.dispose();
     _deckRotationTimer?.cancel();
+    _badgeCollapseTimer?.cancel();
     super.dispose();
   }
 
@@ -229,9 +250,6 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         // Show decks with more cards (better for groups)
         final multiplayer = decks.where((d) => d.cards.length >= 15).toList();
         return multiplayer.isEmpty ? decks : multiplayer;
-      case 'Family':
-        // Show family-friendly decks (excluding adult themes)
-        return decks;
       default:
         return decks;
     }
@@ -245,8 +263,6 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         return 'Quick Play Decks';
       case 'Multiplayer':
         return 'Perfect for Groups';
-      case 'Family':
-        return 'Family Favorites';
       default:
         return 'Recommended for You';
     }
@@ -260,8 +276,6 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         return Icons.bolt_rounded;
       case 'Multiplayer':
         return Icons.people_outline_rounded;
-      case 'Family':
-        return Icons.favorite_outline_rounded;
       default:
         return Icons.auto_awesome_rounded;
     }
@@ -275,8 +289,6 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         return Colors.yellow;
       case 'Multiplayer':
         return Colors.blue;
-      case 'Family':
-        return Colors.pink;
       default:
         return Colors.purple;
     }
@@ -284,7 +296,16 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ScrollConfiguration(
+      behavior: const SmoothScrollBehavior(),
+      child: Consumer<DeckProvider>(
+        builder: (context, deckProvider, _) {
+          // Show error state if decks failed to load
+          if (deckProvider.hasError && !deckProvider.isInitialized) {
+            return _buildErrorState(context, deckProvider);
+          }
+          
+      return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
       body: Stack(
@@ -314,10 +335,28 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               ),
             ),
           ),
-          // Content
-          CustomScrollView(
-            controller: _scrollController,
-            slivers: [
+          // Content with subtle top fade
+          ShaderMask(
+            shaderCallback: (Rect bounds) {
+              return LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: const [
+                  Color(0x00FFFFFF),
+                  Color(0x33FFFFFF),
+                  Color(0x99FFFFFF),
+                  Colors.white,
+                ],
+                stops: const [0.0, 0.003, 0.008, 0.012],
+              ).createShader(bounds);
+            },
+            blendMode: BlendMode.dstIn,
+            child: CustomScrollView(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              slivers: [
               // Content
               SliverToBoxAdapter(
                 child: Column(
@@ -359,6 +398,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                     Consumer<DeckProvider>(
                       builder: (context, deckProvider, _) {
                         final filteredDecks = _getFilteredDecks(deckProvider.freeDecks);
+                        if (filteredDecks.isEmpty && deckProvider.isInitialized) {
+                          return _buildNoDecksMessage();
+                        }
                         return _buildSection(
                           title: _getCategoryTitle(),
                           decks: filteredDecks.take(10).toList(),
@@ -427,7 +469,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               ),
             ],
           ),
+            ),
         ],
+      ),
+    );
+      },
       ),
     );
   }
@@ -435,9 +481,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   Widget _buildHeader() {
     return Container(
       padding: EdgeInsets.fromLTRB(
-        20,
-        MediaQuery.of(context).padding.top,
-        20,
+        24,
+        MediaQuery.of(context).padding.top + 8,
+        24,
         0,
       ),
       child: Column(
@@ -446,88 +492,230 @@ class _HomeScreenV2State extends State<HomeScreenV2>
           // Main header row
           Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Greeting section
+                  // Greeting section with elegant icon
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        Text(
-                          'Welcome back',
-                          style: GoogleFonts.inter(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                            letterSpacing: -0.5,
-                            height: 1.2,
+                        // Animated wave icon container
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Colors.white.withOpacity(0.15),
+                                Colors.white.withOpacity(0.05),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.1),
+                              width: 1,
+                            ),
                           ),
+                          child: const Icon(
+                            Icons.waving_hand_rounded,
+                            color: Color(0xFFFFD700),
+                            size: 24,
+                          ),
+                        )
+                        .animate(onPlay: (controller) => controller.repeat(reverse: true))
+                        .rotate(
+                          begin: 0,
+                          end: 0.05,
+                          duration: 1200.ms,
+                          curve: Curves.easeInOut,
+                        )
+                        .then()
+                        .rotate(
+                          begin: 0.05,
+                          end: -0.05,
+                          duration: 1200.ms,
+                          curve: Curves.easeInOut,
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'What would you like to play today?',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
-                            color: Colors.white.withOpacity(0.6),
-                            letterSpacing: -0.2,
-                            height: 1.4,
+                        
+                        const SizedBox(width: 16),
+                        
+                        // Text content
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Welcome back',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  letterSpacing: -0.8,
+                                  height: 1.1,
+                                ),
+                              )
+                              .animate()
+                              .fadeIn(delay: 100.ms, duration: 600.ms, curve: Curves.easeOut)
+                              .slideX(
+                                begin: -0.2,
+                                end: 0,
+                                delay: 100.ms,
+                                duration: 600.ms,
+                                curve: Curves.easeOutCubic,
+                              ),
+                              
+                              const SizedBox(height: 4),
+                              
+                              ShaderMask(
+                                shaderCallback: (bounds) => LinearGradient(
+                                  colors: [
+                                    Colors.white.withOpacity(0.8),
+                                    Colors.white.withOpacity(0.5),
+                                  ],
+                                ).createShader(bounds),
+                                child: Text(
+                                  'What would you like to play today?',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w400,
+                                    color: Colors.white,
+                                    letterSpacing: -0.1,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              )
+                              .animate()
+                              .fadeIn(delay: 250.ms, duration: 700.ms)
+                              .slideX(
+                                begin: -0.2,
+                                end: 0,
+                                delay: 250.ms,
+                                duration: 700.ms,
+                                curve: Curves.easeOutCubic,
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
 
-                  // Minimal stats badge
-                  Container(
-                        margin: const EdgeInsets.only(top: 4),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.local_fire_department_rounded,
-                              color: Colors.amber,
-                              size: 16,
+                  // Elegant stats badge with glow effect (collapsible)
+                  GestureDetector(
+                    onTap: () {
+                      _hapticService.selection();
+                      setState(() {
+                        _streakBadgeExpanded = !_streakBadgeExpanded;
+                        _badgeCollapseTimer?.cancel();
+                      });
+                    },
+                    child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 400),
+                          curve: Curves.easeInOutCubic,
+                          margin: const EdgeInsets.only(left: 12),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: _streakBadgeExpanded ? 14 : 10,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                const Color(0xFFFFB800).withOpacity(0.2),
+                                const Color(0xFFFF8C00).withOpacity(0.15),
+                              ],
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              '5 day streak',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.amber,
-                                letterSpacing: -0.1,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFFFFD700).withOpacity(0.3),
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFFD700).withOpacity(0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.local_fire_department_rounded,
+                                color: const Color(0xFFFFD700),
+                                size: 18,
+                              )
+                              .animate(onPlay: (controller) => controller.repeat())
+                              .scale(
+                                begin: const Offset(1, 1),
+                                end: const Offset(1.15, 1.15),
+                                duration: 1000.ms,
+                                curve: Curves.easeInOut,
+                              )
+                              .then()
+                              .scale(
+                                begin: const Offset(1.15, 1.15),
+                                end: const Offset(1, 1),
+                                duration: 1000.ms,
+                                curve: Curves.easeInOut,
+                              ),
+                              
+                              AnimatedSize(
+                                duration: const Duration(milliseconds: 400),
+                                curve: Curves.easeInOutCubic,
+                                child: _streakBadgeExpanded
+                                    ? Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const SizedBox(width: 7),
+                                          Text(
+                                            '5 day streak',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: const Color(0xFFFFD700),
+                                              letterSpacing: 0.2,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            '5',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                              color: const Color(0xFFFFD700),
+                                              letterSpacing: 0.1,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                              ),
+                            ],
+                          ),
+                        )
+                        .animate()
+                        .fadeIn(delay: 500.ms, duration: 700.ms)
+                        .scale(
+                          begin: const Offset(0.7, 0.7),
+                          end: const Offset(1, 1),
+                          delay: 500.ms,
+                          duration: 800.ms,
+                          curve: Curves.easeOutBack,
+                        )
+                        .shimmer(
+                          delay: 1500.ms,
+                          duration: 1500.ms,
+                          color: Colors.white.withOpacity(0.3),
                         ),
-                      )
-                      .animate()
-                      .fadeIn(delay: 400.ms, duration: 600.ms)
-                      .scale(
-                        begin: const Offset(0.8, 0.8),
-                        end: const Offset(1, 1),
-                        delay: 400.ms,
-                        duration: 600.ms,
-                        curve: Curves.easeOutBack,
-                      ),
+                  ),
                 ],
-              )
-              .animate()
-              .fadeIn(duration: 500.ms)
-              .slideY(
-                begin: -0.1,
-                end: 0,
-                duration: 500.ms,
-                curve: Curves.easeOut,
               ),
         ],
       ),
@@ -539,110 +727,335 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       {
         'name': 'Trending',
         'icon': Icons.trending_up_rounded,
+        'color': const Color(0xFFFF6B9D),
       },
-      {'name': 'Quick Play', 'icon': Icons.bolt_rounded},
+      {
+        'name': 'Quick Play',
+        'icon': Icons.bolt_rounded,
+        'color': const Color(0xFFFFD700),
+      },
       {
         'name': 'Multiplayer',
         'icon': Icons.people_outline_rounded,
-      },
-      {
-        'name': 'Family',
-        'icon': Icons.favorite_outline_rounded,
+        'color': const Color(0xFF66D9EF),
       },
     ];
 
     return Container(
-      height: 36,
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: categories.length,
-        itemBuilder: (context, index) {
-          final category = categories[index];
-          final categoryName = category['name'] as String;
-          final isSelected = _selectedCategory == categoryName;
-
-          return Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      _hapticService.selection();
-                      setState(() {
-                        _selectedCategory = categoryName;
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(18),
-                    splashColor: Colors.white.withOpacity(0.1),
-                    highlightColor: Colors.white.withOpacity(0.05),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(18),
-                        color:
-                            isSelected
-                                ? Colors.white.withOpacity(0.15)
-                                : Colors.white.withOpacity(0.05),
-                        border: Border.all(
-                          color:
-                              isSelected
-                                  ? Colors.white.withOpacity(0.3)
-                                  : Colors.white.withOpacity(0.1),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            category['icon'] as IconData,
-                            color:
-                                isSelected
-                                    ? Colors.white
-                                    : Colors.white.withOpacity(0.7),
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            categoryName,
-                            style: GoogleFonts.inter(
-                              color:
-                                  isSelected
-                                      ? Colors.white
-                                      : Colors.white.withOpacity(0.7),
-                              fontWeight:
-                                  isSelected
-                                      ? FontWeight.w500
-                                      : FontWeight.w400,
-                              fontSize: 13,
-                              letterSpacing: -0.1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-                .animate()
-                .fadeIn(delay: (100 * index).ms, duration: 400.ms)
-                .slideX(
-                  begin: 0.2,
-                  end: 0,
-                  delay: (100 * index).ms,
-                  duration: 400.ms,
-                  curve: Curves.easeOutQuart,
+      height: 42,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          // Fixed search bubble on the left
+          Padding(
+            padding: const EdgeInsets.only(left: 24),
+            child: _buildSearchChip(),
+          ),
+          
+          // Elegant vertical divider
+          Container(
+            margin: const EdgeInsets.only(left: 0, right: 12, top: 6, bottom: 6),
+            width: 1.5,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withOpacity(0.0),
+                  Colors.white.withOpacity(0.3),
+                  Colors.white.withOpacity(0.3),
+                  Colors.white.withOpacity(0.0),
+                ],
+                stops: const [0.0, 0.2, 0.8, 1.0],
+              ),
+              borderRadius: BorderRadius.circular(2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.1),
+                  blurRadius: 4,
+                  spreadRadius: 0.5,
                 ),
-          );
-        },
+              ],
+            ),
+          )
+          .animate()
+          .fadeIn(
+            delay: 400.ms,
+            duration: 600.ms,
+            curve: Curves.easeOut,
+          )
+          .scale(
+            begin: const Offset(1.0, 0.0),
+            end: const Offset(1.0, 1.0),
+            delay: 350.ms,
+            duration: 500.ms,
+            curve: Curves.easeOutBack,
+          ),
+          
+          // Scrollable category chips with elegant gradient mask
+          Expanded(
+            child: ShaderMask(
+              shaderCallback: (Rect bounds) {
+                return LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: const [
+                    Color(0x00FFFFFF),
+                    Color(0x44FFFFFF),
+                    Color(0xDDFFFFFF),
+                    Colors.white,
+                    Colors.white,
+                    Color(0xDDFFFFFF),
+                    Color(0x44FFFFFF),
+                    Color(0x00FFFFFF),
+                  ],
+                  stops: const [0.0, 0.015, 0.03, 0.05, 0.95, 0.97, 0.985, 1.0],
+                ).createShader(bounds);
+              },
+              blendMode: BlendMode.dstIn,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                itemCount: categories.length,
+                itemBuilder: (context, index) {
+                  final category = categories[index];
+                  final categoryName = category['name'] as String;
+                  final categoryColor = category['color'] as Color;
+                  final isSelected = _selectedCategory == categoryName;
+
+                  return _buildCategoryChip(
+                    categoryName: categoryName,
+                    categoryIcon: category['icon'] as IconData,
+                    categoryColor: categoryColor,
+                    isSelected: isSelected,
+                    index: index,
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  Widget _buildCategoryChip({
+    required String categoryName,
+    required IconData categoryIcon,
+    required Color categoryColor,
+    required bool isSelected,
+    required int index,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            _hapticService.selection();
+            setState(() {
+              _selectedCategory = categoryName;
+            });
+          },
+          borderRadius: BorderRadius.circular(24),
+          splashColor: categoryColor.withOpacity(0.1),
+          highlightColor: categoryColor.withOpacity(0.05),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 10,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: isSelected
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        categoryColor.withOpacity(0.25),
+                        categoryColor.withOpacity(0.15),
+                      ],
+                    )
+                  : null,
+              color: isSelected
+                  ? null
+                  : Colors.white.withOpacity(0.06),
+              border: Border.all(
+                color: isSelected
+                    ? categoryColor.withOpacity(0.5)
+                    : Colors.white.withOpacity(0.12),
+                width: isSelected ? 1.5 : 1,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: categoryColor.withOpacity(0.25),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedScale(
+                  scale: isSelected ? 1.1 : 1.0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutBack,
+                  child: Icon(
+                    categoryIcon,
+                    color: isSelected
+                        ? categoryColor
+                        : Colors.white.withOpacity(0.7),
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  categoryName,
+                  style: GoogleFonts.poppins(
+                    color: isSelected
+                        ? Colors.white
+                        : Colors.white.withOpacity(0.7),
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                    fontSize: 13.5,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      )
+      .animate()
+      .fadeIn(
+        delay: (100 + 50 * index).ms,
+        duration: 500.ms,
+        curve: Curves.easeOut,
+      )
+      .slideX(
+        begin: 0.3,
+        end: 0,
+        delay: (100 * index).ms,
+        duration: 400.ms,
+        curve: Curves.easeOutQuart,
+      ),
+    );
+  }
+
+  Widget _buildSearchChip() {
+    const searchColor = Color(0xFF9B59B6); // Elegant purple
+    
+    return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            _hapticService.selection();
+            // TODO: Navigate to search screen
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Search coming soon!',
+                  style: GoogleFonts.poppins(),
+                ),
+                backgroundColor: searchColor,
+                duration: const Duration(seconds: 1),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(24),
+          splashColor: searchColor.withOpacity(0.1),
+          highlightColor: searchColor.withOpacity(0.05),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 10,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  searchColor.withOpacity(0.18),
+                  searchColor.withOpacity(0.08),
+                ],
+              ),
+              border: Border.all(
+                color: searchColor.withOpacity(0.4),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: searchColor.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Elegant search icon with subtle animation
+                ShaderMask(
+                  shaderCallback: (bounds) => LinearGradient(
+                    colors: [
+                      searchColor.withOpacity(0.9),
+                      searchColor.withOpacity(0.6),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ).createShader(bounds),
+                  child: const Icon(
+                    Icons.search_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                )
+                .animate(
+                  onPlay: (controller) => controller.repeat(reverse: true),
+                )
+                .scale(
+                  begin: const Offset(1.0, 1.0),
+                  end: const Offset(1.08, 1.08),
+                  duration: 2000.ms,
+                  curve: Curves.easeInOut,
+                ),
+              ],
+            ),
+          ),
+        ),
+      )
+      .animate()
+      .fadeIn(
+        delay: 350.ms,
+        duration: 500.ms,
+        curve: Curves.easeOut,
+      )
+      .slideX(
+        begin: 0.3,
+        end: 0,
+        delay: 300.ms,
+        duration: 400.ms,
+        curve: Curves.easeOutQuart,
+      )
+      .shimmer(
+        delay: 800.ms,
+        duration: 1200.ms,
+        color: searchColor.withOpacity(0.3),
+      );
   }
 
   Widget _buildFeaturedDeck() {
@@ -947,10 +1360,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.2),
+                                color: Colors.black.withOpacity(0.6),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                  color: Colors.green.withOpacity(0.4),
+                                  color: Colors.white.withOpacity(0.2),
                                   width: 1,
                                 ),
                               ),
@@ -959,7 +1372,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                 style: GoogleFonts.poppins(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
-                                  color: Colors.green,
+                                  color: Colors.white,
                                 ),
                               ),
                             ),
@@ -1058,22 +1471,34 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                     child: Material(
                                           color: Colors.white,
                                           borderRadius: BorderRadius.circular(
-                                            8,
+                                            10,
                                           ),
+                                          elevation: 0,
                                           child: InkWell(
-                                            onTap:
-                                                () => _playDeck(featuredDeck),
+                                            onTap: () {
+                                              _hapticService.lightImpact();
+                                              _playDeck(featuredDeck);
+                                            },
                                             borderRadius: BorderRadius.circular(
-                                              8,
+                                              10,
                                             ),
+                                            splashColor: Colors.grey.shade200,
+                                            highlightColor: Colors.grey.shade100,
                                             child: Container(
                                               padding:
                                                   const EdgeInsets.symmetric(
-                                                    vertical: 10,
+                                                    vertical: 14,
                                                   ),
                                               decoration: BoxDecoration(
                                                 borderRadius:
-                                                    BorderRadius.circular(8),
+                                                    BorderRadius.circular(10),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black.withOpacity(0.2),
+                                                    blurRadius: 8,
+                                                    offset: const Offset(0, 2),
+                                                  ),
+                                                ],
                                               ),
                                               child: Row(
                                                 mainAxisAlignment:
@@ -1081,18 +1506,18 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                                 children: [
                                                   const Icon(
                                                     Icons.play_arrow_rounded,
-                                                    size: 32,
+                                                    size: 28,
                                                     color: Colors.black,
                                                   ),
-                                                  const SizedBox(width: 8),
+                                                  const SizedBox(width: 6),
                                                   Text(
                                                     'Play',
                                                     style: GoogleFonts.poppins(
-                                                      fontSize: 18,
+                                                      fontSize: 17,
                                                       fontWeight:
-                                                          FontWeight.w600,
+                                                          FontWeight.w700,
                                                       color: Colors.black,
-                                                      letterSpacing: 0.2,
+                                                      letterSpacing: 0.3,
                                                     ),
                                                   ),
                                                 ],
@@ -1101,105 +1526,80 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                           ),
                                         )
                                         .animate()
-                                        .fadeIn(delay: 600.ms, duration: 400.ms)
+                                        .fadeIn(delay: 650.ms, duration: 500.ms, curve: Curves.easeOut)
                                         .slideY(
-                                          begin: 0.1,
+                                          begin: 0.15,
                                           end: 0,
-                                          delay: 600.ms,
-                                          duration: 400.ms,
+                                          delay: 650.ms,
+                                          duration: 500.ms,
+                                          curve: Curves.easeOutCubic,
+                                        )
+                                        .scale(
+                                          begin: const Offset(0.95, 0.95),
+                                          end: const Offset(1, 1),
+                                          delay: 650.ms,
+                                          duration: 500.ms,
+                                          curve: Curves.easeOutBack,
                                         ),
                                   ),
 
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: 10),
 
-                                  // My List button - Elegant glass morphism
-                                  Expanded(
-                                    child: Material(
-                                          color: Colors.white.withOpacity(0.3),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          child: InkWell(
-                                            onTap: () {
-                                              _hapticService.lightImpact();
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    'Added to My List',
-                                                    style:
-                                                        GoogleFonts.poppins(),
-                                                  ),
-                                                  duration: const Duration(
-                                                    seconds: 1,
-                                                  ),
-                                                  backgroundColor: Colors.black
-                                                      .withOpacity(0.8),
-                                                  behavior:
-                                                      SnackBarBehavior.floating,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          8,
-                                                        ),
-                                                  ),
-                                                  margin: const EdgeInsets.all(
-                                                    20,
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 10,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                border: Border.all(
-                                                  color: Colors.white
-                                                      .withOpacity(0.2),
-                                                  width: 1,
-                                                ),
-                                              ),
-                                              child: Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  const Icon(
-                                                    Icons.add,
-                                                    size: 28,
-                                                    color: Colors.white,
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Text(
-                                                    'My List',
-                                                    style: GoogleFonts.poppins(
-                                                      fontSize: 18,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color: Colors.white,
-                                                      letterSpacing: 0.2,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        .animate()
-                                        .fadeIn(delay: 700.ms, duration: 400.ms)
-                                        .slideY(
-                                          begin: 0.1,
-                                          end: 0,
-                                          delay: 700.ms,
-                                          duration: 400.ms,
+                                  // Info button - Elegant glass morphism
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.4),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.25),
+                                        width: 1.5,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.2),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
                                         ),
+                                      ],
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () {
+                                          _hapticService.lightImpact();
+                                          final heroTag = 'deck_featured_${featuredDeck.id}_${DateTime.now().millisecondsSinceEpoch}';
+                                          _showDeckDetails(featuredDeck, heroTag: heroTag);
+                                        },
+                                        borderRadius: BorderRadius.circular(10),
+                                        splashColor: Colors.white.withOpacity(0.1),
+                                        highlightColor: Colors.white.withOpacity(0.05),
+                                        child: const Center(
+                                          child: Icon(
+                                            Icons.info_outline_rounded,
+                                            size: 26,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .animate()
+                                  .fadeIn(delay: 750.ms, duration: 500.ms, curve: Curves.easeOut)
+                                  .slideY(
+                                    begin: 0.15,
+                                    end: 0,
+                                    delay: 750.ms,
+                                    duration: 500.ms,
+                                    curve: Curves.easeOutCubic,
+                                  )
+                                  .scale(
+                                    begin: const Offset(0.95, 0.95),
+                                    end: const Offset(1, 1),
+                                    delay: 750.ms,
+                                    duration: 500.ms,
+                                    curve: Curves.easeOutBack,
                                   ),
                                 ],
                               ),
@@ -1412,13 +1812,36 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         const SizedBox(height: 8),
         SizedBox(
           height: 140,
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            scrollDirection: Axis.horizontal,
-            itemCount: _recentDecks.length,
-            itemBuilder: (context, index) {
-              return _buildContinueCard(_recentDecks[index]);
+          child: ShaderMask(
+            shaderCallback: (Rect bounds) {
+              return LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: const [
+                  Color(0x00FFFFFF),
+                  Color(0x55FFFFFF),
+                  Color(0xEEFFFFFF),
+                  Colors.white,
+                  Colors.white,
+                  Color(0xEEFFFFFF),
+                  Color(0x55FFFFFF),
+                  Color(0x00FFFFFF),
+                ],
+                stops: const [0.0, 0.02, 0.04, 0.06, 0.94, 0.96, 0.98, 1.0],
+              ).createShader(bounds);
             },
+            blendMode: BlendMode.dstIn,
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              itemCount: _recentDecks.length,
+              itemBuilder: (context, index) {
+                return _buildContinueCard(_recentDecks[index]);
+              },
+            ),
           ),
         ),
       ],
@@ -1429,15 +1852,19 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     return Container(
       width: 200,
       margin: const EdgeInsets.only(right: 8),
-      child: InkWell(
-        onTap: () {
-          _hapticService.lightImpact();
-          _playDeck(deck);
-        },
-        borderRadius: BorderRadius.circular(6),
-        child: ClipRRect(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            _hapticService.lightImpact();
+            _playDeck(deck);
+          },
+          splashColor: deck.color.withOpacity(0.3),
+          highlightColor: deck.color.withOpacity(0.2),
           borderRadius: BorderRadius.circular(6),
-          child: Stack(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Stack(
             children: [
               // Background
               Container(
@@ -1529,6 +1956,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               ),
             ],
           ),
+        ),
         ),
       ),
     ).animate().fadeIn(duration: 400.ms);
@@ -1636,21 +2064,43 @@ class _HomeScreenV2State extends State<HomeScreenV2>
           ),
         ),
 
-        // Deck cards scroll view
+        // Deck cards scroll view with elegant gradient mask
         SizedBox(
           height: 200,
-          child: ListView.builder(
-            padding: const EdgeInsets.only(left: 20, right: 12),
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            itemCount: decks.length,
-            itemBuilder: (context, index) {
-              return _buildDeckCard(
-                decks[index],
-                isPremium: isPremium,
-                index: index,
-              );
+          child: ShaderMask(
+            shaderCallback: (Rect bounds) {
+              return LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: const [
+                  Color(0x00FFFFFF),
+                  Color(0x66FFFFFF),
+                  Color(0xEEFFFFFF),
+                  Colors.white,
+                  Colors.white,
+                  Color(0xEEFFFFFF),
+                  Color(0x66FFFFFF),
+                  Color(0x00FFFFFF),
+                ],
+                stops: const [0.0, 0.025, 0.05, 0.08, 0.92, 0.95, 0.975, 1.0],
+              ).createShader(bounds);
             },
+            blendMode: BlendMode.dstIn,
+            child: ListView.builder(
+              padding: const EdgeInsets.only(left: 20, right: 12),
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              itemCount: decks.length,
+              itemBuilder: (context, index) {
+                return _buildDeckCard(
+                  decks[index],
+                  isPremium: isPremium,
+                  index: index,
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -1676,6 +2126,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             child: Material(
               color: Colors.transparent,
               child: InkWell(
+                splashColor: deck.color.withOpacity(0.2),
+                highlightColor: deck.color.withOpacity(0.1),
                 onTap: () {
                   _hapticService.lightImpact();
                   if (isPremium && !isUnlocked) {
@@ -2564,5 +3016,138 @@ class _HomeScreenV2State extends State<HomeScreenV2>
           duration: 600.ms,
           curve: Curves.easeOutBack,
         );
+  }
+
+  Widget _buildErrorState(BuildContext context, DeckProvider deckProvider) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF1a1a1a),
+              Colors.black,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.wifi_off_rounded,
+                    size: 80,
+                    color: Colors.white.withOpacity(0.5),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Unable to Load Decks',
+                    style: GoogleFonts.poppins(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Please check your internet connection and try again',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.white.withOpacity(0.7),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton(
+                    onPressed: () {
+                      _hapticService.selection();
+                      deckProvider.retryLoading();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 16,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.refresh_rounded),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Retry',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoDecksMessage() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.inbox_rounded,
+              size: 64,
+              color: Colors.white.withOpacity(0.3),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No decks available',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.white.withOpacity(0.5),
+              ),
+            ),
+          ],
+        ),
+      ),
+        );
+  }
+}
+
+/// Custom scroll behavior for smooth, elegant scrolling
+class SmoothScrollBehavior extends ScrollBehavior {
+  const SmoothScrollBehavior();
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const BouncingScrollPhysics(
+      parent: AlwaysScrollableScrollPhysics(),
+    );
+  }
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    // Remove the default overscroll glow effect for a cleaner look
+    return child;
   }
 }

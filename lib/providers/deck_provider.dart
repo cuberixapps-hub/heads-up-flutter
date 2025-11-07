@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../models/deck.dart';
-import '../constants/default_decks.dart';
 import '../services/deck_firebase_service.dart';
 import '../services/local_storage_service.dart';
+import '../services/location_service.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class DeckProvider extends ChangeNotifier {
@@ -15,6 +15,8 @@ class DeckProvider extends ChangeNotifier {
   Set<String> _unlockedPremiumDeckIds = {};
   bool _isLoading = false;
   bool _isInitialized = false;
+  String _userCountryCode = 'US'; // Default country
+  String _errorMessage = '';
 
   // Streams
   StreamSubscription? _defaultDecksSubscription;
@@ -33,6 +35,9 @@ class DeckProvider extends ChangeNotifier {
       _customDecks;
   bool get isLoading => _isLoading;
   bool get isInitialized => _isInitialized;
+  String get userCountryCode => _userCountryCode;
+  String get errorMessage => _errorMessage;
+  bool get hasError => _errorMessage.isNotEmpty;
 
   DeckProvider() {
     _initializeDecks();
@@ -40,74 +45,52 @@ class DeckProvider extends ChangeNotifier {
 
   Future<void> _initializeDecks() async {
     _isLoading = true;
+    _errorMessage = '';
     notifyListeners();
 
     try {
       debugPrint('🎮 HEADS UP: Starting app initialization...');
 
-      // Try to fetch from Firebase with a timeout
-      final firebaseDefaultDecks = await _deckFirebaseService
-          .getDefaultDecks()
+      // Detect user's country automatically
+      _userCountryCode = await LocationService.detectUserCountry();
+      debugPrint('📍 Detected user country: $_userCountryCode');
+
+      // Fetch decks from Firebase filtered by country
+      try {
+        _defaultDecks = await _deckFirebaseService
+            .getDecksByCountry(_userCountryCode)
           .timeout(
-            const Duration(seconds: 5),
+              const Duration(seconds: 10),
             onTimeout: () {
-              debugPrint(
-                '📱 OFFLINE MODE: No internet connection detected - loading local decks',
+                throw TimeoutException(
+                  'Connection timeout. Please check your internet connection.',
               );
-              return <Deck>[];
-            },
-          );
+              },
+            );
 
-      if (firebaseDefaultDecks.isEmpty) {
-        // Try to initialize default decks in Firestore if they don't exist
-        debugPrint('🎯 Loading default decks from local storage...');
-        _loadLocalDefaultDecks();
-        debugPrint(
-          '✅ Successfully loaded ${_defaultDecks.length} default decks locally',
-        );
+        debugPrint('✅ Loaded ${_defaultDecks.length} decks for country: $_userCountryCode');
 
-        // Try to upload to Firebase in background (non-blocking)
-        _deckFirebaseService
-            .initializeDefaultDecks(DefaultDecks.decks)
-            .then((_) {
-              debugPrint('Default decks uploaded to Firebase');
-              // Try to fetch from Firebase again
-              _deckFirebaseService.getDefaultDecks().then((decks) {
-                if (decks.isNotEmpty) {
-                  _defaultDecks = decks;
-                  notifyListeners();
-                }
-              });
-            })
-            .catchError((e) {
-              // This is expected when offline - not an error
-              debugPrint(
-                '📴 Running in offline mode (Firebase sync will resume when online)',
-              );
-            });
-      } else {
-        _defaultDecks = firebaseDefaultDecks;
-        debugPrint('✅ Loaded ${_defaultDecks.length} decks from Firebase');
-      }
-
-      // Set up real-time listeners (will work when connection is restored)
+        // Set up real-time listeners
       _setupRealtimeListeners();
 
       // Load user-specific data
       await _loadUserData();
 
       _isInitialized = true;
+        _errorMessage = '';
       debugPrint(
-        '🎉 APP READY: Heads Up game is fully loaded and ready to play!',
+          '🎉 APP READY: Heads Up game is fully loaded with country-specific decks!',
       );
+      } catch (e) {
+        // Handle Firebase/Network errors
+        debugPrint('❌ Error loading decks: $e');
+        _errorMessage = 'Unable to load decks. Please check your internet connection and try again.';
+        _isInitialized = false;
+      }
     } catch (e) {
-      debugPrint('📱 OFFLINE MODE: Loading local decks...');
-      // Fallback to local default decks if Firebase fails
-      _loadLocalDefaultDecks();
-      _isInitialized = true;
-      debugPrint(
-        '✅ APP READY: Running in offline mode with ${_defaultDecks.length} decks available',
-      );
+      debugPrint('❌ Error during initialization: $e');
+      _errorMessage = 'An error occurred during initialization. Please restart the app.';
+      _isInitialized = false;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -115,22 +98,24 @@ class DeckProvider extends ChangeNotifier {
   }
 
   void _setupRealtimeListeners() {
-    // Listen to default decks changes
+    // Listen to country-filtered decks changes
     _defaultDecksSubscription?.cancel();
     _defaultDecksSubscription = _deckFirebaseService
-        .streamDefaultDecks()
+        .streamDecksByCountry(_userCountryCode)
         .listen(
           (decks) {
             _defaultDecks = decks;
+            _errorMessage = '';
             notifyListeners();
           },
           onError: (error) {
-            debugPrint('Error streaming default decks: $error');
+            debugPrint('Error streaming decks: $error');
+            _errorMessage = 'Connection lost. Some features may not work properly.';
+            notifyListeners();
           },
         );
 
-    // No longer streaming custom decks from Firebase
-    // Custom decks are stored locally only
+    // Custom decks remain locally stored
     _customDecksSubscription?.cancel();
   }
 
@@ -149,20 +134,22 @@ class DeckProvider extends ChangeNotifier {
     }
   }
 
-  void _loadLocalDefaultDecks() {
-    // Fallback to local default decks
-    _defaultDecks =
-        DefaultDecks.decks.map((deckData) {
-          return Deck(
-            id: deckData['id'],
-            name: deckData['name'],
-            description: deckData['description'],
-            icon: deckData['icon'],
-            color: deckData['color'],
-            isPremium: deckData['isPremium'],
-            cards: List<String>.from(deckData['cards']),
-          );
-        }).toList();
+  // Retry loading decks
+  Future<void> retryLoading() async {
+    await _initializeDecks();
+  }
+
+  // Search decks globally across all countries
+  Future<List<Deck>> searchDecksGlobally(String searchTerm) async {
+    if (searchTerm.isEmpty) return [];
+
+    try {
+      final results = await _deckFirebaseService.searchDecksGlobally(searchTerm);
+      return results;
+    } catch (e) {
+      debugPrint('Error searching decks globally: $e');
+      return [];
+    }
   }
 
   // Create a custom deck
@@ -293,7 +280,7 @@ class DeckProvider extends ChangeNotifier {
     }
   }
 
-  // Search decks
+  // Search decks (local search within user's country)
   List<Deck> searchDecks(String query) {
     if (query.isEmpty) return allDecks;
 
@@ -301,6 +288,7 @@ class DeckProvider extends ChangeNotifier {
     return allDecks.where((deck) {
       return deck.name.toLowerCase().contains(lowerQuery) ||
           deck.description.toLowerCase().contains(lowerQuery) ||
+          deck.tags.any((tag) => tag.toLowerCase().contains(lowerQuery)) ||
           deck.cards.any((card) => card.toLowerCase().contains(lowerQuery));
     }).toList();
   }
@@ -342,18 +330,21 @@ class DeckProvider extends ChangeNotifier {
   // Refresh data
   Future<void> refreshData() async {
     _isLoading = true;
+    _errorMessage = '';
     notifyListeners();
 
     try {
-      // Default decks still from Firebase
-      _defaultDecks = await _deckFirebaseService.getDefaultDecks();
+      // Fetch country-filtered decks from Firebase
+      _defaultDecks = await _deckFirebaseService.getDecksByCountry(_userCountryCode);
       // Custom decks from local storage
       _customDecks = await _localStorageService.loadCustomDecks();
       // Unlocked premium decks from local storage
       _unlockedPremiumDeckIds =
           await _localStorageService.loadUnlockedPremiumDeckIds();
+      _errorMessage = '';
     } catch (e) {
       debugPrint('Error refreshing data: $e');
+      _errorMessage = 'Failed to refresh data. Please check your connection.';
     } finally {
       _isLoading = false;
       notifyListeners();

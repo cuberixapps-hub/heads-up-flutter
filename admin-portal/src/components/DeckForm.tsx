@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../config/firebase';
 import { IconPicker } from './IconPicker';
 import { type IconInfo } from '../data/icons';
-import { Plus, X, Sparkles, Palette, Save, ArrowLeft } from 'lucide-react';
+import { Plus, X, Sparkles, Palette, Save, ArrowLeft, Upload } from 'lucide-react';
 import * as FaIcons from 'react-icons/fa';
 import '../styles/DeckForm.css';
 
@@ -18,6 +19,10 @@ interface Deck {
     colorValue: number;
     imageUrl?: string;
     isPremium: boolean;
+    country?: string;
+    tags?: string[];
+    priority?: number;
+    isActive?: boolean;
     createdAt?: any;
     updatedAt?: any;
 }
@@ -41,6 +46,19 @@ const defaultColors = [
     { name: 'Deep Purple', value: 0xFF673AB7 },
 ];
 
+const countryOptions = [
+    { value: 'UNIVERSAL', label: '🌍 Universal' },
+    { value: 'IN', label: '🇮🇳 India' },
+    { value: 'JP', label: '🇯🇵 Japan' },
+    { value: 'KR', label: '🇰🇷 South Korea' },
+    { value: 'BR', label: '🇧🇷 Brazil' },
+    { value: 'CN', label: '🇨🇳 China' },
+    { value: 'US', label: '🇺🇸 United States' },
+    { value: 'GB', label: '🇬🇧 United Kingdom' },
+    { value: 'MX', label: '🇲🇽 Mexico/Latin America' },
+    { value: 'TRENDING', label: '🔥 Trending 2025' },
+];
+
 export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) => {
     const [name, setName] = useState(deck?.name || '');
     const [description, setDescription] = useState(deck?.description || '');
@@ -55,12 +73,21 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
     const [selectedColor, setSelectedColor] = useState(deck?.colorValue || 0xFF9C27B0);
     const [imageUrl, setImageUrl] = useState(deck?.imageUrl || '');
     const [isPremium, setIsPremium] = useState(deck?.isPremium || false);
+    const [country, setCountry] = useState(deck?.country || 'UNIVERSAL');
+    const [tags, setTags] = useState<string[]>(deck?.tags || []);
+    const [newTag, setNewTag] = useState('');
+    const [priority, setPriority] = useState(deck?.priority || 0);
+    const [isActive, setIsActive] = useState(deck?.isActive !== false);
     const [showIconPicker, setShowIconPicker] = useState(false);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
     const [showAISuggestions, setShowAISuggestions] = useState(false);
     const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(deck?.imageUrl || null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadError, setUploadError] = useState<string>('');
 
     const validateForm = () => {
         const newErrors: { [key: string]: string } = {};
@@ -95,6 +122,10 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
             colorValue: selectedColor,
             imageUrl: imageUrl.trim() || null,
             isPremium,
+            country,
+            tags,
+            priority,
+            isActive,
             updatedAt: serverTimestamp(),
         };
 
@@ -137,7 +168,7 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
 
     const generateAISuggestions = () => {
         // Generate contextual suggestions based on deck name
-        const deckNameLower = deckName.toLowerCase();
+        const deckNameLower = name.toLowerCase();
         let suggestions: string[] = [];
 
         if (deckNameLower.includes('movie') || deckNameLower.includes('film')) {
@@ -208,6 +239,62 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
         return '#' + (colorValue & 0xFFFFFF).toString(16).padStart(6, '0');
     };
 
+    const handleImageUpload = async (file: File) => {
+        // Validate file type
+        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        if (!validTypes.includes(file.type)) {
+            setUploadError('Please upload a JPG, PNG, or WebP image');
+            return;
+        }
+
+        // Validate file size (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            setUploadError('Image must be less than 10MB');
+            return;
+        }
+
+        setUploadError('');
+        setIsUploading(true);
+
+        try {
+            // Generate unique filename
+            const timestamp = Date.now();
+            const filename = `${timestamp}_${file.name}`;
+            
+            // Use temporary ID if creating new deck, or existing ID if editing
+            const deckId = deck?.id || `temp_${timestamp}`;
+            const storageRef = ref(storage, `deck-images/${deckId}/${filename}`);
+            
+            // Upload file
+            await uploadBytes(storageRef, file);
+            
+            // Get download URL
+            const downloadURL = await getDownloadURL(storageRef);
+            
+            setImageUrl(downloadURL);
+            setImagePreview(downloadURL);
+            setImageFile(file);
+            setIsUploading(false);
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            setUploadError('Failed to upload image. Please try again.');
+            setIsUploading(false);
+        }
+    };
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            handleImageUpload(file);
+        }
+    };
+
+    const removeImage = () => {
+        setImageFile(null);
+        setImagePreview(null);
+        setImageUrl('');
+    };
+
     return (
         <div className="deck-form-container">
             <div className="deck-form-header">
@@ -266,44 +353,207 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
                     </div>
 
                     <div className="form-group">
-                        <label htmlFor="imageUrl">Image URL</label>
-                        <input
-                            type="url"
-                            id="imageUrl"
-                            value={imageUrl}
-                            onChange={(e) => setImageUrl(e.target.value)}
-                            placeholder="https://example.com/image.jpg (optional)"
-                        />
-                        {imageUrl && (
-                            <div className="image-preview" style={{ marginTop: '10px' }}>
+                        <label>Deck Image</label>
+                        
+                        {/* Upload Button */}
+                        <div style={{ marginBottom: '12px' }}>
+                            <input
+                                type="file"
+                                id="imageUpload"
+                                accept="image/jpeg,image/jpg,image/png,image/webp"
+                                onChange={handleFileSelect}
+                                style={{ display: 'none' }}
+                                disabled={isUploading}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => document.getElementById('imageUpload')?.click()}
+                                disabled={isUploading}
+                                style={{
+                                    padding: '10px 16px',
+                                    backgroundColor: isUploading ? '#ccc' : '#4CAF50',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: isUploading ? 'not-allowed' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                }}
+                            >
+                                <Upload size={18} />
+                                {isUploading ? 'Uploading...' : 'Upload Image'}
+                            </button>
+                        </div>
+
+                        {/* Image Preview */}
+                        {imagePreview && (
+                            <div style={{ position: 'relative', display: 'inline-block', marginBottom: '12px' }}>
                                 <img
-                                    src={imageUrl}
+                                    src={imagePreview}
                                     alt="Deck preview"
                                     style={{
-                                        width: '100%',
-                                        maxWidth: '200px',
+                                        width: '200px',
                                         height: '120px',
                                         objectFit: 'cover',
                                         borderRadius: '8px',
-                                        border: '1px solid #e0e0e0'
-                                    }}
-                                    onError={(e) => {
-                                        (e.target as HTMLImageElement).style.display = 'none';
+                                        border: '2px solid #e0e0e0',
                                     }}
                                 />
+                                <button
+                                    type="button"
+                                    onClick={removeImage}
+                                    style={{
+                                        position: 'absolute',
+                                        top: '-8px',
+                                        right: '-8px',
+                                        backgroundColor: '#f44336',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '50%',
+                                        width: '24px',
+                                        height: '24px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Error Message */}
+                        {uploadError && (
+                            <div style={{ color: '#f44336', fontSize: '14px', marginBottom: '8px' }}>
+                                {uploadError}
+                            </div>
+                        )}
+
+                        {/* URL Input (editable after upload) */}
+                        <div>
+                            <label htmlFor="imageUrl" style={{ fontSize: '13px', color: '#666' }}>
+                                Or paste image URL
+                            </label>
+                            <input
+                                type="url"
+                                id="imageUrl"
+                                value={imageUrl}
+                                onChange={(e) => {
+                                    setImageUrl(e.target.value);
+                                    setImagePreview(e.target.value);
+                                }}
+                                placeholder="https://example.com/image.jpg"
+                                disabled={isUploading}
+                            />
+                            <small style={{ color: '#666', fontSize: '12px' }}>
+                                Accepted: JPG, PNG, WebP (max 10MB)
+                            </small>
+                        </div>
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="country">Country/Region *</label>
+                        <select
+                            id="country"
+                            value={country}
+                            onChange={(e) => setCountry(e.target.value)}
+                            className="form-select"
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #e0e0e0' }}
+                        >
+                            {countryOptions.map(option => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="priority">Priority (lower number = higher priority)</label>
+                        <input
+                            id="priority"
+                            type="number"
+                            value={priority}
+                            onChange={(e) => setPriority(Number(e.target.value))}
+                            placeholder="0"
+                            min="0"
+                            max="999"
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label>Tags</label>
+                        <div className="add-card-row">
+                            <input
+                                type="text"
+                                value={newTag}
+                                onChange={(e) => setNewTag(e.target.value)}
+                                placeholder="Add a tag (e.g., trending, party, family)..."
+                                onKeyPress={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        if (newTag.trim() && !tags.includes(newTag.trim())) {
+                                            setTags([...tags, newTag.trim()]);
+                                            setNewTag('');
+                                        }
+                                    }
+                                }}
+                            />
+                            <button 
+                                type="button" 
+                                onClick={() => {
+                                    if (newTag.trim() && !tags.includes(newTag.trim())) {
+                                        setTags([...tags, newTag.trim()]);
+                                        setNewTag('');
+                                    }
+                                }} 
+                                className="add-card-button"
+                            >
+                                <Plus size={20} />
+                            </button>
+                        </div>
+                        {tags.length > 0 && (
+                            <div className="cards-list" style={{ marginTop: '10px' }}>
+                                {tags.map((tag, index) => (
+                                    <div key={index} className="card-item" style={{ padding: '6px 12px' }}>
+                                        <span className="card-text">{tag}</span>
+                                        <button
+                                            type="button"
+                                            className="remove-card"
+                                            onClick={() => setTags(tags.filter((_, i) => i !== index))}
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>
 
-                    <div className="form-group">
-                        <label className="checkbox-label">
-                            <input
-                                type="checkbox"
-                                checked={isPremium}
-                                onChange={(e) => setIsPremium(e.target.checked)}
-                            />
-                            <span>Premium Deck</span>
-                        </label>
+                    <div style={{ display: 'flex', gap: '20px' }}>
+                        <div className="form-group">
+                            <label className="checkbox-label">
+                                <input
+                                    type="checkbox"
+                                    checked={isPremium}
+                                    onChange={(e) => setIsPremium(e.target.checked)}
+                                />
+                                <span>Premium Deck</span>
+                            </label>
+                        </div>
+
+                        <div className="form-group">
+                            <label className="checkbox-label">
+                                <input
+                                    type="checkbox"
+                                    checked={isActive}
+                                    onChange={(e) => setIsActive(e.target.checked)}
+                                />
+                                <span>Active (visible to users)</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 

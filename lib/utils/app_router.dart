@@ -24,6 +24,7 @@ class AppRouter {
         path: '/onboarding',
         builder: (context, state) => const OnboardingScreen(),
       ),
+      GoRoute(path: '/home', builder: (context, state) => const HomeScreenV2()),
       GoRoute(
         path: '/home-v2',
         builder: (context, state) => const HomeScreenV2(),

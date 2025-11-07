@@ -17,6 +17,10 @@ interface Deck {
   iconFontPackage?: string;
   colorValue: number;
   isPremium: boolean;
+  country?: string;
+  tags?: string[];
+  priority?: number;
+  isActive?: boolean;
   createdAt?: any;
   updatedAt?: any;
 }
