@@ -766,7 +766,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
           Container(
                 margin: const EdgeInsets.only(
                   left: 0,
-                  right: 12,
+                  right: 0,
                   top: 6,
                   bottom: 6,
                 ),
@@ -781,14 +781,13 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                       Colors.white.withOpacity(0.3),
                       Colors.white.withOpacity(0.0),
                     ],
-                    stops: const [0.0, 0.2, 0.8, 1.0],
                   ),
                   borderRadius: BorderRadius.circular(2),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.white.withOpacity(0.1),
                       blurRadius: 4,
-                      spreadRadius: 0.5,
+                      spreadRadius: 1,
                     ),
                   ],
                 ),
@@ -829,7 +828,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                 physics: const BouncingScrollPhysics(
                   parent: AlwaysScrollableScrollPhysics(),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
                 itemCount: categories.length,
                 itemBuilder: (context, index) {
                   final category = categories[index];
