@@ -15,6 +15,7 @@ import '../services/daily_deck_service.dart';
 import '../models/daily_deck.dart';
 import 'gameplay_screen.dart';
 import 'deck_details_screen.dart';
+import 'search_screen.dart';
 
 class HomeScreenV2 extends StatefulWidget {
   const HomeScreenV2({super.key});
@@ -966,103 +967,114 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   Widget _buildSearchChip() {
     const searchColor = Color(0xFF9B59B6); // Elegant purple
 
-    return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () {
-              _hapticService.selection();
-              // TODO: Navigate to search screen
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Search coming soon!',
-                    style: GoogleFonts.poppins(),
+    return Hero(
+      tag: 'search_chip',
+      child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                _hapticService.selection();
+                // Navigate to search screen with smooth transition
+                Navigator.of(context).push(
+                  PageRouteBuilder(
+                    pageBuilder: (context, animation, secondaryAnimation) =>
+                        const SearchScreen(),
+                    transitionsBuilder:
+                        (context, animation, secondaryAnimation, child) {
+                      const begin = 0.0;
+                      const end = 1.0;
+                      const curve = Curves.easeInOut;
+
+                      var tween = Tween(begin: begin, end: end)
+                          .chain(CurveTween(curve: curve));
+                      var fadeAnimation = animation.drive(tween);
+
+                      return FadeTransition(
+                        opacity: fadeAnimation,
+                        child: child,
+                      );
+                    },
+                    transitionDuration: const Duration(milliseconds: 400),
                   ),
-                  backgroundColor: searchColor,
-                  duration: const Duration(seconds: 1),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                );
+              },
+              borderRadius: BorderRadius.circular(24),
+              splashColor: searchColor.withOpacity(0.1),
+              highlightColor: searchColor.withOpacity(0.05),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      searchColor.withOpacity(0.18),
+                      searchColor.withOpacity(0.08),
+                    ],
                   ),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(24),
-            splashColor: searchColor.withOpacity(0.1),
-            highlightColor: searchColor.withOpacity(0.05),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    searchColor.withOpacity(0.18),
-                    searchColor.withOpacity(0.08),
+                  border: Border.all(
+                    color: searchColor.withOpacity(0.4),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: searchColor.withOpacity(0.2),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
                   ],
                 ),
-                border: Border.all(
-                  color: searchColor.withOpacity(0.4),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: searchColor.withOpacity(0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Elegant search icon with subtle animation
-                  ShaderMask(
-                        shaderCallback:
-                            (bounds) => LinearGradient(
-                              colors: [
-                                searchColor.withOpacity(0.9),
-                                searchColor.withOpacity(0.6),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ).createShader(bounds),
-                        child: const Icon(
-                          Icons.search_rounded,
-                          color: Colors.white,
-                          size: 20,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Elegant search icon with subtle animation
+                    ShaderMask(
+                          shaderCallback:
+                              (bounds) => LinearGradient(
+                                colors: [
+                                  searchColor.withOpacity(0.9),
+                                  searchColor.withOpacity(0.6),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ).createShader(bounds),
+                          child: const Icon(
+                            Icons.search_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        )
+                        .animate(
+                          onPlay:
+                              (controller) => controller.repeat(reverse: true),
+                        )
+                        .scale(
+                          begin: const Offset(1.0, 1.0),
+                          end: const Offset(1.08, 1.08),
+                          duration: 2000.ms,
+                          curve: Curves.easeInOut,
                         ),
-                      )
-                      .animate(
-                        onPlay:
-                            (controller) => controller.repeat(reverse: true),
-                      )
-                      .scale(
-                        begin: const Offset(1.0, 1.0),
-                        end: const Offset(1.08, 1.08),
-                        duration: 2000.ms,
-                        curve: Curves.easeInOut,
-                      ),
-                ],
+                  ],
+                ),
               ),
             ),
+          )
+          .animate()
+          .fadeIn(delay: 350.ms, duration: 500.ms, curve: Curves.easeOut)
+          .slideX(
+            begin: 0.3,
+            end: 0,
+            delay: 300.ms,
+            duration: 400.ms,
+            curve: Curves.easeOutQuart,
+          )
+          .shimmer(
+            delay: 800.ms,
+            duration: 1200.ms,
+            color: searchColor.withOpacity(0.3),
           ),
-        )
-        .animate()
-        .fadeIn(delay: 350.ms, duration: 500.ms, curve: Curves.easeOut)
-        .slideX(
-          begin: 0.3,
-          end: 0,
-          delay: 300.ms,
-          duration: 400.ms,
-          curve: Curves.easeOutQuart,
-        )
-        .shimmer(
-          delay: 800.ms,
-          duration: 1200.ms,
-          color: searchColor.withOpacity(0.3),
-        );
+    );
   }
 
   Widget _buildFeaturedDeck() {
