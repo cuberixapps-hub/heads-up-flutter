@@ -237,61 +237,181 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   List<Deck> _getFilteredDecks(List<Deck> decks) {
+    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+
     switch (_selectedCategory) {
       case 'Trending':
-        // Show decks with more cards (popular ones)
-        final trending = decks.where((d) => d.cards.length >= 10).toList();
-        return trending.isEmpty ? decks : trending;
-      case 'Quick Play':
-        // Show decks with fewer cards for quick games
-        final quickPlay = decks.where((d) => d.cards.length <= 15).toList();
-        return quickPlay.isEmpty ? decks : quickPlay;
-      case 'Multiplayer':
-        // Show decks with more cards (better for groups)
-        final multiplayer = decks.where((d) => d.cards.length >= 15).toList();
-        return multiplayer.isEmpty ? decks : multiplayer;
+        return _getTrendingDecks(decks);
+      case 'Quick':
+        return _getQuickDecks(decks);
+      case 'Party':
+        return _getPartyDecks(decks);
+      case 'Favorites':
+        final favorites = deckProvider.favoriteDecksAsList;
+        return favorites.isNotEmpty ? favorites : decks.take(3).toList();
       default:
         return decks;
     }
   }
 
   String _getCategoryTitle() {
+    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+
     switch (_selectedCategory) {
       case 'Trending':
         return 'Trending Now';
-      case 'Quick Play':
-        return 'Quick Play Decks';
-      case 'Multiplayer':
-        return 'Perfect for Groups';
+      case 'Quick':
+        return 'Quick Games';
+      case 'Party':
+        return 'Party Mode';
+      case 'Favorites':
+        final count = deckProvider.favoriteDecks.length;
+        return count > 0 ? 'My Favorites' : 'No Favorites Yet';
       default:
-        return 'Recommended for You';
+        return 'All Decks';
     }
   }
 
   IconData _getCategoryIcon() {
     switch (_selectedCategory) {
       case 'Trending':
-        return Icons.trending_up_rounded;
-      case 'Quick Play':
+        return Icons.local_fire_department_rounded;
+      case 'Quick':
         return Icons.bolt_rounded;
-      case 'Multiplayer':
-        return Icons.people_outline_rounded;
+      case 'Party':
+        return Icons.celebration_rounded;
+      case 'Favorites':
+        return Icons.star_rounded;
       default:
-        return Icons.auto_awesome_rounded;
+        return Icons.apps_rounded;
     }
   }
 
   Color _getCategoryColor() {
     switch (_selectedCategory) {
       case 'Trending':
-        return Colors.orange;
-      case 'Quick Play':
-        return Colors.yellow;
-      case 'Multiplayer':
-        return Colors.blue;
+        return const Color(0xFFFF6B35);
+      case 'Quick':
+        return const Color(0xFFFFC107);
+      case 'Party':
+        return const Color(0xFFE91E63);
+      case 'Favorites':
+        return const Color(0xFFFFD700);
       default:
         return Colors.purple;
     }
+  }
+
+  /// Get dynamic category data with counts, new indicators, and metadata
+  List<Map<String, dynamic>> _getDynamicCategories(BuildContext context) {
+    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+    final allDecks = deckProvider.allDecks;
+    final threeDaysAgo = DateTime.now().subtract(const Duration(days: 3));
+
+    // Calculate filtered deck counts
+    final trendingDecks = _getTrendingDecks(allDecks);
+    final quickDecks = _getQuickDecks(allDecks);
+    final partyDecks = _getPartyDecks(allDecks);
+    final favoriteCount = deckProvider.favoriteDecks.length;
+
+    // Check for new content (decks created within 3 days)
+    final newTrendingCount =
+        trendingDecks.where((d) => d.createdAt.isAfter(threeDaysAgo)).length;
+    final newPartyCount =
+        partyDecks.where((d) => d.createdAt.isAfter(threeDaysAgo)).length;
+
+    return [
+      {
+        'name': 'Trending',
+        'icon': Icons.local_fire_department_rounded,
+        'color': const Color(0xFFFF6B35),
+        'count': trendingDecks.length,
+        'hasNew': newTrendingCount > 0,
+        'newCount': newTrendingCount,
+      },
+      {
+        'name': 'Quick',
+        'icon': Icons.bolt_rounded,
+        'color': const Color(0xFFFFC107),
+        'count': quickDecks.length,
+        'hasNew': false,
+      },
+      {
+        'name': 'Party',
+        'icon': Icons.celebration_rounded,
+        'color': const Color(0xFFE91E63),
+        'count': partyDecks.length,
+        'hasNew': newPartyCount > 0,
+        'newCount': newPartyCount,
+      },
+      {
+        'name': 'Favorites',
+        'icon':
+            favoriteCount > 0 ? Icons.star_rounded : Icons.star_outline_rounded,
+        'color':
+            favoriteCount > 0
+                ? const Color(0xFFFFD700)
+                : const Color(0xFF666666),
+        'count': favoriteCount,
+        'isEmpty': favoriteCount == 0,
+        'hasNew': false,
+      },
+    ];
+  }
+
+  /// Get trending decks with smart scoring algorithm
+  /// Combines priority, recency, and card count sweet spot
+  List<Deck> _getTrendingDecks(List<Deck> decks) {
+    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+
+    return (List<Deck>.from(decks)..sort((a, b) {
+      // Calculate trending score for each deck
+      int scoreA = (10 - a.priority) * 100;
+      int scoreB = (10 - b.priority) * 100;
+
+      // Boost new decks created within last 7 days
+      if (a.createdAt.isAfter(sevenDaysAgo)) scoreA += 500;
+      if (b.createdAt.isAfter(sevenDaysAgo)) scoreB += 500;
+
+      // Favor sweet spot card count (10-30 cards)
+      if (a.cards.length >= 10 && a.cards.length <= 30) scoreA += 200;
+      if (b.cards.length >= 10 && b.cards.length <= 30) scoreB += 200;
+
+      return scoreB.compareTo(scoreA);
+    })).take(15).toList();
+  }
+
+  /// Get quick play decks (5-12 cards for 3-8 minute games)
+  List<Deck> _getQuickDecks(List<Deck> decks) {
+    final quick =
+        decks.where((d) => d.cards.length >= 5 && d.cards.length <= 12).toList()
+          ..sort((a, b) => a.cards.length.compareTo(b.cards.length));
+    return quick.isNotEmpty ? quick : decks.take(10).toList();
+  }
+
+  /// Get party decks (20-40 cards OR party-related tags)
+  List<Deck> _getPartyDecks(List<Deck> decks) {
+    const partyKeywords = [
+      'party',
+      'group',
+      'family',
+      'multiplayer',
+      'friends',
+      'fun',
+      'acting',
+      'charades',
+    ];
+
+    return decks.where((d) {
+        final goodLength = d.cards.length >= 20 && d.cards.length <= 40;
+        final hasPartyTag = d.tags.any(
+          (tag) => partyKeywords.any(
+            (keyword) => tag.toLowerCase().contains(keyword),
+          ),
+        );
+        return goodLength || hasPartyTag;
+      }).toList()
+      ..sort((a, b) => b.cards.length.compareTo(a.cards.length));
   }
 
   /// Smoothly scrolls to the category content section
@@ -434,6 +554,15 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   final filteredDecks = _getFilteredDecks(
                                     deckProvider.freeDecks,
                                   );
+
+                                  // Special handling for empty Favorites
+                                  if (_selectedCategory == 'Favorites' &&
+                                      deckProvider.favoriteDecks.isEmpty) {
+                                    return _buildEmptyFavoritesState(
+                                      deckProvider,
+                                    );
+                                  }
+
                                   if (filteredDecks.isEmpty &&
                                       deckProvider.isInitialized) {
                                     return _buildNoDecksMessage();
@@ -777,23 +906,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   Widget _buildCategoryChips() {
-    final categories = [
-      {
-        'name': 'Trending',
-        'icon': Icons.trending_up_rounded,
-        'color': const Color(0xFFFF6B9D),
-      },
-      {
-        'name': 'Quick Play',
-        'icon': Icons.bolt_rounded,
-        'color': const Color(0xFFFFD700),
-      },
-      {
-        'name': 'Multiplayer',
-        'icon': Icons.people_outline_rounded,
-        'color': const Color(0xFF66D9EF),
-      },
-    ];
+    final categories = _getDynamicCategories(context);
 
     return Container(
       height: 42,
@@ -879,6 +992,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   final categoryName = category['name'] as String;
                   final categoryColor = category['color'] as Color;
                   final isSelected = _selectedCategory == categoryName;
+                  final count = category['count'] as int?;
+                  final hasNew = category['hasNew'] as bool? ?? false;
+                  final isEmpty = category['isEmpty'] as bool? ?? false;
+                  final newCount = category['newCount'] as int? ?? 0;
 
                   return _buildCategoryChip(
                     categoryName: categoryName,
@@ -886,6 +1003,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                     categoryColor: categoryColor,
                     isSelected: isSelected,
                     index: index,
+                    count: count,
+                    hasNew: hasNew,
+                    isEmpty: isEmpty,
+                    newCount: newCount,
                   );
                 },
               ),
@@ -902,6 +1023,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     required Color categoryColor,
     required bool isSelected,
     required int index,
+    int? count,
+    bool hasNew = false,
+    bool isEmpty = false,
+    int newCount = 0,
   }) {
     return Padding(
       padding: const EdgeInsets.only(right: 12),
@@ -939,11 +1064,18 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             ],
                           )
                           : null,
-                  color: isSelected ? null : Colors.white.withOpacity(0.06),
+                  color:
+                      isSelected
+                          ? null
+                          : isEmpty
+                          ? Colors.white.withOpacity(0.03)
+                          : Colors.white.withOpacity(0.06),
                   border: Border.all(
                     color:
                         isSelected
                             ? categoryColor.withOpacity(0.5)
+                            : isEmpty && !isSelected
+                            ? Colors.white.withOpacity(0.08)
                             : Colors.white.withOpacity(0.12),
                     width: isSelected ? 1.5 : 1,
                   ),
@@ -970,6 +1102,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         color:
                             isSelected
                                 ? categoryColor
+                                : isEmpty && !isSelected
+                                ? Colors.white.withOpacity(0.4)
                                 : Colors.white.withOpacity(0.7),
                         size: 18,
                       ),
@@ -981,6 +1115,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         color:
                             isSelected
                                 ? Colors.white
+                                : isEmpty && !isSelected
+                                ? Colors.white.withOpacity(0.4)
                                 : Colors.white.withOpacity(0.7),
                         fontWeight:
                             isSelected ? FontWeight.w600 : FontWeight.w400,
@@ -988,6 +1124,51 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         letterSpacing: 0.1,
                       ),
                     ),
+                    // Show "NEW" badge for categories with new content
+                    if (hasNew && newCount > 0) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'NEW',
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ]
+                    // Show count badge if no NEW badge
+                    else if (count != null && count > 0 && !hasNew) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '$count',
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1006,6 +1187,112 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             duration: 400.ms,
             curve: Curves.easeOutQuart,
           ),
+    );
+  }
+
+  Widget _buildEmptyFavoritesState(DeckProvider deckProvider) {
+    // Get suggested decks to get started
+    final suggestedDecks =
+        _getTrendingDecks(deckProvider.allDecks).take(3).toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Icon(
+                Icons.star_outline_rounded,
+                color: const Color(0xFFFFD700).withOpacity(0.5),
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'No Favorites Yet',
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Empty state message
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFFFFD700).withOpacity(0.1),
+                  const Color(0xFFFFD700).withOpacity(0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFFFFD700).withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.star_rounded,
+                  size: 64,
+                  color: const Color(0xFFFFD700).withOpacity(0.3),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Start Building Your Collection',
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Tap the star icon on any deck to add it to your favorites for quick access anytime!',
+                  style: GoogleFonts.poppins(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+
+          // Suggested decks to get started
+          if (suggestedDecks.isNotEmpty) ...[
+            const SizedBox(height: 32),
+            Text(
+              'Suggested to Get Started',
+              style: GoogleFonts.poppins(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...suggestedDecks.asMap().entries.map(
+              (entry) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildDeckCard(entry.value, index: entry.key),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
