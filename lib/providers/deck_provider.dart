@@ -13,6 +13,7 @@ class DeckProvider extends ChangeNotifier {
   List<Deck> _defaultDecks = [];
   List<Deck> _customDecks = [];
   Set<String> _unlockedPremiumDeckIds = {};
+  Set<String> _favoriteDeckIds = {};
   bool _isLoading = false;
   bool _isInitialized = false;
   String _userCountryCode = 'US'; // Default country
@@ -33,6 +34,9 @@ class DeckProvider extends ChangeNotifier {
           .where((d) => !d.isPremium || _unlockedPremiumDeckIds.contains(d.id))
           .toList() +
       _customDecks;
+  Set<String> get favoriteDecks => _favoriteDeckIds;
+  List<Deck> get favoriteDecksAsList =>
+      allDecks.where((d) => _favoriteDeckIds.contains(d.id)).toList();
   bool get isLoading => _isLoading;
   bool get isInitialized => _isInitialized;
   String get userCountryCode => _userCountryCode;
@@ -127,6 +131,10 @@ class DeckProvider extends ChangeNotifier {
       // Load unlocked premium decks from local storage
       _unlockedPremiumDeckIds =
           await _localStorageService.loadUnlockedPremiumDeckIds();
+
+      // Load favorite decks from local storage
+      _favoriteDeckIds =
+          await _localStorageService.loadFavoriteDeckIds();
 
       notifyListeners();
     } catch (e) {
@@ -312,6 +320,49 @@ class DeckProvider extends ChangeNotifier {
     }
   }
 
+  // Add to favorites (stored locally)
+  Future<bool> addToFavorites(String deckId) async {
+    try {
+      _favoriteDeckIds.add(deckId);
+      final success = await _localStorageService.saveFavoriteDeckIds(
+        _favoriteDeckIds,
+      );
+
+      if (success) {
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error adding to favorites: $e');
+      return false;
+    }
+  }
+
+  // Remove from favorites (stored locally)
+  Future<bool> removeFromFavorites(String deckId) async {
+    try {
+      _favoriteDeckIds.remove(deckId);
+      final success = await _localStorageService.saveFavoriteDeckIds(
+        _favoriteDeckIds,
+      );
+
+      if (success) {
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error removing from favorites: $e');
+      return false;
+    }
+  }
+
+  // Check if deck is in favorites
+  bool isFavorite(String deckId) {
+    return _favoriteDeckIds.contains(deckId);
+  }
+
   // Get recent decks
   Future<List<Deck>> getRecentDecks() async {
     final recentIds = await getRecentDeckIds();
@@ -341,6 +392,9 @@ class DeckProvider extends ChangeNotifier {
       // Unlocked premium decks from local storage
       _unlockedPremiumDeckIds =
           await _localStorageService.loadUnlockedPremiumDeckIds();
+      // Favorite decks from local storage
+      _favoriteDeckIds =
+          await _localStorageService.loadFavoriteDeckIds();
       _errorMessage = '';
     } catch (e) {
       debugPrint('Error refreshing data: $e');

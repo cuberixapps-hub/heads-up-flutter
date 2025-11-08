@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'dart:ui';
 import '../models/deck.dart';
 import '../providers/deck_provider.dart';
 import '../services/haptic_service.dart';
@@ -16,36 +17,69 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   final HapticService _hapticService = HapticService();
-  
+  final ScrollController _scrollController = ScrollController();
+
   List<Deck> _filteredDecks = [];
   bool _isSearching = false;
   late AnimationController _animationController;
-  
-  static const searchColor = Color(0xFF9B59B6);
+  late AnimationController _textFieldAnimationController;
+  late Animation<double> _textFieldAnimation;
+  late AnimationController _heroAnimationController;
+  late Animation<double> _heroAnimation;
+
+  // Design tokens
+  static const _primaryAccent = Color(0xFF6366F1);
+  static const _secondaryAccent = Color(0xFFA78BFA);
+  static const _cardColor = Color(0xFF262626);
 
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _textFieldAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    
-    // Auto-focus search field after animation
-    Future.delayed(const Duration(milliseconds: 400), () {
+
+    _textFieldAnimation = CurvedAnimation(
+      parent: _textFieldAnimationController,
+      curve: Curves.easeOutCubic,
+    );
+
+    _heroAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+
+    _heroAnimation = CurvedAnimation(
+      parent: _heroAnimationController,
+      curve: Curves.easeInOutCubic,
+    );
+
+    // Set status bar style
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
+
+    // Auto-focus with elegant delay
+    Future.delayed(const Duration(milliseconds: 300), () {
       if (mounted) {
         _searchFocusNode.requestFocus();
         _animationController.forward();
+        _textFieldAnimationController.forward();
+        _heroAnimationController.forward();
       }
     });
-    
+
     _searchController.addListener(_onSearchChanged);
-    
-    // Initialize with all decks
+
+    // Initialize with trending decks
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final deckProvider = Provider.of<DeckProvider>(context, listen: false);
       setState(() {
@@ -59,28 +93,38 @@ class _SearchScreenState extends State<SearchScreen>
     _searchController.dispose();
     _searchFocusNode.dispose();
     _animationController.dispose();
+    _textFieldAnimationController.dispose();
+    _heroAnimationController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   void _onSearchChanged() {
     final query = _searchController.text.toLowerCase();
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
-    
+
     setState(() {
       _isSearching = query.isNotEmpty;
-      
+
       if (query.isEmpty) {
         _filteredDecks = deckProvider.allDecks;
       } else {
-        _filteredDecks = deckProvider.allDecks.where((deck) {
-          // Search in name, description, tags, and cards
-          final nameMatch = deck.name.toLowerCase().contains(query);
-          final descriptionMatch = deck.description.toLowerCase().contains(query);
-          final tagsMatch = deck.tags.any((tag) => tag.toLowerCase().contains(query));
-          final cardsMatch = deck.cards.any((card) => card.toLowerCase().contains(query));
-          
-          return nameMatch || descriptionMatch || tagsMatch || cardsMatch;
-        }).toList();
+        _filteredDecks =
+            deckProvider.allDecks.where((deck) {
+              // Search in name, description, tags, and cards
+              final nameMatch = deck.name.toLowerCase().contains(query);
+              final descriptionMatch = deck.description.toLowerCase().contains(
+                query,
+              );
+              final tagsMatch = deck.tags.any(
+                (tag) => tag.toLowerCase().contains(query),
+              );
+              final cardsMatch = deck.cards.any(
+                (card) => card.toLowerCase().contains(query),
+              );
+
+              return nameMatch || descriptionMatch || tagsMatch || cardsMatch;
+            }).toList();
       }
     });
   }
@@ -93,198 +137,512 @@ class _SearchScreenState extends State<SearchScreen>
 
   void _closeSearch() {
     _hapticService.lightImpact();
+    _searchFocusNode.unfocus();
     Navigator.of(context).pop();
   }
 
-  void _navigateToDeckDetails(Deck deck) {
+  void _navigateToDeckDetails(Deck deck, {String? heroTag}) {
+    _hapticService.mediumImpact();
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => DeckDetailsScreen(
-          deck: deck,
-          heroTag: 'search_deck_${deck.id}',
-          onPlay: () {
-            // Navigate back to home and play the deck
-            Navigator.of(context).pop();
-            Navigator.of(context).pop();
-          },
-        ),
+      PageRouteBuilder(
+        pageBuilder:
+            (context, animation, secondaryAnimation) => DeckDetailsScreen(
+              deck: deck,
+              heroTag: heroTag ?? 'search_deck_${deck.id}',
+              onPlay: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
+              },
+            ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 0.02);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+
+          var tween = Tween(
+            begin: begin,
+            end: end,
+          ).chain(CurveTween(curve: curve));
+
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: FadeTransition(
+              opacity: animation.drive(
+                Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: curve)),
+              ),
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 400),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          // Background gradient
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  searchColor.withOpacity(0.15),
-                  Colors.black,
-                  Colors.black,
+    return Theme(
+      data: ThemeData.dark().copyWith(
+        colorScheme: ColorScheme.dark(
+          primary: _primaryAccent,
+          secondary: _secondaryAccent,
+        ),
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          children: [
+            // Subtle gradient background
+            Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(-0.5, -0.8),
+                  radius: 1.5,
+                  colors: [Color(0xFF0A0A0A), Colors.black],
+                ),
+              ),
+            ),
+
+            // Noise texture overlay
+            Opacity(
+              opacity: 0.03,
+              child: Container(
+                decoration: const BoxDecoration(
+                  image: DecorationImage(
+                    image: AssetImage('assets/images/noise.png'),
+                    repeat: ImageRepeat.repeat,
+                    opacity: 0.02,
+                  ),
+                ),
+              ),
+            ),
+
+            // Main content
+            SafeArea(
+              child: Column(
+                children: [
+                  // Modern search header
+                  _buildModernSearchHeader(),
+
+                  // Results with blur effect
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        _buildSearchResults(),
+
+                        // Top gradient fade
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: 20,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black,
+                                  Colors.black.withOpacity(0),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-          
-          // Content
-          SafeArea(
-            child: Column(
-              children: [
-                // Search bar header
-                _buildSearchHeader(),
-                
-                // Search results
-                Expanded(
-                  child: _buildSearchResults(),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildSearchHeader() {
+  Widget _buildModernSearchHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      child: Column(
         children: [
-          // Back button
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _closeSearch,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                child: Icon(
-                  Icons.arrow_back_rounded,
-                  color: Colors.white.withOpacity(0.9),
-                  size: 24,
-                ),
-              ),
-            ),
-          )
-          .animate()
-          .fadeIn(delay: 100.ms, duration: 300.ms)
-          .slideX(begin: -0.3, end: 0, duration: 400.ms, curve: Curves.easeOut),
-          
-          const SizedBox(width: 8),
-          
-          // Search input field with Hero transition
-          Expanded(
-            child: Hero(
-              tag: 'search_chip',
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        searchColor.withOpacity(0.25),
-                        searchColor.withOpacity(0.15),
-                      ],
-                    ),
-                    border: Border.all(
-                      color: searchColor.withOpacity(0.5),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: searchColor.withOpacity(0.3),
-                        blurRadius: 20,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      // Search icon
-                      Padding(
-                        padding: const EdgeInsets.only(left: 16, right: 12),
-                        child: ShaderMask(
-                          shaderCallback: (bounds) => LinearGradient(
-                            colors: [
-                              searchColor.withOpacity(0.9),
-                              searchColor.withOpacity(0.6),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ).createShader(bounds),
-                          child: const Icon(
-                            Icons.search_rounded,
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                        ),
-                      ),
-                      
-                      // Text field
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          focusNode: _searchFocusNode,
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Search decks, cards, tags...',
-                            hintStyle: GoogleFonts.poppins(
-                              color: Colors.white.withOpacity(0.5),
-                              fontSize: 15,
-                              fontWeight: FontWeight.w400,
-                            ),
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 12,
-                            ),
-                          ),
-                          cursorColor: searchColor,
-                        ),
-                      ),
-                      
-                      // Clear button
-                      if (_searchController.text.isNotEmpty)
-                        Material(
+          Row(
+            children: [
+              // Modern back button
+              AnimatedBuilder(
+                    animation: _textFieldAnimation,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: 0.9 + (_textFieldAnimation.value * 0.1),
+                        child: Material(
                           color: Colors.transparent,
                           child: InkWell(
-                            onTap: _clearSearch,
-                            borderRadius: BorderRadius.circular(20),
+                            onTap: _closeSearch,
+                            borderRadius: BorderRadius.circular(16),
                             child: Container(
-                              padding: const EdgeInsets.all(8),
-                              child: Icon(
-                                Icons.close_rounded,
-                                color: Colors.white.withOpacity(0.7),
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.05),
+                                  width: 1,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white70,
                                 size: 20,
                               ),
                             ),
                           ),
-                        )
-                        .animate()
-                        .fadeIn(duration: 200.ms)
-                        .scale(begin: const Offset(0.5, 0.5), duration: 200.ms),
-                      
-                      const SizedBox(width: 8),
-                    ],
+                        ),
+                      );
+                    },
+                  )
+                  .animate()
+                  .fadeIn(duration: 400.ms)
+                  .slideX(
+                    begin: -0.2,
+                    end: 0,
+                    duration: 500.ms,
+                    curve: Curves.easeOutCubic,
                   ),
-                ),
-              ),
-            ),
+
+              const SizedBox(width: 16),
+
+              // Premium Hero search field with enhanced animations
+              Expanded(
+                    child: Hero(
+                      tag: 'search_chip',
+                      placeholderBuilder: (context, heroSize, child) {
+                        // Return a placeholder that maintains visibility during hero flight
+                        const searchColor = Color(0xFF9B59B6);
+                        return Container(
+                          width: heroSize.width,
+                          height: heroSize.height,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(24),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                searchColor.withOpacity(0.18),
+                                searchColor.withOpacity(0.08),
+                              ],
+                            ),
+                            border: Border.all(
+                              color: searchColor.withOpacity(0.4),
+                              width: 1.2,
+                            ),
+                          ),
+                        );
+                      },
+                      flightShuttleBuilder: (
+                        BuildContext flightContext,
+                        Animation<double> animation,
+                        HeroFlightDirection flightDirection,
+                        BuildContext fromHeroContext,
+                        BuildContext toHeroContext,
+                      ) {
+                        return AnimatedBuilder(
+                          animation: animation,
+                          builder: (context, child) {
+                            final double progress = animation.value;
+
+                            // Custom easing for premium feel
+                            final double easedProgress = Curves.easeInOutCubic
+                                .transform(progress);
+                            final double elasticProgress = Curves.elasticOut
+                                .transform(progress);
+
+                            // Match home screen chip color
+                            const searchColor = Color(0xFF9B59B6);
+
+                            return Material(
+                              color: Colors.transparent,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0,
+                                  vertical: 12.0,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(24),
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      searchColor.withOpacity(0.18),
+                                      searchColor.withOpacity(0.08),
+                                    ],
+                                  ),
+                                  border: Border.all(
+                                    color: searchColor.withOpacity(0.4),
+                                    width: 1.2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: searchColor.withOpacity(0.2),
+                                      blurRadius: 10 + (10 * easedProgress),
+                                      offset: const Offset(0, 3),
+                                    ),
+                                    if (easedProgress > 0.3)
+                                      BoxShadow(
+                                        color: searchColor.withOpacity(
+                                          0.15 * (easedProgress - 0.3) / 0.7,
+                                        ),
+                                        blurRadius: 20,
+                                        spreadRadius: 2,
+                                      ),
+                                  ],
+                                ),
+                                child: SizedBox(
+                                  height: 24,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Transform.scale(
+                                        scale: 0.95 + (0.05 * elasticProgress),
+                                        child: ShaderMask(
+                                          shaderCallback:
+                                              (bounds) => LinearGradient(
+                                                colors: [
+                                                  searchColor.withOpacity(0.9),
+                                                  searchColor.withOpacity(0.6),
+                                                ],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              ).createShader(bounds),
+                                          child: const Icon(
+                                            Icons.search_rounded,
+                                            color: Colors.white,
+                                            size: 20,
+                                          ),
+                                        ),
+                                      ),
+                                      if (progress > 0.2)
+                                        Flexible(
+                                          child: Padding(
+                                            padding: const EdgeInsets.only(
+                                              left: 16.0,
+                                            ),
+                                            child: Opacity(
+                                              opacity: (progress - 0.2) / 0.8,
+                                              child: Text(
+                                                'Search for decks',
+                                                style: GoogleFonts.inter(
+                                                  color: Colors.white
+                                                      .withOpacity(0.4),
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w400,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                      child: Material(
+                        color: Colors.transparent,
+                        child: AnimatedBuilder(
+                          animation: Listenable.merge([
+                            _textFieldAnimation,
+                            _heroAnimation,
+                          ]),
+                          builder: (context, child) {
+                            // Match home screen chip color
+                            const searchColor = Color(0xFF9B59B6);
+
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16.0,
+                                vertical: 12.0,
+                              ),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(24),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    searchColor.withOpacity(0.18),
+                                    searchColor.withOpacity(0.08),
+                                  ],
+                                ),
+                                border: Border.all(
+                                  color: searchColor.withOpacity(0.4),
+                                  width: 1.2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: searchColor.withOpacity(0.2),
+                                    blurRadius:
+                                        10 + (10 * _heroAnimation.value),
+                                    offset: const Offset(0, 3),
+                                  ),
+                                  if (_heroAnimation.value > 0.3)
+                                    BoxShadow(
+                                      color: searchColor.withOpacity(
+                                        0.15 *
+                                            (_heroAnimation.value - 0.3) /
+                                            0.7,
+                                      ),
+                                      blurRadius: 20,
+                                      spreadRadius: 2,
+                                    ),
+                                ],
+                              ),
+                              child: SizedBox(
+                                height: 24,
+                                child: Row(
+                                  children: [
+                                    // Match home screen icon exactly
+                                    AnimatedBuilder(
+                                      animation: _heroAnimation,
+                                      builder: (context, child) {
+                                        return Transform.scale(
+                                          scale:
+                                              0.95 +
+                                              (0.05 * _heroAnimation.value),
+                                          child: ShaderMask(
+                                            shaderCallback:
+                                                (bounds) => LinearGradient(
+                                                  colors: [
+                                                    searchColor.withOpacity(
+                                                      0.9,
+                                                    ),
+                                                    searchColor.withOpacity(
+                                                      0.6,
+                                                    ),
+                                                  ],
+                                                  begin: Alignment.topLeft,
+                                                  end: Alignment.bottomRight,
+                                                ).createShader(bounds),
+                                            child: const Icon(
+                                              Icons.search_rounded,
+                                              color: Colors.white,
+                                              size: 20,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+
+                                    const SizedBox(width: 16),
+
+                                    // Search field with smooth fade-in
+                                    Expanded(
+                                      child: AnimatedBuilder(
+                                        animation: _heroAnimation,
+                                        builder: (context, child) {
+                                          return Opacity(
+                                            opacity: _heroAnimation.value,
+                                            child: TextField(
+                                              controller: _searchController,
+                                              focusNode: _searchFocusNode,
+                                              maxLines: 1,
+                                              textAlignVertical:
+                                                  TextAlignVertical.center,
+                                              style: GoogleFonts.inter(
+                                                color: Colors.white,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w400,
+                                                letterSpacing: 0.2,
+                                                height: 1.0,
+                                              ),
+                                              decoration: InputDecoration(
+                                                hintText: 'Search for decks',
+                                                hintStyle: GoogleFonts.inter(
+                                                  color: Colors.white
+                                                      .withOpacity(0.4),
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w400,
+                                                ),
+                                                border: InputBorder.none,
+                                                contentPadding: EdgeInsets.zero,
+                                                isDense: true,
+                                              ),
+                                              cursorColor: searchColor,
+                                              cursorWidth: 2,
+                                              cursorHeight: 20,
+                                              cursorRadius:
+                                                  const Radius.circular(2),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+
+                                    // Premium clear button
+                                    AnimatedSwitcher(
+                                      duration: const Duration(
+                                        milliseconds: 350,
+                                      ),
+                                      switchInCurve: Curves.easeOutBack,
+                                      switchOutCurve: Curves.easeInCubic,
+                                      transitionBuilder: (child, animation) {
+                                        return ScaleTransition(
+                                          scale: animation,
+                                          child: FadeTransition(
+                                            opacity: animation,
+                                            child: child,
+                                          ),
+                                        );
+                                      },
+                                      child:
+                                          _searchController.text.isNotEmpty
+                                              ? Material(
+                                                key: const ValueKey(
+                                                  'clear_button',
+                                                ),
+                                                color: Colors.transparent,
+                                                child: InkWell(
+                                                  onTap: _clearSearch,
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  child: Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(6),
+                                                    child: Icon(
+                                                      Icons.close_rounded,
+                                                      color: searchColor
+                                                          .withOpacity(0.7),
+                                                      size: 18,
+                                                    ),
+                                                  ),
+                                                ),
+                                              )
+                                              : const SizedBox.shrink(
+                                                key: ValueKey('empty'),
+                                              ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  )
+                  .animate()
+                  .fadeIn(delay: 100.ms, duration: 500.ms)
+                  .slideX(
+                    begin: 0.1,
+                    end: 0,
+                    delay: 100.ms,
+                    duration: 500.ms,
+                    curve: Curves.easeOutCubic,
+                  ),
+            ],
           ),
         ],
       ),
@@ -292,368 +650,1345 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildSearchResults() {
+    // Check if decks are still loading
+    final deckProvider = Provider.of<DeckProvider>(context, listen: true);
+
+    if (deckProvider.isLoading) {
+      return _buildSkeletonLoader();
+    }
+
     if (!_isSearching && _searchController.text.isEmpty) {
-      // Show search suggestions
-      return _buildSearchSuggestions();
+      return _buildModernSearchSuggestions();
     }
-    
+
     if (_filteredDecks.isEmpty) {
-      // No results found
-      return _buildNoResults();
+      return _buildModernNoResults();
     }
-    
-    // Show filtered results
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      physics: const BouncingScrollPhysics(),
-      itemCount: _filteredDecks.length,
-      itemBuilder: (context, index) {
-        final deck = _filteredDecks[index];
-        return _buildDeckCard(deck, index);
+
+    // Modern results grid with 3 items per row
+    return AnimatedBuilder(
+      animation: _animationController,
+      builder: (context, child) {
+        return GridView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            childAspectRatio: 0.7,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+          ),
+          itemCount: _filteredDecks.length,
+          itemBuilder: (context, index) {
+            final deck = _filteredDecks[index];
+            return _buildModernDeckGridCard(deck, index);
+          },
+        );
       },
     );
   }
 
-  Widget _buildSearchSuggestions() {
-    final suggestions = [
-      {'icon': FontAwesomeIcons.fire, 'text': 'Trending', 'color': const Color(0xFFE74C3C)},
-      {'icon': FontAwesomeIcons.film, 'text': 'Movies', 'color': const Color(0xFFE67E22)},
-      {'icon': FontAwesomeIcons.music, 'text': 'Music', 'color': const Color(0xFFF39C12)},
-      {'icon': FontAwesomeIcons.gamepad, 'text': 'Gaming', 'color': const Color(0xFF9B59B6)},
-      {'icon': FontAwesomeIcons.globe, 'text': 'World', 'color': const Color(0xFF3498DB)},
-      {'icon': FontAwesomeIcons.heart, 'text': 'Love & Romance', 'color': const Color(0xFFE91E63)},
+  Widget _buildModernSearchSuggestions() {
+    final categories = [
+      {
+        'icon': Icons.local_fire_department_rounded,
+        'text': 'Trending',
+        'gradient': [const Color(0xFFFF6B6B), const Color(0xFFFF8C42)],
+      },
+      {
+        'icon': Icons.movie_rounded,
+        'text': 'Movies',
+        'gradient': [const Color(0xFF667EEA), const Color(0xFF764BA2)],
+      },
+      {
+        'icon': Icons.music_note_rounded,
+        'text': 'Music',
+        'gradient': [const Color(0xFF06BEB6), const Color(0xFF48B1BF)],
+      },
+      {
+        'icon': Icons.sports_esports_rounded,
+        'text': 'Gaming',
+        'gradient': [const Color(0xFFF093FB), const Color(0xFFF5576C)],
+      },
+      {
+        'icon': Icons.public_rounded,
+        'text': 'World',
+        'gradient': [const Color(0xFF4FACFE), const Color(0xFF00F2FE)],
+      },
+      {
+        'icon': Icons.favorite_rounded,
+        'text': 'Romance',
+        'gradient': [const Color(0xFFFA709A), const Color(0xFFFEE140)],
+      },
     ];
-    
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Trending searches section
           Text(
-            'Popular Categories',
-            style: GoogleFonts.poppins(
-              color: Colors.white.withOpacity(0.9),
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-            ),
-          )
-          .animate()
-          .fadeIn(delay: 200.ms, duration: 400.ms)
-          .slideY(begin: 0.3, end: 0, duration: 400.ms),
-          
-          const SizedBox(height: 8),
-          
+                'Trending Searches',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.5,
+                ),
+              )
+              .animate()
+              .fadeIn(delay: 200.ms, duration: 600.ms)
+              .slideY(begin: 0.1, end: 0, duration: 600.ms),
+
+          const SizedBox(height: 4),
+
           Text(
-            'Tap to explore',
-            style: GoogleFonts.poppins(
-              color: Colors.white.withOpacity(0.5),
+            'Popular categories right now',
+            style: GoogleFonts.inter(
+              color: Colors.white.withOpacity(0.4),
               fontSize: 14,
               fontWeight: FontWeight.w400,
             ),
-          )
-          .animate()
-          .fadeIn(delay: 300.ms, duration: 400.ms),
-          
+          ).animate().fadeIn(delay: 250.ms, duration: 600.ms),
+
           const SizedBox(height: 24),
-          
+
+          // Category pills
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: suggestions.asMap().entries.map((entry) {
-              final index = entry.key;
-              final suggestion = entry.value;
-              
-              return Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    _hapticService.selection();
-                    _searchController.text = suggestion['text'] as String;
-                  },
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 12,
+            children:
+                categories.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final category = entry.value;
+
+                  return Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            _hapticService.selection();
+                            _searchController.text = category['text'] as String;
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            decoration: BoxDecoration(
+                              color: _cardColor.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.05),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ShaderMask(
+                                  shaderCallback:
+                                      (bounds) => LinearGradient(
+                                        colors:
+                                            category['gradient'] as List<Color>,
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ).createShader(bounds),
+                                  child: Icon(
+                                    category['icon'] as IconData,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  category['text'] as String,
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white.withOpacity(0.9),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                      .animate()
+                      .fadeIn(delay: (300 + index * 60).ms, duration: 600.ms)
+                      .slideY(
+                        begin: 0.1,
+                        end: 0,
+                        delay: (300 + index * 60).ms,
+                        duration: 600.ms,
+                        curve: Curves.easeOutCubic,
+                      );
+                }).toList(),
+          ),
+
+          const SizedBox(height: 40),
+
+          // Recent searches
+          Text(
+            'Recent Searches',
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.5,
+            ),
+          ).animate().fadeIn(delay: 600.ms, duration: 600.ms),
+
+          const SizedBox(height: 16),
+
+          // Recent search items
+          ..._buildRecentSearchItems(),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildRecentSearchItems() {
+    final recentSearches = [
+      'Celebrity Challenge',
+      'Movie Quotes',
+      'Animal Kingdom',
+    ];
+
+    return recentSearches.asMap().entries.map((entry) {
+      final index = entry.key;
+      final search = entry.value;
+
+      return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  _hapticService.selection();
+                  _searchController.text = search;
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.05),
+                      width: 1,
                     ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.history_rounded,
+                        color: Colors.white.withOpacity(0.3),
+                        size: 18,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          search,
+                          style: GoogleFonts.inter(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.north_east_rounded,
+                        color: Colors.white.withOpacity(0.2),
+                        size: 16,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          )
+          .animate()
+          .fadeIn(delay: (700 + index * 80).ms, duration: 600.ms)
+          .slideX(
+            begin: 0.05,
+            end: 0,
+            delay: (700 + index * 80).ms,
+            duration: 600.ms,
+            curve: Curves.easeOutCubic,
+          );
+    }).toList();
+  }
+
+  Widget _buildModernNoResults() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Modern empty state illustration
+            Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        _primaryAccent.withOpacity(0.1),
+                        _secondaryAccent.withOpacity(0.05),
+                      ],
+                    ),
+                  ),
+                  child: Center(
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            _primaryAccent.withOpacity(0.15),
+                            _secondaryAccent.withOpacity(0.1),
+                          ],
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.search_off_rounded,
+                        size: 40,
+                        color: _primaryAccent.withOpacity(0.5),
+                      ),
+                    ),
+                  ),
+                )
+                .animate()
+                .fadeIn(duration: 600.ms)
+                .scale(
+                  begin: const Offset(0.8, 0.8),
+                  end: const Offset(1, 1),
+                  duration: 800.ms,
+                  curve: Curves.easeOutBack,
+                ),
+
+            const SizedBox(height: 32),
+
+            Text(
+                  'No results found',
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.5,
+                  ),
+                )
+                .animate()
+                .fadeIn(delay: 300.ms, duration: 600.ms)
+                .slideY(begin: 0.1, end: 0, delay: 300.ms, duration: 600.ms),
+
+            const SizedBox(height: 8),
+
+            Text(
+              'Try adjusting your search',
+              style: GoogleFonts.inter(
+                color: Colors.white.withOpacity(0.4),
+                fontSize: 15,
+                fontWeight: FontWeight.w400,
+              ),
+            ).animate().fadeIn(delay: 400.ms, duration: 600.ms),
+
+            const SizedBox(height: 32),
+
+            // Suggestion button
+            Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _clearSearch,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _primaryAccent.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        'Clear search',
+                        style: GoogleFonts.inter(
+                          color: _primaryAccent,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+                .animate()
+                .fadeIn(delay: 500.ms, duration: 600.ms)
+                .slideY(begin: 0.1, end: 0, delay: 500.ms, duration: 600.ms),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernDeckGridCard(Deck deck, int index) {
+    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+    final isUnlocked = deckProvider.isDeckUnlocked(deck.id);
+    final isPremium = deck.isPremium;
+
+    // Create unique hero tag for this specific card instance
+    final heroTag =
+        'search_deck_card_${deck.id}_${DateTime.now().millisecondsSinceEpoch}_$index';
+
+    return Hero(
+          tag: heroTag,
+          createRectTween: (begin, end) {
+            return MaterialRectArcTween(begin: begin, end: end);
+          },
+          child: Material(
+            color: Colors.transparent,
+            child: GestureDetector(
+              onTap: () {
+                _hapticService.selection();
+                _navigateToDeckDetails(deck, heroTag: heroTag);
+              },
+              onLongPress: () {
+                _hapticService.heavyImpact();
+                _showDeckQuickActions(deck);
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2C2C2E),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.08),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                      spreadRadius: -4,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(15),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Background image or color
+                      if (deck.imageUrl != null && deck.imageUrl!.isNotEmpty)
+                        Image.network(
+                          deck.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: deck.color.withOpacity(0.2),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  deck.icon,
+                                  color: deck.color,
+                                  size: 40,
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      else
+                        Container(
+                          decoration: BoxDecoration(
+                            color: deck.color.withOpacity(0.15),
+                          ),
+                          child: Center(
+                            child: Icon(deck.icon, color: deck.color, size: 40),
+                          ),
+                        ),
+
+                      // Subtle gradient overlay for depth
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.2),
+                            ],
+                            stops: const [0.5, 1.0],
+                          ),
+                        ),
+                      ),
+
+                      // Deck info overlay
+                      Positioned(
+                        bottom: 12,
+                        left: 12,
+                        right: 12,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              deck.name,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                letterSpacing: -0.2,
+                                height: 1.2,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${deck.cards.length} cards',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withOpacity(0.6),
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Premium lock overlay
+                      if (isPremium && !isUnlocked)
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.5),
+                          ),
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.3),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(
+                                    0xFFFFC107,
+                                  ).withOpacity(0.3),
+                                  width: 2,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.lock_rounded,
+                                color: Color(0xFFFFC107),
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                      // Play icon hint (top right)
+                      if (!isPremium || isUnlocked)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.9),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.play_arrow_rounded,
+                                  color: deck.color,
+                                  size: 20,
+                                ),
+                              )
+                              .animate(delay: (500 + index * 100).ms)
+                              .fadeIn(duration: 300.ms)
+                              .scale(
+                                begin: const Offset(0.6, 0.6),
+                                end: const Offset(1, 1),
+                                duration: 300.ms,
+                                curve: Curves.easeOutBack,
+                              ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        )
+        .animate()
+        .fadeIn(delay: (index * 50).ms, duration: 500.ms)
+        .scale(
+          begin: const Offset(0.9, 0.9),
+          end: const Offset(1, 1),
+          delay: (index * 50).ms,
+          duration: 500.ms,
+          curve: Curves.easeOutCubic,
+        );
+  }
+
+  Widget _buildSkeletonLoader() {
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 0.7,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: 6,
+      itemBuilder: (context, index) {
+        return _buildSkeletonCard()
+            .animate(onPlay: (controller) => controller.repeat())
+            .shimmer(
+              duration: 1500.ms,
+              color: Colors.white.withOpacity(0.1),
+              angle: 0,
+            );
+      },
+    );
+  }
+
+  Widget _buildSkeletonCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C2C2E).withOpacity(0.5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(15),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Skeleton background
+            Container(color: Colors.white.withOpacity(0.03)),
+
+            // Skeleton text at bottom
+            Positioned(
+              bottom: 12,
+              left: 12,
+              right: 12,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Skeleton title
+                  Container(
+                    width: double.infinity,
+                    height: 14,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(7),
+                      color: Colors.white.withOpacity(0.1),
+                    ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  // Skeleton subtitle
+                  Container(
+                    width: 60,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(5),
+                      color: Colors.white.withOpacity(0.08),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Skeleton play icon at top right
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================================
+  // PREMIUM QUICK ACTIONS - Netflix-Style Experience
+  // ============================================================================
+
+  void _showDeckQuickActions(Deck deck) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(0.85),
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      builder:
+          (context) => BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+            child: _buildPremiumQuickActionsSheet(deck),
+          ),
+    );
+  }
+
+  Widget _buildPremiumQuickActionsSheet(Deck deck) {
+    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+    final isFavorite = deckProvider.favoriteDecks.contains(deck.id);
+
+    return Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1A1A1C), Color(0xFF141416)],
+            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            border: Border.all(color: Colors.white.withOpacity(0.06), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.7),
+                blurRadius: 40,
+                spreadRadius: 0,
+                offset: const Offset(0, -8),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Elegant drag handle with pulsing animation
+                Container(
+                      margin: const EdgeInsets.only(top: 14, bottom: 6),
+                      width: 42,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.white.withOpacity(0.15),
+                            Colors.white.withOpacity(0.25),
+                            Colors.white.withOpacity(0.15),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(2.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.white.withOpacity(0.1),
+                            blurRadius: 8,
+                            spreadRadius: 0,
+                          ),
+                        ],
+                      ),
+                    )
+                    .animate(
+                      onPlay: (controller) => controller.repeat(reverse: true),
+                    )
+                    .fadeIn(duration: 300.ms)
+                    .shimmer(
+                      duration: 2000.ms,
+                      color: Colors.white.withOpacity(0.1),
+                    )
+                    .scale(
+                      begin: const Offset(0.95, 1),
+                      end: const Offset(1.0, 1),
+                      duration: 300.ms,
+                      curve: Curves.easeOutBack,
+                    ),
+
+                const SizedBox(height: 12),
+
+                // Premium deck preview
+                _buildPremiumDeckPreview(deck),
+
+                const SizedBox(height: 20),
+
+                // Elegant separator with gradient
+                Container(
+                      height: 0.5,
+                      margin: const EdgeInsets.symmetric(horizontal: 24),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            Colors.white.withOpacity(0.08),
+                            Colors.white.withOpacity(0.12),
+                            Colors.white.withOpacity(0.08),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
+                        ),
+                      ),
+                    )
+                    .animate()
+                    .fadeIn(delay: 150.ms, duration: 500.ms)
+                    .scale(begin: const Offset(0.8, 1), duration: 500.ms),
+
+                const SizedBox(height: 20),
+
+                // Premium action buttons
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    children: [
+                      _buildPremiumActionButton(
+                        icon:
+                            isFavorite
+                                ? Icons.favorite_rounded
+                                : Icons.favorite_border_rounded,
+                        label:
+                            isFavorite
+                                ? 'Remove from Favorites'
+                                : 'Add to Favorites',
+                        subtitle:
+                            isFavorite
+                                ? 'Saved to your collection'
+                                : 'Save for later',
+                        gradient: const [Color(0xFFFF6B6B), Color(0xFFEE5A6F)],
+                        onTap: () => _toggleFavorite(deck),
+                        index: 0,
+                      ),
+                      const SizedBox(height: 10),
+                      _buildPremiumActionButton(
+                        icon: Icons.ios_share_rounded,
+                        label: 'Share Deck',
+                        subtitle: 'Send to friends',
+                        gradient: const [Color(0xFF667EEA), Color(0xFF6B5DD3)],
+                        onTap: () => _shareDeck(deck),
+                        index: 1,
+                      ),
+                      const SizedBox(height: 10),
+                      _buildPremiumActionButton(
+                        icon: Icons.info_outline_rounded,
+                        label: 'View Details',
+                        subtitle: 'See full description',
+                        gradient: const [Color(0xFF00C9A7), Color(0xFF00B298)],
+                        onTap: () {
+                          Navigator.pop(context);
+                          Future.delayed(const Duration(milliseconds: 250), () {
+                            _navigateToDeckDetails(deck);
+                          });
+                        },
+                        index: 2,
+                      ),
+                      const SizedBox(height: 10),
+                      _buildPremiumActionButton(
+                        icon: Icons.shuffle_rounded,
+                        label: 'Shuffle & Play',
+                        subtitle: 'Random card order',
+                        gradient: const [Color(0xFFF093FB), Color(0xFFE578F8)],
+                        onTap: () => _shuffleAndPlay(deck),
+                        index: 3,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 28),
+              ],
+            ),
+          ),
+        )
+        .animate()
+        .slideY(
+          begin: 0.15,
+          end: 0,
+          duration: 550.ms,
+          curve: Curves.easeOutCubic,
+        )
+        .fadeIn(duration: 350.ms);
+  }
+
+  Widget _buildPremiumDeckPreview(Deck deck) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withOpacity(0.03),
+                  Colors.white.withOpacity(0.01),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.06),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 20,
+                  spreadRadius: -5,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                // Premium deck thumbnail with glow
+                Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            deck.color.withOpacity(0.2),
+                            deck.color.withOpacity(0.1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: deck.color.withOpacity(0.3),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: deck.color.withOpacity(0.3),
+                            blurRadius: 15,
+                            spreadRadius: 0,
+                          ),
+                        ],
+                      ),
+                      child:
+                          deck.imageUrl != null && deck.imageUrl!.isNotEmpty
+                              ? ClipRRect(
+                                borderRadius: BorderRadius.circular(15),
+                                child: Image.network(
+                                  deck.imageUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Center(
+                                      child: Icon(
+                                        deck.icon,
+                                        color: deck.color,
+                                        size: 32,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              )
+                              : Center(
+                                child: Icon(
+                                  deck.icon,
+                                  color: deck.color,
+                                  size: 32,
+                                ),
+                              ),
+                    )
+                    .animate()
+                    .scale(
+                      begin: const Offset(0.85, 0.85),
+                      duration: 500.ms,
+                      curve: Curves.easeOutBack,
+                    )
+                    .fadeIn(duration: 400.ms)
+                    .shimmer(
+                      delay: 300.ms,
+                      duration: 1500.ms,
+                      color: Colors.white.withOpacity(0.1),
+                    ),
+
+                const SizedBox(width: 18),
+
+                // Deck information with elegant typography
+                Expanded(
+                  child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Deck name
+                          Text(
+                            deck.name,
+                            style: GoogleFonts.inter(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              letterSpacing: -0.5,
+                              height: 1.3,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 6),
+
+                          // Card count and badges
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.1),
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.layers_rounded,
+                                      size: 12,
+                                      color: Colors.white.withOpacity(0.6),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${deck.cards.length}',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white.withOpacity(0.7),
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (deck.isPremium) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFFFFD700),
+                                        Color(0xFFFFA500),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(
+                                          0xFFFFA500,
+                                        ).withOpacity(0.3),
+                                        blurRadius: 8,
+                                        spreadRadius: 0,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.workspace_premium_rounded,
+                                        size: 12,
+                                        color: Colors.black87,
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'PRO',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.black87,
+                                          letterSpacing: 0.8,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      )
+                      .animate()
+                      .fadeIn(delay: 150.ms, duration: 500.ms)
+                      .slideX(
+                        begin: 0.08,
+                        duration: 500.ms,
+                        curve: Curves.easeOutCubic,
+                      ),
+                ),
+              ],
+            ),
+          )
+          .animate()
+          .scale(
+            begin: const Offset(0.92, 0.92),
+            duration: 450.ms,
+            curve: Curves.easeOutCubic,
+          )
+          .fadeIn(duration: 400.ms),
+    );
+  }
+
+  Widget _buildPremiumActionButton({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required List<Color> gradient,
+    required VoidCallback onTap,
+    required int index,
+  }) {
+    return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              _hapticService.mediumImpact();
+              onTap();
+            },
+            borderRadius: BorderRadius.circular(18),
+            splashColor: gradient[0].withOpacity(0.1),
+            highlightColor: gradient[0].withOpacity(0.05),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withOpacity(0.04),
+                    Colors.white.withOpacity(0.01),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.06),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 12,
+                    spreadRadius: -3,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // Premium icon with gradient glow
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          (suggestion['color'] as Color).withOpacity(0.2),
-                          (suggestion['color'] as Color).withOpacity(0.1),
+                          gradient[0].withOpacity(0.18),
+                          gradient[1].withOpacity(0.12),
                         ],
                       ),
+                      borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: (suggestion['color'] as Color).withOpacity(0.3),
-                        width: 1,
+                        color: gradient[0].withOpacity(0.25),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: gradient[0].withOpacity(0.25),
+                          blurRadius: 12,
+                          spreadRadius: 0,
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: ShaderMask(
+                        shaderCallback:
+                            (bounds) => LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: gradient,
+                            ).createShader(bounds),
+                        child: Icon(icon, color: Colors.white, size: 24),
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                  ),
+
+                  const SizedBox(width: 16),
+
+                  // Label and subtitle with elegant typography
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        FaIcon(
-                          suggestion['icon'] as IconData,
-                          color: suggestion['color'] as Color,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
                         Text(
-                          suggestion['text'] as String,
-                          style: GoogleFonts.poppins(
-                            color: Colors.white.withOpacity(0.85),
-                            fontSize: 14,
+                          label,
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: -0.3,
+                            height: 1.3,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
                             fontWeight: FontWeight.w500,
+                            color: Colors.white.withOpacity(0.45),
+                            letterSpacing: 0.1,
+                            height: 1.3,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              )
-              .animate()
-              .fadeIn(
-                delay: (300 + index * 50).ms,
-                duration: 400.ms,
-              )
-              .scale(
-                begin: const Offset(0.8, 0.8),
-                delay: (300 + index * 50).ms,
-                duration: 400.ms,
-                curve: Curves.easeOutBack,
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildNoResults() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  searchColor.withOpacity(0.2),
-                  searchColor.withOpacity(0.05),
+                  // Subtle chevron
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20,
+                    color: Colors.white.withOpacity(0.25),
+                  ),
                 ],
               ),
             ),
-            child: Icon(
-              Icons.search_off_rounded,
-              size: 64,
-              color: searchColor.withOpacity(0.6),
-            ),
-          )
-          .animate()
-          .fadeIn(duration: 400.ms)
-          .scale(begin: const Offset(0.5, 0.5), duration: 500.ms, curve: Curves.easeOutBack),
-          
-          const SizedBox(height: 24),
-          
-          Text(
-            'No results found',
-            style: GoogleFonts.poppins(
-              color: Colors.white.withOpacity(0.9),
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-            ),
-          )
-          .animate()
-          .fadeIn(delay: 200.ms, duration: 400.ms)
-          .slideY(begin: 0.3, end: 0, delay: 200.ms, duration: 400.ms),
-          
-          const SizedBox(height: 8),
-          
-          Text(
-            'Try searching for something else',
-            style: GoogleFonts.poppins(
-              color: Colors.white.withOpacity(0.5),
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-            ),
-          )
-          .animate()
-          .fadeIn(delay: 300.ms, duration: 400.ms),
-        ],
-      ),
-    );
+          ),
+        )
+        .animate()
+        .fadeIn(delay: (index * 60).ms, duration: 500.ms, curve: Curves.easeOut)
+        .slideX(
+          begin: 0.08,
+          end: 0,
+          delay: (index * 60).ms,
+          duration: 500.ms,
+          curve: Curves.easeOutCubic,
+        )
+        .scale(
+          begin: const Offset(0.96, 0.96),
+          end: const Offset(1, 1),
+          delay: (index * 60).ms,
+          duration: 500.ms,
+          curve: Curves.easeOutBack,
+        );
   }
 
-  Widget _buildDeckCard(Deck deck, int index) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          _hapticService.selection();
-          _navigateToDeckDetails(deck);
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                deck.color.withOpacity(0.2),
-                deck.color.withOpacity(0.05),
-              ],
-            ),
-            border: Border.all(
-              color: deck.color.withOpacity(0.3),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: deck.color.withOpacity(0.15),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
+  // ============================================================================
+  // ACTION HANDLERS
+  // ============================================================================
+
+  void _toggleFavorite(Deck deck) {
+    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+    final isFavorite = deckProvider.favoriteDecks.contains(deck.id);
+
+    if (isFavorite) {
+      deckProvider.removeFromFavorites(deck.id);
+      _showSuccessToast('Removed from favorites');
+    } else {
+      deckProvider.addToFavorites(deck.id);
+      _showSuccessToast('Added to favorites ❤️');
+    }
+
+    Navigator.pop(context);
+  }
+
+  void _shareDeck(Deck deck) {
+    Navigator.pop(context);
+    _hapticService.lightImpact();
+
+    // Show share sheet
+    Future.delayed(const Duration(milliseconds: 200), () {
+      _showSuccessToast('Share feature coming soon! 📤');
+      // TODO: Implement actual share functionality
+      // Share.share('Check out this deck: ${deck.name}');
+    });
+  }
+
+  void _shuffleAndPlay(Deck deck) {
+    Navigator.pop(context);
+    _hapticService.heavyImpact();
+
+    Future.delayed(const Duration(milliseconds: 200), () {
+      _showSuccessToast('Shuffling deck... 🎲');
+      // Navigate to deck details with shuffle flag
+      _navigateToDeckDetails(deck);
+    });
+  }
+
+  void _showSuccessToast(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
           child: Row(
             children: [
-              // Deck icon
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [
-                      deck.color.withOpacity(0.3),
-                      deck.color.withOpacity(0.15),
-                    ],
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00D9B1), Color(0xFF00A88E)],
                   ),
-                ),
-                child: Icon(
-                  deck.icon,
-                  color: deck.color,
-                  size: 24,
-                ),
-              ),
-              
-              const SizedBox(width: 16),
-              
-              // Deck info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            deck.name,
-                            style: GoogleFonts.poppins(
-                              color: Colors.white.withOpacity(0.95),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        
-                        // Premium badge
-                        if (deck.isPremium)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(8),
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFFFFD700),
-                                  Color(0xFFFFA500),
-                                ],
-                              ),
-                            ),
-                            child: Text(
-                              'PRO',
-                              style: GoogleFonts.poppins(
-                                color: Colors.black,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 4),
-                    
-                    Text(
-                      deck.description,
-                      style: GoogleFonts.poppins(
-                        color: Colors.white.withOpacity(0.6),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    
-                    const SizedBox(height: 8),
-                    
-                    // Cards count
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.style_rounded,
-                          size: 14,
-                          color: Colors.white.withOpacity(0.5),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${deck.cards.length} cards',
-                          style: GoogleFonts.poppins(
-                            color: Colors.white.withOpacity(0.5),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                      ],
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF00D9B1).withOpacity(0.3),
+                      blurRadius: 8,
+                      spreadRadius: 0,
                     ),
                   ],
                 ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
-              
-              // Arrow icon
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                color: deck.color.withOpacity(0.6),
-                size: 18,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  message,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    letterSpacing: -0.2,
+                  ),
+                ),
               ),
             ],
           ),
         ),
+        backgroundColor: const Color(0xFF1A1A1C),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.white.withOpacity(0.08), width: 1),
+        ),
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 90),
+        duration: const Duration(milliseconds: 2500),
+        elevation: 0,
       ),
-    )
-    .animate()
-    .fadeIn(
-      delay: (100 + index * 50).ms,
-      duration: 400.ms,
-    )
-    .slideX(
-      begin: 0.2,
-      end: 0,
-      delay: (100 + index * 50).ms,
-      duration: 400.ms,
-      curve: Curves.easeOut,
     );
   }
 }
-

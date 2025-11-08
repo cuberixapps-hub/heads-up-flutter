@@ -8,6 +8,7 @@ class LocalStorageService {
   static const String _customDecksKey = 'custom_decks';
   static const String _recentDecksKey = 'recent_decks';
   static const String _unlockedPremiumKey = 'unlocked_premium_decks';
+  static const String _favoriteDecksKey = 'favorite_decks';
 
   // Save custom decks to local storage
   Future<bool> saveCustomDecks(List<Deck> decks) async {
@@ -158,6 +159,29 @@ class LocalStorageService {
     }
   }
 
+  // Save favorite deck IDs
+  Future<bool> saveFavoriteDeckIds(Set<String> deckIds) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return await prefs.setStringList(_favoriteDecksKey, deckIds.toList());
+    } catch (e) {
+      debugPrint('Error saving favorite deck IDs: $e');
+      return false;
+    }
+  }
+
+  // Load favorite deck IDs
+  Future<Set<String>> loadFavoriteDeckIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ids = prefs.getStringList(_favoriteDecksKey) ?? [];
+      return ids.toSet();
+    } catch (e) {
+      debugPrint('Error loading favorite deck IDs: $e');
+      return {};
+    }
+  }
+
   // Helper method to convert Deck to JSON
   Map<String, dynamic> _deckToJson(Deck deck) {
     return {
@@ -273,6 +297,7 @@ class LocalStorageService {
       await prefs.remove(_customDecksKey);
       await prefs.remove(_recentDecksKey);
       await prefs.remove(_unlockedPremiumKey);
+      await prefs.remove(_favoriteDecksKey);
     } catch (e) {
       debugPrint('Error clearing all data: $e');
     }

@@ -36,6 +36,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   final ScrollController _scrollController = ScrollController();
   String _selectedCategory = 'Trending';
 
+  // GlobalKey for tracking the category content position
+  final GlobalKey _categoryContentKey = GlobalKey();
+
   // Gradient fade configuration
   static const double _gradientFadeDistance =
       200.0; // Pixels to scroll for complete fade
@@ -291,6 +294,42 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     }
   }
 
+  /// Smoothly scrolls to the category content section
+  void _scrollToCategoryContent() {
+    // Use a post-frame callback to ensure the widget is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      final RenderBox? renderBox =
+          _categoryContentKey.currentContext?.findRenderObject() as RenderBox?;
+
+      if (renderBox != null && _scrollController.hasClients) {
+        // Get the position of the category content relative to the viewport
+        final position = renderBox.localToGlobal(Offset.zero);
+
+        // Calculate target scroll offset
+        // We want to position the content just below the category chips
+        // Account for the app bar height and category chips height
+        final targetOffset =
+            _scrollController.offset +
+            position.dy -
+            MediaQuery.of(context).padding.top -
+            150; // 150 accounts for header + chips
+
+        // Clamp the target to valid scroll range
+        final maxScroll = _scrollController.position.maxScrollExtent;
+        final clampedOffset = targetOffset.clamp(0.0, maxScroll);
+
+        // Animate to the target position with smooth easing
+        _scrollController.animateTo(
+          clampedOffset,
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeInOutCubic,
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return ScrollConfiguration(
@@ -386,28 +425,27 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               const SizedBox(height: 24),
                             ],
 
-                            // Quick stats banner
-                            _buildStatsSection(),
-
-                            const SizedBox(height: 24),
-
                             // Recommended for you (filtered by category)
-                            Consumer<DeckProvider>(
-                              builder: (context, deckProvider, _) {
-                                final filteredDecks = _getFilteredDecks(
-                                  deckProvider.freeDecks,
-                                );
-                                if (filteredDecks.isEmpty &&
-                                    deckProvider.isInitialized) {
-                                  return _buildNoDecksMessage();
-                                }
-                                return _buildSection(
-                                  title: _getCategoryTitle(),
-                                  decks: filteredDecks.take(10).toList(),
-                                  icon: _getCategoryIcon(),
-                                  iconColor: _getCategoryColor(),
-                                );
-                              },
+                            // Wrapped with key to track position for smooth scrolling
+                            Container(
+                              key: _categoryContentKey,
+                              child: Consumer<DeckProvider>(
+                                builder: (context, deckProvider, _) {
+                                  final filteredDecks = _getFilteredDecks(
+                                    deckProvider.freeDecks,
+                                  );
+                                  if (filteredDecks.isEmpty &&
+                                      deckProvider.isInitialized) {
+                                    return _buildNoDecksMessage();
+                                  }
+                                  return _buildSection(
+                                    title: _getCategoryTitle(),
+                                    decks: filteredDecks.take(10).toList(),
+                                    icon: _getCategoryIcon(),
+                                    iconColor: _getCategoryColor(),
+                                  );
+                                },
+                              ),
                             ),
 
                             const SizedBox(height: 24),
@@ -426,6 +464,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                 );
                               },
                             ),
+
+                            const SizedBox(height: 24),
+
+                            // Quick stats banner
+                            _buildStatsSection(),
 
                             const SizedBox(height: 24),
 
@@ -870,6 +913,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                 setState(() {
                   _selectedCategory = categoryName;
                 });
+                // Scroll to category content smoothly
+                _scrollToCategoryContent();
               },
               borderRadius: BorderRadius.circular(24),
               splashColor: categoryColor.withOpacity(0.1),
@@ -969,111 +1014,146 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
     return Hero(
       tag: 'search_chip',
+      placeholderBuilder: (context, heroSize, child) {
+        // Return a placeholder that matches the child during hero flight
+        return Container(
+          width: heroSize.width,
+          height: heroSize.height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                searchColor.withOpacity(0.18),
+                searchColor.withOpacity(0.08),
+              ],
+            ),
+            border: Border.all(color: searchColor.withOpacity(0.4), width: 1.2),
+          ),
+        );
+      },
       child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                _hapticService.selection();
-                // Navigate to search screen with smooth transition
-                Navigator.of(context).push(
-                  PageRouteBuilder(
-                    pageBuilder: (context, animation, secondaryAnimation) =>
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            _hapticService.selection();
+            // Navigate to search screen with premium Hero transition
+            Navigator.of(context).push(
+              PageRouteBuilder(
+                pageBuilder:
+                    (context, animation, secondaryAnimation) =>
                         const SearchScreen(),
-                    transitionsBuilder:
-                        (context, animation, secondaryAnimation, child) {
-                      const begin = 0.0;
-                      const end = 1.0;
-                      const curve = Curves.easeInOut;
+                transitionDuration: const Duration(milliseconds: 600),
+                reverseTransitionDuration: const Duration(milliseconds: 500),
+                transitionsBuilder: (
+                  context,
+                  animation,
+                  secondaryAnimation,
+                  child,
+                ) {
+                  // Multi-layer animation for premium feel
+                  const curve = Curves.easeInOutCubic;
 
-                      var tween = Tween(begin: begin, end: end)
-                          .chain(CurveTween(curve: curve));
-                      var fadeAnimation = animation.drive(tween);
+                  // Fade animation
+                  final fadeAnimation = Tween<double>(
+                    begin: 0.0,
+                    end: 1.0,
+                  ).chain(CurveTween(curve: curve)).animate(animation);
 
+                  // Scale animation for subtle zoom effect
+                  final scaleAnimation = Tween<double>(begin: 0.95, end: 1.0)
+                      .chain(CurveTween(curve: Curves.easeOutCubic))
+                      .animate(animation);
+
+                  // Slide animation for directional movement
+                  final slideAnimation = Tween<Offset>(
+                    begin: const Offset(0.0, 0.02),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: curve)).animate(animation);
+
+                  // Combine all animations for premium transition
+                  return AnimatedBuilder(
+                    animation: animation,
+                    builder: (context, child) {
                       return FadeTransition(
                         opacity: fadeAnimation,
-                        child: child,
+                        child: SlideTransition(
+                          position: slideAnimation,
+                          child: ScaleTransition(
+                            scale: scaleAnimation,
+                            child: child,
+                          ),
+                        ),
                       );
                     },
-                    transitionDuration: const Duration(milliseconds: 400),
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(24),
-              splashColor: searchColor.withOpacity(0.1),
-              highlightColor: searchColor.withOpacity(0.05),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      searchColor.withOpacity(0.18),
-                      searchColor.withOpacity(0.08),
-                    ],
-                  ),
-                  border: Border.all(
-                    color: searchColor.withOpacity(0.4),
-                    width: 1.2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: searchColor.withOpacity(0.2),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Elegant search icon with subtle animation
-                    ShaderMask(
-                          shaderCallback:
-                              (bounds) => LinearGradient(
-                                colors: [
-                                  searchColor.withOpacity(0.9),
-                                  searchColor.withOpacity(0.6),
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ).createShader(bounds),
-                          child: const Icon(
-                            Icons.search_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        )
-                        .animate(
-                          onPlay:
-                              (controller) => controller.repeat(reverse: true),
-                        )
-                        .scale(
-                          begin: const Offset(1.0, 1.0),
-                          end: const Offset(1.08, 1.08),
-                          duration: 2000.ms,
-                          curve: Curves.easeInOut,
-                        ),
-                  ],
-                ),
+                    child: child,
+                  );
+                },
               ),
+            );
+          },
+          borderRadius: BorderRadius.circular(24),
+          splashColor: searchColor.withOpacity(0.1),
+          highlightColor: searchColor.withOpacity(0.05),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  searchColor.withOpacity(0.18),
+                  searchColor.withOpacity(0.08),
+                ],
+              ),
+              border: Border.all(
+                color: searchColor.withOpacity(0.4),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: searchColor.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
-          )
-          .animate()
-          .fadeIn(delay: 350.ms, duration: 500.ms, curve: Curves.easeOut)
-          .slideX(
-            begin: 0.3,
-            end: 0,
-            delay: 300.ms,
-            duration: 400.ms,
-            curve: Curves.easeOutQuart,
-          )
-          .shimmer(
-            delay: 800.ms,
-            duration: 1200.ms,
-            color: searchColor.withOpacity(0.3),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Elegant search icon with subtle animation
+                ShaderMask(
+                      shaderCallback:
+                          (bounds) => LinearGradient(
+                            colors: [
+                              searchColor.withOpacity(0.9),
+                              searchColor.withOpacity(0.6),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ).createShader(bounds),
+                      child: const Icon(
+                        Icons.search_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    )
+                    .animate(
+                      onPlay: (controller) => controller.repeat(reverse: true),
+                    )
+                    .scale(
+                      begin: const Offset(1.0, 1.0),
+                      end: const Offset(1.08, 1.08),
+                      duration: 2000.ms,
+                      curve: Curves.easeInOut,
+                    ),
+              ],
+            ),
           ),
+        ),
+      ),
     );
   }
 
@@ -2025,6 +2105,17 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     bool showSeeAll = false,
     bool isPremium = false,
   }) {
+    final deckProvider = Provider.of<DeckProvider>(context, listen: true);
+
+    // Show skeleton loader when data is loading
+    if (deckProvider.isLoading) {
+      return _buildSectionSkeleton(
+        title: title,
+        icon: icon,
+        iconColor: iconColor,
+      );
+    }
+
     if (decks.isEmpty) return const SizedBox();
 
     return Column(
@@ -3177,6 +3268,135 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSectionSkeleton({
+    required String title,
+    IconData? icon,
+    Color? iconColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          child: Row(
+            children: [
+              if (icon != null) ...[
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: (iconColor ?? Colors.white).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: iconColor ?? Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Text(
+                title,
+                style: GoogleFonts.inter(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  letterSpacing: -0.5,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Skeleton cards scroll view
+        SizedBox(
+          height: 200,
+          child: ListView.builder(
+            padding: const EdgeInsets.only(left: 20, right: 12),
+            scrollDirection: Axis.horizontal,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 3,
+            itemBuilder: (context, index) {
+              return _buildDeckCardSkeleton(index);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeckCardSkeleton(int index) {
+    return Container(
+      width: 150,
+      margin: const EdgeInsets.only(right: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Skeleton card container
+          Container(
+                height: 200,
+                width: 150,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2C2C2E).withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.05),
+                    width: 1,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Skeleton icon
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+
+                      // Skeleton text
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 14,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: 100,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.03),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              )
+              .animate(onPlay: (controller) => controller.repeat())
+              .shimmer(
+                duration: 1500.ms,
+                color: Colors.white.withOpacity(0.05),
+                angle: 0,
+              ),
+        ],
       ),
     );
   }
