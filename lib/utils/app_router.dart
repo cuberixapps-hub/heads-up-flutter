@@ -10,6 +10,8 @@ import '../screens/team_setup_screen.dart';
 import '../screens/team_results_screen.dart';
 import '../screens/custom_deck_management_screen.dart';
 import '../screens/custom_deck_screen.dart';
+import '../screens/explore_screen.dart';
+import '../screens/search_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -36,6 +38,14 @@ class AppRouter {
       GoRoute(
         path: '/categories',
         builder: (context, state) => const CategorySelectionScreen(),
+      ),
+      GoRoute(
+        path: '/explore',
+        builder: (context, state) => ExploreScreen(),
+      ),
+      GoRoute(
+        path: '/search',
+        builder: (context, state) => const SearchScreen(),
       ),
       GoRoute(
         path: '/results',

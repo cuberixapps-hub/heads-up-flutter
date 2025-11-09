@@ -2112,56 +2112,66 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               // Premium "Explore more" for Trending Now
               if (title == 'Trending Now')
                 GestureDetector(
-                  onTap: () {
-                    _hapticService.lightImpact();
-                    context.push('/categories');
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.white.withOpacity(0.05),
-                          Colors.white.withOpacity(0.02),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.1),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Explore',
-                          style: GoogleFonts.inter(
-                            color: Colors.white.withOpacity(0.85),
-                            fontWeight: FontWeight.w500,
-                            fontSize: 13,
-                            letterSpacing: 0.2,
+                      onTap: () {
+                        _hapticService.lightImpact();
+                        context.push('/explore');
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.white.withOpacity(0.05),
+                              Colors.white.withOpacity(0.02),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
+                            width: 1,
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          color: Colors.white.withOpacity(0.85),
-                          size: 16,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Explore',
+                              style: GoogleFonts.inter(
+                                color: Colors.white.withOpacity(0.85),
+                                fontWeight: FontWeight.w500,
+                                fontSize: 13,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white.withOpacity(0.85),
+                              size: 16,
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
+                    )
+                    .animate()
+                    .fadeIn(delay: 300.ms, duration: 600.ms)
+                    .slideX(
+                      begin: 0.3,
+                      end: 0,
+                      delay: 300.ms,
+                      duration: 600.ms,
+                      curve: Curves.easeOutCubic,
+                    )
+                    .shimmer(
+                      delay: 800.ms,
+                      duration: 1500.ms,
+                      color: Colors.white.withOpacity(0.1),
                     ),
-                  ),
-                )
-                .animate()
-                .fadeIn(delay: 300.ms, duration: 600.ms)
-                .slideX(begin: 0.3, end: 0, delay: 300.ms, duration: 600.ms, curve: Curves.easeOutCubic)
-                .shimmer(delay: 800.ms, duration: 1500.ms, color: Colors.white.withOpacity(0.1)),
               // Original "See All" for other sections
               if (showSeeAll && title != 'Trending Now')
                 Material(

@@ -1,0 +1,719 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../models/deck.dart';
+import '../providers/deck_provider.dart';
+import '../services/haptic_service.dart';
+import 'deck_details_screen.dart';
+
+class ExploreScreen extends StatefulWidget {
+  ExploreScreen({super.key});
+
+  @override
+  State<ExploreScreen> createState() => _ExploreScreenState();
+}
+
+class _ExploreScreenState extends State<ExploreScreen>
+    with TickerProviderStateMixin {
+  final _hapticService = HapticService();
+  final ScrollController _scrollController = ScrollController();
+  late AnimationController _animationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _animationController.forward();
+
+    // Set status bar style
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Gradient background
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF1A1A1C), Color(0xFF000000)],
+                stops: [0.0, 0.5],
+              ),
+            ),
+          ),
+
+          // Main content
+          SafeArea(
+            child: CustomScrollView(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                // Custom app bar with search
+                SliverToBoxAdapter(child: _buildHeader()),
+
+                // Category sections
+                SliverToBoxAdapter(
+                  child: Consumer<DeckProvider>(
+                    builder: (context, deckProvider, _) {
+                      return Column(
+                        children: [
+                          _buildCategorySection(
+                            'Trending Now',
+                            Icons.local_fire_department_rounded,
+                            _getTrendingDecks(deckProvider),
+                            const Color(0xFFFF6B6B),
+                            0,
+                          ),
+                          _buildCategorySection(
+                            'Popular This Week',
+                            Icons.star_rounded,
+                            _getPopularDecks(deckProvider),
+                            const Color(0xFFFFB800),
+                            1,
+                          ),
+                          _buildCategorySection(
+                            'New Releases',
+                            Icons.auto_awesome,
+                            _getNewReleases(deckProvider),
+                            const Color(0xFF00D4FF),
+                            2,
+                          ),
+                          _buildCategorySection(
+                            'Premium Collection',
+                            Icons.workspace_premium_rounded,
+                            _getPremiumDecks(deckProvider),
+                            const Color(0xFF7C3AED),
+                            3,
+                          ),
+                          _buildCategorySection(
+                            'Family Fun',
+                            Icons.family_restroom_rounded,
+                            _getFamilyFunDecks(deckProvider),
+                            const Color(0xFF10B981),
+                            4,
+                          ),
+                          _buildCategorySection(
+                            'Party Games',
+                            Icons.celebration_rounded,
+                            _getPartyGamesDecks(deckProvider),
+                            const Color(0xFFF59E0B),
+                            5,
+                          ),
+                          const SizedBox(height: 100), // Bottom padding
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: Column(
+        children: [
+          // Header with back button and title
+          Row(
+            children: [
+              // Back button
+              Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        _hapticService.lightImpact();
+                        Navigator.pop(context);
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.05),
+                            width: 1,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white70,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  )
+                  .animate()
+                  .fadeIn(duration: 400.ms)
+                  .slideX(begin: -0.2, end: 0, duration: 500.ms),
+
+              const SizedBox(width: 16),
+
+              // Title
+              Expanded(
+                child: Text(
+                      'Explore',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -1.5,
+                      ),
+                    )
+                    .animate()
+                    .fadeIn(delay: 100.ms, duration: 600.ms)
+                    .slideY(begin: -0.2, end: 0, duration: 600.ms),
+              ),
+
+              // Filter button
+              Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        _hapticService.lightImpact();
+                        // TODO: Implement filter
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.05),
+                            width: 1,
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.tune_rounded,
+                          color: Colors.white.withOpacity(0.7),
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  )
+                  .animate()
+                  .fadeIn(duration: 400.ms)
+                  .slideX(begin: 0.2, end: 0, duration: 500.ms),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Search bar
+          _buildSearchBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Hero(
+          tag: 'search_chip',
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                _hapticService.lightImpact();
+                context.push('/search');
+              },
+              borderRadius: BorderRadius.circular(24),
+              child: Container(
+                height: 54,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      const Color(0xFF9B59B6).withOpacity(0.18),
+                      const Color(0xFF9B59B6).withOpacity(0.08),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: const Color(0xFF9B59B6).withOpacity(0.4),
+                    width: 1.2,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    ShaderMask(
+                      shaderCallback:
+                          (bounds) => LinearGradient(
+                            colors: [
+                              const Color(0xFF9B59B6).withOpacity(0.9),
+                              const Color(0xFF9B59B6).withOpacity(0.6),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ).createShader(bounds),
+                      child: const Icon(
+                        Icons.search_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Text(
+                      'Search for decks',
+                      style: GoogleFonts.inter(
+                        color: Colors.white.withOpacity(0.4),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        )
+        .animate()
+        .fadeIn(delay: 200.ms, duration: 600.ms)
+        .scale(
+          begin: const Offset(0.95, 0.95),
+          end: const Offset(1, 1),
+          duration: 500.ms,
+          curve: Curves.easeOutCubic,
+        );
+  }
+
+  Widget _buildCategorySection(
+    String title,
+    IconData icon,
+    List<Deck> decks,
+    Color accentColor,
+    int sectionIndex,
+  ) {
+    if (decks.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+          margin: const EdgeInsets.only(bottom: 48),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Section header
+              _buildSectionHeader(title, icon, accentColor, sectionIndex),
+
+              const SizedBox(height: 20),
+
+              // Deck grid
+              _buildDeckGrid(decks.take(6).toList(), sectionIndex),
+            ],
+          ),
+        )
+        .animate()
+        .fadeIn(delay: (300 + sectionIndex * 100).ms, duration: 600.ms)
+        .slideY(
+          begin: 0.1,
+          end: 0,
+          delay: (300 + sectionIndex * 100).ms,
+          duration: 600.ms,
+          curve: Curves.easeOutCubic,
+        );
+  }
+
+  Widget _buildSectionHeader(
+    String title,
+    IconData icon,
+    Color accentColor,
+    int sectionIndex,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          // Icon with glow
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: accentColor.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: accentColor.withOpacity(0.3), width: 1),
+            ),
+            child: Center(child: Icon(icon, color: accentColor, size: 18)),
+          ),
+
+          const SizedBox(width: 10),
+
+          // Title
+          Expanded(
+            child: Text(
+              title,
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // See all button
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                _hapticService.lightImpact();
+                // Navigate to category screen with filtered decks
+                context.push('/categories');
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'See All',
+                      style: GoogleFonts.inter(
+                        color: Colors.white.withOpacity(0.6),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Colors.white.withOpacity(0.6),
+                      size: 14,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeckGrid(List<Deck> decks, int sectionIndex) {
+    return SizedBox(
+      height: 320, // Fixed height for 2 rows
+      child: GridView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        scrollDirection: Axis.vertical,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          childAspectRatio: 0.7,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        itemCount: decks.length,
+        itemBuilder: (context, index) {
+          final deck = decks[index];
+          return _buildDeckCard(deck, sectionIndex, index);
+        },
+      ),
+    );
+  }
+
+  Widget _buildDeckCard(Deck deck, int sectionIndex, int cardIndex) {
+    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+    final isUnlocked = deckProvider.isDeckUnlocked(deck.id);
+    final isPremium = deck.isPremium;
+
+    return GestureDetector(
+          onTap: () {
+            _hapticService.selection();
+            _navigateToDeckDetails(deck);
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF2C2C2E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.08),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                  spreadRadius: -4,
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(15),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Background image or color
+                  if (deck.imageUrl != null && deck.imageUrl!.isNotEmpty)
+                    Image.network(
+                      deck.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: deck.color.withOpacity(0.2),
+                          ),
+                          child: Center(
+                            child: Icon(deck.icon, color: deck.color, size: 40),
+                          ),
+                        );
+                      },
+                    )
+                  else
+                    Container(
+                      decoration: BoxDecoration(
+                        color: deck.color.withOpacity(0.15),
+                      ),
+                      child: Center(
+                        child: Icon(deck.icon, color: deck.color, size: 40),
+                      ),
+                    ),
+
+                  // Gradient overlay
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.7),
+                        ],
+                        stops: const [0.5, 1.0],
+                      ),
+                    ),
+                  ),
+
+                  // Deck info
+                  Positioned(
+                    bottom: 12,
+                    left: 12,
+                    right: 12,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          deck.name,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            letterSpacing: -0.2,
+                            height: 1.2,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${deck.cards.length} cards',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white.withOpacity(0.6),
+                            letterSpacing: 0.1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Premium lock overlay
+                  if (isPremium && !isUnlocked)
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                      ),
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.3),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFFFFC107).withOpacity(0.3),
+                              width: 2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.lock_rounded,
+                            color: Color(0xFFFFC107),
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // Play icon hint (top right)
+                  if (!isPremium || isUnlocked)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.play_arrow_rounded,
+                          color: deck.color,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        )
+        .animate()
+        .fadeIn(
+          delay: (400 + sectionIndex * 100 + cardIndex * 50).ms,
+          duration: 500.ms,
+        )
+        .scale(
+          begin: const Offset(0.9, 0.9),
+          end: const Offset(1, 1),
+          delay: (400 + sectionIndex * 100 + cardIndex * 50).ms,
+          duration: 500.ms,
+          curve: Curves.easeOutCubic,
+        );
+  }
+
+  void _navigateToDeckDetails(Deck deck) {
+    _hapticService.mediumImpact();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder:
+            (context, animation, secondaryAnimation) => DeckDetailsScreen(
+              deck: deck,
+              heroTag: 'explore_deck_${deck.id}',
+              onPlay: () {
+                Navigator.of(context).pop();
+              },
+            ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 0.02);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+
+          var tween = Tween(
+            begin: begin,
+            end: end,
+          ).chain(CurveTween(curve: curve));
+
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: FadeTransition(
+              opacity: animation.drive(
+                Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: curve)),
+              ),
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
+  }
+
+  // Category filtering methods
+  List<Deck> _getTrendingDecks(DeckProvider provider) {
+    return provider.allDecks
+        .where((deck) => deck.country == 'TRENDING' || deck.priority <= 10)
+        .toList()
+      ..sort((a, b) => a.priority.compareTo(b.priority));
+  }
+
+  List<Deck> _getPopularDecks(DeckProvider provider) {
+    // For now, return top-rated decks based on priority
+    return provider.allDecks
+        .where((deck) => deck.priority <= 20 && deck.priority > 10)
+        .toList()
+      ..sort((a, b) => a.priority.compareTo(b.priority));
+  }
+
+  List<Deck> _getNewReleases(DeckProvider provider) {
+    final cutoffDate = DateTime.now().subtract(const Duration(days: 30));
+    return provider.allDecks
+        .where((deck) => deck.createdAt.isAfter(cutoffDate))
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  List<Deck> _getPremiumDecks(DeckProvider provider) {
+    return provider.allDecks.where((deck) => deck.isPremium).toList()
+      ..sort((a, b) => a.priority.compareTo(b.priority));
+  }
+
+  List<Deck> _getFamilyFunDecks(DeckProvider provider) {
+    // Filter by tags or specific deck names
+    final familyKeywords = ['family', 'kids', 'disney', 'animal', 'cartoon'];
+    return provider.allDecks.where((deck) {
+      final lowerName = deck.name.toLowerCase();
+      final lowerDesc = deck.description.toLowerCase();
+      final lowerTags = deck.tags.map((t) => t.toLowerCase()).toList();
+
+      return familyKeywords.any(
+        (keyword) =>
+            lowerName.contains(keyword) ||
+            lowerDesc.contains(keyword) ||
+            lowerTags.contains(keyword),
+      );
+    }).toList();
+  }
+
+  List<Deck> _getPartyGamesDecks(DeckProvider provider) {
+    // Filter by party-related keywords
+    final partyKeywords = ['party', 'adult', 'drinking', 'fun', 'crazy'];
+    return provider.allDecks.where((deck) {
+      final lowerName = deck.name.toLowerCase();
+      final lowerDesc = deck.description.toLowerCase();
+      final lowerTags = deck.tags.map((t) => t.toLowerCase()).toList();
+
+      return partyKeywords.any(
+        (keyword) =>
+            lowerName.contains(keyword) ||
+            lowerDesc.contains(keyword) ||
+            lowerTags.contains(keyword),
+      );
+    }).toList();
+  }
+}
