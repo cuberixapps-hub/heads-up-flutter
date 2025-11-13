@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../models/deck.dart';
 import '../utils/icon_mapper.dart';
 import 'firebase_service.dart';
+import 'cache_service.dart';
 
 class DeckFirebaseService {
   final FirebaseService _firebaseService = FirebaseService();
+  final CacheService _cacheService = CacheService();
 
   FirebaseFirestore get _firestore => _firebaseService.firestore;
   String? get _userId => _firebaseService.currentUser?.uid;
@@ -24,12 +26,25 @@ class DeckFirebaseService {
   // Get all default decks from Firestore
   Future<List<Deck>> getDefaultDecks() async {
     try {
+      // Try cache first
+      final cachedDecks = await _cacheService.getCachedDecksByCountry('ALL');
+      if (cachedDecks != null) {
+        debugPrint('✅ Using cached default decks: ${cachedDecks.length} decks');
+        return cachedDecks;
+      }
+      
+      // Cache miss, fetch from Firestore
       final QuerySnapshot snapshot = await _defaultDecksRef.get();
 
-      return snapshot.docs.map((doc) {
+      final decks = snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
         return _deckFromFirestore(data, doc.id);
       }).toList();
+      
+      // Cache the results
+      await _cacheService.cacheDecksByCountry('ALL', decks);
+      
+      return decks;
     } catch (e) {
       debugPrint('Error getting default decks: $e');
       await _firebaseService.crashlytics.recordError(
@@ -44,6 +59,14 @@ class DeckFirebaseService {
   // Get decks filtered by country
   Future<List<Deck>> getDecksByCountry(String countryCode) async {
     try {
+      // Try cache first
+      final cachedDecks = await _cacheService.getCachedDecksByCountry(countryCode);
+      if (cachedDecks != null) {
+        debugPrint('✅ Using cached decks for $countryCode: ${cachedDecks.length} decks');
+        return cachedDecks;
+      }
+      
+      // Cache miss, fetch from Firestore
       // Simplified query to avoid index requirement initially
       Query query = _defaultDecksRef
           .where('country', whereIn: ['UNIVERSAL', countryCode]);
@@ -57,6 +80,9 @@ class DeckFirebaseService {
 
       // Sort by priority (lower number = higher priority)
       decks.sort((a, b) => a.priority.compareTo(b.priority));
+      
+      // Cache the results
+      await _cacheService.cacheDecksByCountry(countryCode, decks);
 
       return decks;
     } catch (e) {
@@ -68,6 +94,15 @@ class DeckFirebaseService {
       );
       throw Exception('Failed to load decks. Please check your internet connection.');
     }
+  }
+  
+  // Force refresh decks cache for a country
+  Future<List<Deck>> refreshDecksByCountry(String countryCode) async {
+    // Clear cache for this country
+    await _cacheService.clearCache('cached_decks_$countryCode');
+    
+    // Fetch fresh data
+    return getDecksByCountry(countryCode);
   }
 
   // Search decks across all countries

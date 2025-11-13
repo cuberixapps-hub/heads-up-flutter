@@ -8,6 +8,7 @@ import { Plus, X, Sparkles, Palette, Save, ArrowLeft, Upload, Wand2 } from 'luci
 import * as FaIcons from 'react-icons/fa';
 import { generateAdditionalCards, isContentGenerationAvailable } from '../services/aiContentService';
 import { generateDeckImage, isImageGenerationAvailable } from '../services/aiImageService';
+import { uploadCompressedImage, needsCompression, formatFileSize } from '../services/imageCompressionService';
 import '../styles/DeckForm.css';
 
 interface Deck {
@@ -95,6 +96,7 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
     const [isGeneratingAIImage, setIsGeneratingAIImage] = useState(false);
     const [hasAIContent, setHasAIContent] = useState(isContentGenerationAvailable());
     const [hasAIImage, setHasAIImage] = useState(isImageGenerationAvailable());
+    const [compressionProgress, setCompressionProgress] = useState<number>(0);
 
     const validateForm = () => {
         const newErrors: { [key: string]: string } = {};
@@ -284,30 +286,32 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
 
         setUploadError('');
         setIsUploading(true);
+        setCompressionProgress(0);
 
         try {
-            // Generate unique filename
-            const timestamp = Date.now();
-            const filename = `${timestamp}_${file.name}`;
-            
             // Use temporary ID if creating new deck, or existing ID if editing
-            const deckId = deck?.id || `temp_${timestamp}`;
-            const storageRef = ref(storage, `deck-images/${deckId}/${filename}`);
+            const deckId = deck?.id || `temp_${Date.now()}`;
             
-            // Upload file
-            await uploadBytes(storageRef, file);
+            // Show file info
+            console.log(`Uploading ${file.name} (${formatFileSize(file.size)})`);
             
-            // Get download URL
-            const downloadURL = await getDownloadURL(storageRef);
+            // Upload with compression
+            const downloadURL = await uploadCompressedImage(
+                file,
+                deckId,
+                (progress) => setCompressionProgress(progress)
+            );
             
             setImageUrl(downloadURL);
             setImagePreview(downloadURL);
             setImageFile(file);
             setIsUploading(false);
+            setCompressionProgress(0);
         } catch (error) {
             console.error('Error uploading image:', error);
             setUploadError('Failed to upload image. Please try again.');
             setIsUploading(false);
+            setCompressionProgress(0);
         }
     };
 
@@ -460,7 +464,7 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
                                 }}
                             >
                                 <Upload size={18} />
-                                {isUploading ? 'Uploading...' : 'Upload Image'}
+                                {isUploading ? `Uploading... ${compressionProgress}%` : 'Upload Image'}
                             </button>
                             
                             {hasAIImage && (
@@ -548,7 +552,7 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
                                 disabled={isUploading}
                             />
                             <small style={{ color: '#666', fontSize: '12px' }}>
-                                Accepted: JPG, PNG, WebP (max 10MB)
+                                Accepted: JPG, PNG, WebP (max 10MB) • Images will be automatically compressed
                             </small>
                         </div>
                     </div>

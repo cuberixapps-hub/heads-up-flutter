@@ -3,20 +3,23 @@
 // Do not manually edit this file.
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'dart:async' as _i7;
-import 'dart:ui' as _i11;
+import 'dart:async' as _i8;
+import 'dart:ui' as _i13;
 
 import 'package:cloud_firestore/cloud_firestore.dart' as _i2;
 import 'package:firebase_analytics/firebase_analytics.dart' as _i4;
 import 'package:firebase_auth/firebase_auth.dart' as _i3;
 import 'package:firebase_crashlytics/firebase_crashlytics.dart' as _i5;
-import 'package:flutter/material.dart' as _i10;
-import 'package:heads_up_game/models/deck.dart' as _i9;
-import 'package:heads_up_game/models/game_session.dart' as _i13;
-import 'package:heads_up_game/providers/deck_provider.dart' as _i8;
-import 'package:heads_up_game/providers/game_provider.dart' as _i12;
-import 'package:heads_up_game/services/firebase_service.dart' as _i6;
+import 'package:firebase_remote_config/firebase_remote_config.dart' as _i6;
+import 'package:flutter/material.dart' as _i12;
+import 'package:heads_up_game/models/deck.dart' as _i10;
+import 'package:heads_up_game/models/game_session.dart' as _i15;
+import 'package:heads_up_game/models/video_recording_result.dart' as _i16;
+import 'package:heads_up_game/providers/deck_provider.dart' as _i9;
+import 'package:heads_up_game/providers/game_provider.dart' as _i14;
+import 'package:heads_up_game/services/firebase_service.dart' as _i7;
 import 'package:mockito/mockito.dart' as _i1;
+import 'package:mockito/src/dummies.dart' as _i11;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values
@@ -55,15 +58,21 @@ class _FakeFirebaseCrashlytics_3 extends _i1.SmartFake
     : super(parent, parentInvocation);
 }
 
-class _FakeDuration_4 extends _i1.SmartFake implements Duration {
-  _FakeDuration_4(Object parent, Invocation parentInvocation)
+class _FakeFirebaseRemoteConfig_4 extends _i1.SmartFake
+    implements _i6.FirebaseRemoteConfig {
+  _FakeFirebaseRemoteConfig_4(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
+}
+
+class _FakeDuration_5 extends _i1.SmartFake implements Duration {
+  _FakeDuration_5(Object parent, Invocation parentInvocation)
     : super(parent, parentInvocation);
 }
 
 /// A class which mocks [FirebaseService].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockFirebaseService extends _i1.Mock implements _i6.FirebaseService {
+class MockFirebaseService extends _i1.Mock implements _i7.FirebaseService {
   MockFirebaseService() {
     _i1.throwOnMissingStub(this);
   }
@@ -110,153 +119,180 @@ class MockFirebaseService extends _i1.Mock implements _i6.FirebaseService {
           as _i5.FirebaseCrashlytics);
 
   @override
-  _i7.Stream<_i3.User?> get authStateChanges =>
+  _i6.FirebaseRemoteConfig get remoteConfig =>
+      (super.noSuchMethod(
+            Invocation.getter(#remoteConfig),
+            returnValue: _FakeFirebaseRemoteConfig_4(
+              this,
+              Invocation.getter(#remoteConfig),
+            ),
+          )
+          as _i6.FirebaseRemoteConfig);
+
+  @override
+  _i8.Stream<_i3.User?> get authStateChanges =>
       (super.noSuchMethod(
             Invocation.getter(#authStateChanges),
-            returnValue: _i7.Stream<_i3.User?>.empty(),
+            returnValue: _i8.Stream<_i3.User?>.empty(),
           )
-          as _i7.Stream<_i3.User?>);
+          as _i8.Stream<_i3.User?>);
 
   @override
-  _i7.Future<void> initialize() =>
+  _i8.Future<void> initialize() =>
       (super.noSuchMethod(
             Invocation.method(#initialize, []),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 
   @override
-  _i7.Future<_i3.User?> signInAnonymously() =>
+  _i8.Future<_i3.User?> signInAnonymously() =>
       (super.noSuchMethod(
             Invocation.method(#signInAnonymously, []),
-            returnValue: _i7.Future<_i3.User?>.value(),
+            returnValue: _i8.Future<_i3.User?>.value(),
           )
-          as _i7.Future<_i3.User?>);
+          as _i8.Future<_i3.User?>);
 
   @override
-  _i7.Future<_i3.User?> signInWithEmailPassword(
+  _i8.Future<_i3.User?> signInWithEmailPassword(
     String? email,
     String? password,
   ) =>
       (super.noSuchMethod(
             Invocation.method(#signInWithEmailPassword, [email, password]),
-            returnValue: _i7.Future<_i3.User?>.value(),
+            returnValue: _i8.Future<_i3.User?>.value(),
           )
-          as _i7.Future<_i3.User?>);
+          as _i8.Future<_i3.User?>);
 
   @override
-  _i7.Future<_i3.User?> signUpWithEmailPassword(
+  _i8.Future<_i3.User?> signUpWithEmailPassword(
     String? email,
     String? password,
   ) =>
       (super.noSuchMethod(
             Invocation.method(#signUpWithEmailPassword, [email, password]),
-            returnValue: _i7.Future<_i3.User?>.value(),
+            returnValue: _i8.Future<_i3.User?>.value(),
           )
-          as _i7.Future<_i3.User?>);
+          as _i8.Future<_i3.User?>);
 
   @override
-  _i7.Future<void> createUserProfile(_i3.User? user) =>
+  _i8.Future<void> createUserProfile(_i3.User? user) =>
       (super.noSuchMethod(
             Invocation.method(#createUserProfile, [user]),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 
   @override
-  _i7.Future<void> updateUserLastSeen() =>
+  _i8.Future<void> updateUserLastSeen() =>
       (super.noSuchMethod(
             Invocation.method(#updateUserLastSeen, []),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 
   @override
-  _i7.Future<void> signOut() =>
+  _i8.Future<void> signOut() =>
       (super.noSuchMethod(
             Invocation.method(#signOut, []),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 
   @override
-  _i7.Future<void> logEvent(String? name, {Map<String, dynamic>? parameters}) =>
+  _i8.Future<void> logEvent(String? name, {Map<String, dynamic>? parameters}) =>
       (super.noSuchMethod(
             Invocation.method(#logEvent, [name], {#parameters: parameters}),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 
   @override
-  _i7.Future<void> logScreenView(String? screenName) =>
+  _i8.Future<void> logScreenView(String? screenName) =>
       (super.noSuchMethod(
             Invocation.method(#logScreenView, [screenName]),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 }
 
 /// A class which mocks [DeckProvider].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockDeckProvider extends _i1.Mock implements _i8.DeckProvider {
+class MockDeckProvider extends _i1.Mock implements _i9.DeckProvider {
   MockDeckProvider() {
     _i1.throwOnMissingStub(this);
   }
 
   @override
-  List<_i9.Deck> get allDecks =>
+  List<_i10.Deck> get allDecks =>
       (super.noSuchMethod(
             Invocation.getter(#allDecks),
-            returnValue: <_i9.Deck>[],
+            returnValue: <_i10.Deck>[],
           )
-          as List<_i9.Deck>);
+          as List<_i10.Deck>);
 
   @override
-  List<_i9.Deck> get defaultDecks =>
+  List<_i10.Deck> get defaultDecks =>
       (super.noSuchMethod(
             Invocation.getter(#defaultDecks),
-            returnValue: <_i9.Deck>[],
+            returnValue: <_i10.Deck>[],
           )
-          as List<_i9.Deck>);
+          as List<_i10.Deck>);
 
   @override
-  List<_i9.Deck> get customDecks =>
+  List<_i10.Deck> get customDecks =>
       (super.noSuchMethod(
             Invocation.getter(#customDecks),
-            returnValue: <_i9.Deck>[],
+            returnValue: <_i10.Deck>[],
           )
-          as List<_i9.Deck>);
+          as List<_i10.Deck>);
 
   @override
-  List<_i9.Deck> get freeDecks =>
+  List<_i10.Deck> get freeDecks =>
       (super.noSuchMethod(
             Invocation.getter(#freeDecks),
-            returnValue: <_i9.Deck>[],
+            returnValue: <_i10.Deck>[],
           )
-          as List<_i9.Deck>);
+          as List<_i10.Deck>);
 
   @override
-  List<_i9.Deck> get premiumDecks =>
+  List<_i10.Deck> get premiumDecks =>
       (super.noSuchMethod(
             Invocation.getter(#premiumDecks),
-            returnValue: <_i9.Deck>[],
+            returnValue: <_i10.Deck>[],
           )
-          as List<_i9.Deck>);
+          as List<_i10.Deck>);
 
   @override
-  List<_i9.Deck> get unlockedDecks =>
+  List<_i10.Deck> get unlockedDecks =>
       (super.noSuchMethod(
             Invocation.getter(#unlockedDecks),
-            returnValue: <_i9.Deck>[],
+            returnValue: <_i10.Deck>[],
           )
-          as List<_i9.Deck>);
+          as List<_i10.Deck>);
+
+  @override
+  Set<String> get favoriteDecks =>
+      (super.noSuchMethod(
+            Invocation.getter(#favoriteDecks),
+            returnValue: <String>{},
+          )
+          as Set<String>);
+
+  @override
+  List<_i10.Deck> get favoriteDecksAsList =>
+      (super.noSuchMethod(
+            Invocation.getter(#favoriteDecksAsList),
+            returnValue: <_i10.Deck>[],
+          )
+          as List<_i10.Deck>);
 
   @override
   bool get isLoading =>
@@ -269,17 +305,70 @@ class MockDeckProvider extends _i1.Mock implements _i8.DeckProvider {
           as bool);
 
   @override
+  String get userCountryCode =>
+      (super.noSuchMethod(
+            Invocation.getter(#userCountryCode),
+            returnValue: _i11.dummyValue<String>(
+              this,
+              Invocation.getter(#userCountryCode),
+            ),
+          )
+          as String);
+
+  @override
+  String get errorMessage =>
+      (super.noSuchMethod(
+            Invocation.getter(#errorMessage),
+            returnValue: _i11.dummyValue<String>(
+              this,
+              Invocation.getter(#errorMessage),
+            ),
+          )
+          as String);
+
+  @override
+  bool get hasError =>
+      (super.noSuchMethod(Invocation.getter(#hasError), returnValue: false)
+          as bool);
+
+  @override
   bool get hasListeners =>
       (super.noSuchMethod(Invocation.getter(#hasListeners), returnValue: false)
           as bool);
 
   @override
-  _i7.Future<bool> createCustomDeck({
+  _i8.Future<void> retryLoading() =>
+      (super.noSuchMethod(
+            Invocation.method(#retryLoading, []),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
+          )
+          as _i8.Future<void>);
+
+  @override
+  _i8.Future<void> forceRefresh() =>
+      (super.noSuchMethod(
+            Invocation.method(#forceRefresh, []),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
+          )
+          as _i8.Future<void>);
+
+  @override
+  _i8.Future<List<_i10.Deck>> searchDecksGlobally(String? searchTerm) =>
+      (super.noSuchMethod(
+            Invocation.method(#searchDecksGlobally, [searchTerm]),
+            returnValue: _i8.Future<List<_i10.Deck>>.value(<_i10.Deck>[]),
+          )
+          as _i8.Future<List<_i10.Deck>>);
+
+  @override
+  _i8.Future<bool> createCustomDeck({
     required String? name,
     required String? description,
     required List<String>? cards,
-    _i10.IconData? icon,
-    _i11.Color? color,
+    _i12.IconData? icon,
+    _i13.Color? color,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#createCustomDeck, [], {
@@ -289,18 +378,18 @@ class MockDeckProvider extends _i1.Mock implements _i8.DeckProvider {
               #icon: icon,
               #color: color,
             }),
-            returnValue: _i7.Future<bool>.value(false),
+            returnValue: _i8.Future<bool>.value(false),
           )
-          as _i7.Future<bool>);
+          as _i8.Future<bool>);
 
   @override
-  _i7.Future<bool> updateCustomDeck({
+  _i8.Future<bool> updateCustomDeck({
     required String? deckId,
     String? name,
     String? description,
     List<String>? cards,
-    _i10.IconData? icon,
-    _i11.Color? color,
+    _i12.IconData? icon,
+    _i13.Color? color,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#updateCustomDeck, [], {
@@ -311,25 +400,25 @@ class MockDeckProvider extends _i1.Mock implements _i8.DeckProvider {
               #icon: icon,
               #color: color,
             }),
-            returnValue: _i7.Future<bool>.value(false),
+            returnValue: _i8.Future<bool>.value(false),
           )
-          as _i7.Future<bool>);
+          as _i8.Future<bool>);
 
   @override
-  _i7.Future<bool> deleteCustomDeck(String? deckId) =>
+  _i8.Future<bool> deleteCustomDeck(String? deckId) =>
       (super.noSuchMethod(
             Invocation.method(#deleteCustomDeck, [deckId]),
-            returnValue: _i7.Future<bool>.value(false),
+            returnValue: _i8.Future<bool>.value(false),
           )
-          as _i7.Future<bool>);
+          as _i8.Future<bool>);
 
   @override
-  _i7.Future<bool> unlockPremiumDeck(String? deckId) =>
+  _i8.Future<bool> unlockPremiumDeck(String? deckId) =>
       (super.noSuchMethod(
             Invocation.method(#unlockPremiumDeck, [deckId]),
-            returnValue: _i7.Future<bool>.value(false),
+            returnValue: _i8.Future<bool>.value(false),
           )
-          as _i7.Future<bool>);
+          as _i8.Future<bool>);
 
   @override
   bool isDeckUnlocked(String? deckId) =>
@@ -340,50 +429,74 @@ class MockDeckProvider extends _i1.Mock implements _i8.DeckProvider {
           as bool);
 
   @override
-  _i9.Deck? getDeckById(String? id) =>
-      (super.noSuchMethod(Invocation.method(#getDeckById, [id])) as _i9.Deck?);
+  _i10.Deck? getDeckById(String? id) =>
+      (super.noSuchMethod(Invocation.method(#getDeckById, [id])) as _i10.Deck?);
 
   @override
-  List<_i9.Deck> searchDecks(String? query) =>
+  List<_i10.Deck> searchDecks(String? query) =>
       (super.noSuchMethod(
             Invocation.method(#searchDecks, [query]),
-            returnValue: <_i9.Deck>[],
+            returnValue: <_i10.Deck>[],
           )
-          as List<_i9.Deck>);
+          as List<_i10.Deck>);
 
   @override
-  _i7.Future<List<String>> getRecentDeckIds() =>
+  _i8.Future<List<String>> getRecentDeckIds() =>
       (super.noSuchMethod(
             Invocation.method(#getRecentDeckIds, []),
-            returnValue: _i7.Future<List<String>>.value(<String>[]),
+            returnValue: _i8.Future<List<String>>.value(<String>[]),
           )
-          as _i7.Future<List<String>>);
+          as _i8.Future<List<String>>);
 
   @override
-  _i7.Future<void> addToRecentDecks(String? deckId) =>
+  _i8.Future<void> addToRecentDecks(String? deckId) =>
       (super.noSuchMethod(
             Invocation.method(#addToRecentDecks, [deckId]),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 
   @override
-  _i7.Future<List<_i9.Deck>> getRecentDecks() =>
+  _i8.Future<bool> addToFavorites(String? deckId) =>
+      (super.noSuchMethod(
+            Invocation.method(#addToFavorites, [deckId]),
+            returnValue: _i8.Future<bool>.value(false),
+          )
+          as _i8.Future<bool>);
+
+  @override
+  _i8.Future<bool> removeFromFavorites(String? deckId) =>
+      (super.noSuchMethod(
+            Invocation.method(#removeFromFavorites, [deckId]),
+            returnValue: _i8.Future<bool>.value(false),
+          )
+          as _i8.Future<bool>);
+
+  @override
+  bool isFavorite(String? deckId) =>
+      (super.noSuchMethod(
+            Invocation.method(#isFavorite, [deckId]),
+            returnValue: false,
+          )
+          as bool);
+
+  @override
+  _i8.Future<List<_i10.Deck>> getRecentDecks() =>
       (super.noSuchMethod(
             Invocation.method(#getRecentDecks, []),
-            returnValue: _i7.Future<List<_i9.Deck>>.value(<_i9.Deck>[]),
+            returnValue: _i8.Future<List<_i10.Deck>>.value(<_i10.Deck>[]),
           )
-          as _i7.Future<List<_i9.Deck>>);
+          as _i8.Future<List<_i10.Deck>>);
 
   @override
-  _i7.Future<void> refreshData() =>
+  _i8.Future<void> refreshData() =>
       (super.noSuchMethod(
             Invocation.method(#refreshData, []),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 
   @override
   void dispose() => super.noSuchMethod(
@@ -392,13 +505,13 @@ class MockDeckProvider extends _i1.Mock implements _i8.DeckProvider {
   );
 
   @override
-  void addListener(_i11.VoidCallback? listener) => super.noSuchMethod(
+  void addListener(_i13.VoidCallback? listener) => super.noSuchMethod(
     Invocation.method(#addListener, [listener]),
     returnValueForMissingStub: null,
   );
 
   @override
-  void removeListener(_i11.VoidCallback? listener) => super.noSuchMethod(
+  void removeListener(_i13.VoidCallback? listener) => super.noSuchMethod(
     Invocation.method(#removeListener, [listener]),
     returnValueForMissingStub: null,
   );
@@ -413,7 +526,7 @@ class MockDeckProvider extends _i1.Mock implements _i8.DeckProvider {
 /// A class which mocks [GameProvider].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockGameProvider extends _i1.Mock implements _i12.GameProvider {
+class MockGameProvider extends _i1.Mock implements _i14.GameProvider {
   MockGameProvider() {
     _i1.throwOnMissingStub(this);
   }
@@ -422,7 +535,7 @@ class MockGameProvider extends _i1.Mock implements _i12.GameProvider {
   Duration get remainingTime =>
       (super.noSuchMethod(
             Invocation.getter(#remainingTime),
-            returnValue: _FakeDuration_4(
+            returnValue: _FakeDuration_5(
               this,
               Invocation.getter(#remainingTime),
             ),
@@ -435,12 +548,12 @@ class MockGameProvider extends _i1.Mock implements _i12.GameProvider {
           as bool);
 
   @override
-  List<_i13.GameSession> get gameHistory =>
+  List<_i15.GameSession> get gameHistory =>
       (super.noSuchMethod(
             Invocation.getter(#gameHistory),
-            returnValue: <_i13.GameSession>[],
+            returnValue: <_i15.GameSession>[],
           )
-          as List<_i13.GameSession>);
+          as List<_i15.GameSession>);
 
   @override
   Map<String, dynamic> get statistics =>
@@ -491,7 +604,7 @@ class MockGameProvider extends _i1.Mock implements _i12.GameProvider {
 
   @override
   void startGame({
-    required _i9.Deck? deck,
+    required _i10.Deck? deck,
     bool? isTeamMode = false,
     List<String>? teamNames,
     int? totalRounds = 1,
@@ -524,13 +637,13 @@ class MockGameProvider extends _i1.Mock implements _i12.GameProvider {
   );
 
   @override
-  _i7.Future<void> endGame() =>
+  _i8.Future<void> endGame() =>
       (super.noSuchMethod(
             Invocation.method(#endGame, []),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 
   @override
   void nextTeam() => super.noSuchMethod(
@@ -545,83 +658,83 @@ class MockGameProvider extends _i1.Mock implements _i12.GameProvider {
   );
 
   @override
-  _i7.Future<void> updateRoundDuration(int? seconds) =>
+  _i8.Future<void> updateRoundDuration(int? seconds) =>
       (super.noSuchMethod(
             Invocation.method(#updateRoundDuration, [seconds]),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 
   @override
-  _i7.Future<void> toggleSound() =>
+  _i8.Future<void> toggleSound() =>
       (super.noSuchMethod(
             Invocation.method(#toggleSound, []),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 
   @override
-  _i7.Future<void> toggleVibration() =>
+  _i8.Future<void> toggleVibration() =>
       (super.noSuchMethod(
             Invocation.method(#toggleVibration, []),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 
   @override
-  _i7.Future<void> toggleKidFriendlyMode() =>
+  _i8.Future<void> toggleKidFriendlyMode() =>
       (super.noSuchMethod(
             Invocation.method(#toggleKidFriendlyMode, []),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 
   @override
-  _i7.Future<void> toggleShowWordsAfterPass() =>
+  _i8.Future<void> toggleShowWordsAfterPass() =>
       (super.noSuchMethod(
             Invocation.method(#toggleShowWordsAfterPass, []),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 
   @override
-  _i7.Future<List<Map<String, dynamic>>> getGlobalLeaderboard({
+  _i8.Future<List<Map<String, dynamic>>> getGlobalLeaderboard({
     int? limit = 100,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#getGlobalLeaderboard, [], {#limit: limit}),
-            returnValue: _i7.Future<List<Map<String, dynamic>>>.value(
+            returnValue: _i8.Future<List<Map<String, dynamic>>>.value(
               <Map<String, dynamic>>[],
             ),
           )
-          as _i7.Future<List<Map<String, dynamic>>>);
+          as _i8.Future<List<Map<String, dynamic>>>);
 
   @override
-  _i7.Future<List<Map<String, dynamic>>> getDeckLeaderboard(
+  _i8.Future<List<Map<String, dynamic>>> getDeckLeaderboard(
     String? deckId, {
     int? limit = 50,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#getDeckLeaderboard, [deckId], {#limit: limit}),
-            returnValue: _i7.Future<List<Map<String, dynamic>>>.value(
+            returnValue: _i8.Future<List<Map<String, dynamic>>>.value(
               <Map<String, dynamic>>[],
             ),
           )
-          as _i7.Future<List<Map<String, dynamic>>>);
+          as _i8.Future<List<Map<String, dynamic>>>);
 
   @override
-  _i7.Future<void> refreshData() =>
+  _i8.Future<void> refreshData() =>
       (super.noSuchMethod(
             Invocation.method(#refreshData, []),
-            returnValue: _i7.Future<void>.value(),
-            returnValueForMissingStub: _i7.Future<void>.value(),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
           )
-          as _i7.Future<void>);
+          as _i8.Future<void>);
 
   @override
   Map<String, dynamic> getStatistics() =>
@@ -632,6 +745,12 @@ class MockGameProvider extends _i1.Mock implements _i12.GameProvider {
           as Map<String, dynamic>);
 
   @override
+  void doubleLastGameScore() => super.noSuchMethod(
+    Invocation.method(#doubleLastGameScore, []),
+    returnValueForMissingStub: null,
+  );
+
+  @override
   Map<String, double> getAchievementProgress() =>
       (super.noSuchMethod(
             Invocation.method(#getAchievementProgress, []),
@@ -640,19 +759,41 @@ class MockGameProvider extends _i1.Mock implements _i12.GameProvider {
           as Map<String, double>);
 
   @override
+  _i8.Future<void> clearAllData() =>
+      (super.noSuchMethod(
+            Invocation.method(#clearAllData, []),
+            returnValue: _i8.Future<void>.value(),
+            returnValueForMissingStub: _i8.Future<void>.value(),
+          )
+          as _i8.Future<void>);
+
+  @override
+  void setVideoRecording(_i16.VideoRecordingResult? recording) =>
+      super.noSuchMethod(
+        Invocation.method(#setVideoRecording, [recording]),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void clearVideoRecording() => super.noSuchMethod(
+    Invocation.method(#clearVideoRecording, []),
+    returnValueForMissingStub: null,
+  );
+
+  @override
   void dispose() => super.noSuchMethod(
     Invocation.method(#dispose, []),
     returnValueForMissingStub: null,
   );
 
   @override
-  void addListener(_i11.VoidCallback? listener) => super.noSuchMethod(
+  void addListener(_i13.VoidCallback? listener) => super.noSuchMethod(
     Invocation.method(#addListener, [listener]),
     returnValueForMissingStub: null,
   );
 
   @override
-  void removeListener(_i11.VoidCallback? listener) => super.noSuchMethod(
+  void removeListener(_i13.VoidCallback? listener) => super.noSuchMethod(
     Invocation.method(#removeListener, [listener]),
     returnValueForMissingStub: null,
   );

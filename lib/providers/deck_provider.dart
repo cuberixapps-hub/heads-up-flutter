@@ -4,11 +4,13 @@ import '../models/deck.dart';
 import '../services/deck_firebase_service.dart';
 import '../services/local_storage_service.dart';
 import '../services/location_service.dart';
+import '../services/cache_service.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class DeckProvider extends ChangeNotifier {
   final DeckFirebaseService _deckFirebaseService = DeckFirebaseService();
   final LocalStorageService _localStorageService = LocalStorageService();
+  final CacheService _cacheService = CacheService();
 
   List<Deck> _defaultDecks = [];
   List<Deck> _customDecks = [];
@@ -54,12 +56,24 @@ class DeckProvider extends ChangeNotifier {
 
     try {
       debugPrint('🎮 HEADS UP: Starting app initialization...');
+      
+      // Initialize cache service
+      await _cacheService.initialize();
+      debugPrint('✅ Cache service initialized');
 
       // Detect user's country automatically
       _userCountryCode = await LocationService.detectUserCountry();
       debugPrint('📍 Detected user country: $_userCountryCode');
+      
+      // Try to get cached decks immediately for better UX
+      final cachedDecks = await _cacheService.getCachedDecksByCountry(_userCountryCode);
+      if (cachedDecks != null && cachedDecks.isNotEmpty) {
+        _defaultDecks = cachedDecks;
+        debugPrint('✅ Loaded ${cachedDecks.length} decks from cache');
+        notifyListeners(); // Show cached data immediately
+      }
 
-      // Fetch decks from Firebase filtered by country
+      // Fetch decks from Firebase filtered by country (will update cache)
       try {
         _defaultDecks = await _deckFirebaseService
             .getDecksByCountry(_userCountryCode)
@@ -145,6 +159,13 @@ class DeckProvider extends ChangeNotifier {
   // Retry loading decks
   Future<void> retryLoading() async {
     await _initializeDecks();
+  }
+  
+  // Force refresh decks from Firebase (clear cache)
+  Future<void> forceRefresh() async {
+    debugPrint('🔄 Force refreshing decks...');
+    await _deckFirebaseService.refreshDecksByCountry(_userCountryCode);
+    await refreshData();
   }
 
   // Search decks globally across all countries
@@ -385,7 +406,14 @@ class DeckProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Fetch country-filtered decks from Firebase
+      // Show cached data first if available
+      final cachedDecks = await _cacheService.getCachedDecksByCountry(_userCountryCode);
+      if (cachedDecks != null && cachedDecks.isNotEmpty) {
+        _defaultDecks = cachedDecks;
+        notifyListeners();
+      }
+      
+      // Fetch country-filtered decks from Firebase (will update cache)
       _defaultDecks = await _deckFirebaseService.getDecksByCountry(_userCountryCode);
       // Custom decks from local storage
       _customDecks = await _localStorageService.loadCustomDecks();

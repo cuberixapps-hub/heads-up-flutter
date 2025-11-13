@@ -4,10 +4,11 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'dart:async' as _i5;
-import 'dart:ui' as _i6;
+import 'dart:ui' as _i7;
 
 import 'package:heads_up_game/models/deck.dart' as _i4;
 import 'package:heads_up_game/models/game_session.dart' as _i3;
+import 'package:heads_up_game/models/video_recording_result.dart' as _i6;
 import 'package:heads_up_game/providers/game_provider.dart' as _i2;
 import 'package:mockito/mockito.dart' as _i1;
 
@@ -252,6 +253,12 @@ class MockGameProvider extends _i1.Mock implements _i2.GameProvider {
           as Map<String, dynamic>);
 
   @override
+  void doubleLastGameScore() => super.noSuchMethod(
+    Invocation.method(#doubleLastGameScore, []),
+    returnValueForMissingStub: null,
+  );
+
+  @override
   Map<String, double> getAchievementProgress() =>
       (super.noSuchMethod(
             Invocation.method(#getAchievementProgress, []),
@@ -260,19 +267,41 @@ class MockGameProvider extends _i1.Mock implements _i2.GameProvider {
           as Map<String, double>);
 
   @override
+  _i5.Future<void> clearAllData() =>
+      (super.noSuchMethod(
+            Invocation.method(#clearAllData, []),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  void setVideoRecording(_i6.VideoRecordingResult? recording) =>
+      super.noSuchMethod(
+        Invocation.method(#setVideoRecording, [recording]),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void clearVideoRecording() => super.noSuchMethod(
+    Invocation.method(#clearVideoRecording, []),
+    returnValueForMissingStub: null,
+  );
+
+  @override
   void dispose() => super.noSuchMethod(
     Invocation.method(#dispose, []),
     returnValueForMissingStub: null,
   );
 
   @override
-  void addListener(_i6.VoidCallback? listener) => super.noSuchMethod(
+  void addListener(_i7.VoidCallback? listener) => super.noSuchMethod(
     Invocation.method(#addListener, [listener]),
     returnValueForMissingStub: null,
   );
 
   @override
-  void removeListener(_i6.VoidCallback? listener) => super.noSuchMethod(
+  void removeListener(_i7.VoidCallback? listener) => super.noSuchMethod(
     Invocation.method(#removeListener, [listener]),
     returnValueForMissingStub: null,
   );

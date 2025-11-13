@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/game_session.dart';
 import '../models/deck.dart';
+import '../models/leaderboard_page.dart';
 import 'firebase_service.dart';
 
 class GameFirebaseService {
@@ -20,20 +21,32 @@ class GameFirebaseService {
   CollectionReference get _globalLeaderboardRef =>
       _firestore.collection('globalLeaderboard');
 
-  // Save game session
+  // Save game session with batched writes
   Future<String?> saveGameSession(GameSession session) async {
     if (_userId == null) return null;
 
     try {
+      // Use batched writes for atomic operation
+      final batch = _firestore.batch();
+      
+      // 1. Add game session
       final sessionData = _sessionToFirestore(session);
-      final docRef = await _gameSessionsRef.add(sessionData);
-
-      // Update user statistics
-      await _updateUserStatistics(session);
-
-      // Update global leaderboard if high score
-      await _updateGlobalLeaderboard(session);
-
+      final sessionDocRef = _gameSessionsRef.doc();
+      batch.set(sessionDocRef, sessionData);
+      
+      // 2. Update user statistics
+      await _prepareBatchedUserStatisticsUpdate(batch, session);
+      
+      // 3. Update global leaderboard if needed
+      await _prepareBatchedLeaderboardUpdate(batch, session);
+      
+      // 4. Update deck-specific leaderboard
+      await _prepareBatchedDeckLeaderboardUpdate(batch, session);
+      
+      // Commit all writes atomically
+      await batch.commit();
+      
+      // Log analytics event after successful save
       await _firebaseService.logEvent(
         'game_completed',
         parameters: {
@@ -45,8 +58,13 @@ class GameFirebaseService {
           'duration': session.elapsedTime.inSeconds,
         },
       );
+      
+      await _firebaseService.logEvent('batch_write_success', parameters: {
+        'batch_type': 'game_session',
+        'operations_count': 4,
+      });
 
-      return docRef.id;
+      return sessionDocRef.id;
     } catch (e) {
       debugPrint('Error saving game session: $e');
       await _firebaseService.crashlytics.recordError(
@@ -58,21 +76,64 @@ class GameFirebaseService {
     }
   }
 
-  // Get game history
+  // Get game history with pagination
+  Future<LeaderboardPage> getGameHistoryPage({
+    DocumentSnapshot? lastDocument,
+    int pageSize = 20,
+  }) async {
+    if (_userId == null) {
+      return LeaderboardPage(entries: [], hasMore: false);
+    }
+
+    try {
+      Query query = _gameSessionsRef
+          .orderBy('endTime', descending: true)
+          .limit(pageSize);
+      
+      if (lastDocument != null) {
+        query = query.startAfterDocument(lastDocument);
+      }
+      
+      final QuerySnapshot snapshot = await query.get();
+      
+      return LeaderboardPage(
+        entries: snapshot.docs,
+        lastDocument: snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+        hasMore: snapshot.docs.length == pageSize,
+      );
+    } catch (e) {
+      debugPrint('Error getting game history page: $e');
+      return LeaderboardPage(entries: [], hasMore: false);
+    }
+  }
+  
+  // Get game history (legacy, uses pagination internally)
   Future<List<GameSession>> getGameHistory({int limit = 50}) async {
     if (_userId == null) return [];
 
     try {
-      final QuerySnapshot snapshot =
-          await _gameSessionsRef
-              .orderBy('endTime', descending: true)
-              .limit(limit)
-              .get();
-
-      return snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        return _sessionFromFirestore(data, doc.id);
-      }).toList();
+      final allSessions = <GameSession>[];
+      DocumentSnapshot? lastDoc;
+      
+      while (allSessions.length < limit) {
+        final page = await getGameHistoryPage(
+          lastDocument: lastDoc,
+          pageSize: 20,
+        );
+        
+        for (final doc in page.entries) {
+          final data = doc.data() as Map<String, dynamic>;
+          allSessions.add(_sessionFromFirestore(data, doc.id));
+        }
+        
+        if (!page.hasMore || allSessions.length >= limit) {
+          break;
+        }
+        
+        lastDoc = page.lastDocument;
+      }
+      
+      return allSessions.take(limit).toList();
     } catch (e) {
       debugPrint('Error getting game history: $e');
       await _firebaseService.crashlytics.recordError(
@@ -117,8 +178,11 @@ class GameFirebaseService {
     }
   }
 
-  // Update user statistics
-  Future<void> _updateUserStatistics(GameSession session) async {
+  // Prepare user statistics update for batch
+  Future<void> _prepareBatchedUserStatisticsUpdate(
+    WriteBatch batch,
+    GameSession session,
+  ) async {
     if (_userId == null) return;
 
     try {
@@ -139,43 +203,95 @@ class GameFirebaseService {
         'lastPlayed': FieldValue.serverTimestamp(),
       };
 
-      await _userRef.update({'statistics': newStats});
+      batch.update(_userRef, {'statistics': newStats});
     } catch (e) {
-      debugPrint('Error updating user statistics: $e');
+      debugPrint('Error preparing user statistics update: $e');
     }
   }
 
-  // Get global leaderboard
+  // Get global leaderboard with cursor-based pagination
+  Future<LeaderboardPage> getGlobalLeaderboardPage({
+    DocumentSnapshot? lastDocument,
+    int pageSize = 20,
+  }) async {
+    try {
+      Query query = _globalLeaderboardRef
+          .orderBy('score', descending: true)
+          .limit(pageSize);
+      
+      if (lastDocument != null) {
+        query = query.startAfterDocument(lastDocument);
+      }
+      
+      final QuerySnapshot snapshot = await query.get();
+      
+      // Log pagination event
+      await _firebaseService.logEvent('pagination_page_loaded', parameters: {
+        'type': 'global_leaderboard',
+        'page_size': pageSize,
+        'results_count': snapshot.docs.length,
+      });
+      
+      return LeaderboardPage(
+        entries: snapshot.docs,
+        lastDocument: snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+        hasMore: snapshot.docs.length == pageSize,
+      );
+    } catch (e) {
+      debugPrint('Error getting global leaderboard page: $e');
+      return LeaderboardPage(
+        entries: [],
+        hasMore: false,
+      );
+    }
+  }
+  
+  // Get global leaderboard (legacy, uses pagination internally)
   Future<List<Map<String, dynamic>>> getGlobalLeaderboard({
     int limit = 100,
   }) async {
     try {
-      final QuerySnapshot snapshot =
-          await _globalLeaderboardRef
-              .orderBy('score', descending: true)
-              .limit(limit)
-              .get();
-
-      return snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        return {
-          'rank': 0, // Will be calculated on client side
-          'userId': doc.id,
-          'displayName': data['displayName'] ?? 'Anonymous',
-          'score': data['score'] ?? 0,
-          'deckName': data['deckName'] ?? '',
-          'timestamp':
-              (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-        };
-      }).toList();
+      final allEntries = <Map<String, dynamic>>[];
+      DocumentSnapshot? lastDoc;
+      
+      while (allEntries.length < limit) {
+        final page = await getGlobalLeaderboardPage(
+          lastDocument: lastDoc,
+          pageSize: 20,
+        );
+        
+        for (final doc in page.entries) {
+          final data = doc.data() as Map<String, dynamic>;
+          allEntries.add({
+            'rank': 0, // Will be calculated on client side
+            'userId': doc.id,
+            'displayName': data['displayName'] ?? 'Anonymous',
+            'score': data['score'] ?? 0,
+            'deckName': data['deckName'] ?? '',
+            'timestamp':
+                (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          });
+        }
+        
+        if (!page.hasMore || allEntries.length >= limit) {
+          break;
+        }
+        
+        lastDoc = page.lastDocument;
+      }
+      
+      return allEntries.take(limit).toList();
     } catch (e) {
       debugPrint('Error getting global leaderboard: $e');
       return [];
     }
   }
 
-  // Update global leaderboard
-  Future<void> _updateGlobalLeaderboard(GameSession session) async {
+  // Prepare global leaderboard update for batch
+  Future<void> _prepareBatchedLeaderboardUpdate(
+    WriteBatch batch,
+    GameSession session,
+  ) async {
     if (_userId == null) return;
 
     try {
@@ -186,7 +302,7 @@ class GameFirebaseService {
           (userLeaderboardDoc.data() as Map<String, dynamic>)['score'] <
               session.correctCount) {
         // Update or create leaderboard entry
-        await _globalLeaderboardRef.doc(_userId).set({
+        batch.set(_globalLeaderboardRef.doc(_userId), {
           'displayName':
               _firebaseService.currentUser?.displayName ?? 'Anonymous',
           'score': session.correctCount,
@@ -196,47 +312,139 @@ class GameFirebaseService {
         });
       }
     } catch (e) {
-      debugPrint('Error updating global leaderboard: $e');
+      debugPrint('Error preparing global leaderboard update: $e');
+    }
+  }
+  
+  // Prepare deck-specific leaderboard update for batch
+  Future<void> _prepareBatchedDeckLeaderboardUpdate(
+    WriteBatch batch,
+    GameSession session,
+  ) async {
+    if (_userId == null) return;
+
+    try {
+      final deckLeaderboardRef = _firestore
+          .collection('deckLeaderboards')
+          .doc(session.deck.id)
+          .collection('scores')
+          .doc(_userId);
+      
+      final deckLeaderboardDoc = await deckLeaderboardRef.get();
+      
+      if (!deckLeaderboardDoc.exists ||
+          (deckLeaderboardDoc.data()?['score'] ?? 0) <
+              session.correctCount) {
+        batch.set(deckLeaderboardRef, {
+          'displayName':
+              _firebaseService.currentUser?.displayName ?? 'Anonymous',
+          'score': session.correctCount,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      debugPrint('Error preparing deck leaderboard update: $e');
     }
   }
 
-  // Get deck-specific leaderboard
+  // Get deck-specific leaderboard with cursor-based pagination
+  Future<LeaderboardPage> getDeckLeaderboardPage(
+    String deckId, {
+    DocumentSnapshot? lastDocument,
+    int pageSize = 20,
+  }) async {
+    try {
+      Query query = _firestore
+          .collection('deckLeaderboards')
+          .doc(deckId)
+          .collection('scores')
+          .orderBy('score', descending: true)
+          .limit(pageSize);
+      
+      if (lastDocument != null) {
+        query = query.startAfterDocument(lastDocument);
+      }
+      
+      final QuerySnapshot snapshot = await query.get();
+      
+      // Log pagination event
+      await _firebaseService.logEvent('pagination_page_loaded', parameters: {
+        'type': 'deck_leaderboard',
+        'deck_id': deckId,
+        'page_size': pageSize,
+        'results_count': snapshot.docs.length,
+      });
+      
+      return LeaderboardPage(
+        entries: snapshot.docs,
+        lastDocument: snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+        hasMore: snapshot.docs.length == pageSize,
+      );
+    } catch (e) {
+      debugPrint('Error getting deck leaderboard page: $e');
+      return LeaderboardPage(
+        entries: [],
+        hasMore: false,
+      );
+    }
+  }
+  
+  // Get deck-specific leaderboard (legacy, uses pagination internally)
   Future<List<Map<String, dynamic>>> getDeckLeaderboard(
     String deckId, {
     int limit = 50,
   }) async {
     try {
-      final QuerySnapshot snapshot =
-          await _firestore
-              .collection('deckLeaderboards')
-              .doc(deckId)
-              .collection('scores')
-              .orderBy('score', descending: true)
-              .limit(limit)
-              .get();
-
-      return snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        return {
-          'userId': doc.id,
-          'displayName': data['displayName'] ?? 'Anonymous',
-          'score': data['score'] ?? 0,
-          'timestamp':
-              (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-        };
-      }).toList();
+      final allEntries = <Map<String, dynamic>>[];
+      DocumentSnapshot? lastDoc;
+      
+      while (allEntries.length < limit) {
+        final page = await getDeckLeaderboardPage(
+          deckId,
+          lastDocument: lastDoc,
+          pageSize: 20,
+        );
+        
+        for (final doc in page.entries) {
+          final data = doc.data() as Map<String, dynamic>;
+          allEntries.add({
+            'userId': doc.id,
+            'displayName': data['displayName'] ?? 'Anonymous',
+            'score': data['score'] ?? 0,
+            'timestamp':
+                (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          });
+        }
+        
+        if (!page.hasMore || allEntries.length >= limit) {
+          break;
+        }
+        
+        lastDoc = page.lastDocument;
+      }
+      
+      return allEntries.take(limit).toList();
     } catch (e) {
       debugPrint('Error getting deck leaderboard: $e');
       return [];
     }
   }
 
-  // Save game settings
-  Future<void> saveGameSettings(Map<String, dynamic> settings) async {
+  // Save game settings with batching support
+  Future<void> saveGameSettings(
+    Map<String, dynamic> settings, {
+    WriteBatch? existingBatch,
+  }) async {
     if (_userId == null) return;
 
     try {
-      await _userRef.update({'gameSettings': settings});
+      if (existingBatch != null) {
+        // Add to existing batch
+        existingBatch.update(_userRef, {'gameSettings': settings});
+      } else {
+        // Direct update
+        await _userRef.update({'gameSettings': settings});
+      }
 
       // Log the event (Firebase service will handle type conversion)
       await _firebaseService.logEvent('settings_updated', parameters: settings);

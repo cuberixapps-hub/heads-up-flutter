@@ -5,6 +5,8 @@ import '../models/deck.dart';
 import '../services/game_firebase_service.dart';
 import '../services/firebase_service.dart';
 import '../models/video_recording_result.dart';
+import '../utils/debounce.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class GameProvider extends ChangeNotifier {
   final GameFirebaseService _gameFirebaseService = GameFirebaseService();
@@ -22,6 +24,11 @@ class GameProvider extends ChangeNotifier {
 
   // Streams
   StreamSubscription? _recentGamesSubscription;
+  
+  // Debouncer for settings updates
+  late final Debouncer _settingsDebouncer;
+  WriteBatch? _pendingSettingsBatch;
+  final Map<String, dynamic> _pendingSettings = {};
 
   // Settings (now from Firebase)
   Map<String, dynamic> _settings = {
@@ -49,6 +56,7 @@ class GameProvider extends ChangeNotifier {
   VideoRecordingResult? get lastVideoRecording => _lastVideoRecording;
 
   GameProvider() {
+    _settingsDebouncer = Debouncer(milliseconds: 1000);
     _initialize();
   }
 
@@ -274,43 +282,77 @@ class GameProvider extends ChangeNotifier {
     );
   }
 
-  // Update settings
+  // Update settings with debouncing
   Future<void> updateRoundDuration(int seconds) async {
     _settings['roundDuration'] = seconds;
-    await _saveSettings();
+    _pendingSettings['roundDuration'] = seconds;
     notifyListeners();
+    _debouncedSaveSettings();
   }
 
   Future<void> toggleSound() async {
     _settings['soundEnabled'] = !(_settings['soundEnabled'] ?? true);
-    await _saveSettings();
+    _pendingSettings['soundEnabled'] = _settings['soundEnabled'];
     notifyListeners();
+    _debouncedSaveSettings();
   }
 
   Future<void> toggleVibration() async {
     _settings['vibrationEnabled'] = !(_settings['vibrationEnabled'] ?? true);
-    await _saveSettings();
+    _pendingSettings['vibrationEnabled'] = _settings['vibrationEnabled'];
     notifyListeners();
+    _debouncedSaveSettings();
   }
 
   Future<void> toggleKidFriendlyMode() async {
     _settings['kidFriendlyMode'] = !(_settings['kidFriendlyMode'] ?? false);
-    await _saveSettings();
+    _pendingSettings['kidFriendlyMode'] = _settings['kidFriendlyMode'];
     notifyListeners();
+    _debouncedSaveSettings();
   }
 
   Future<void> toggleShowWordsAfterPass() async {
     _settings['showWordsAfterPass'] =
         !(_settings['showWordsAfterPass'] ?? true);
-    await _saveSettings();
+    _pendingSettings['showWordsAfterPass'] = _settings['showWordsAfterPass'];
     notifyListeners();
+    _debouncedSaveSettings();
+  }
+  
+  // Debounced settings save
+  void _debouncedSaveSettings() {
+    _settingsDebouncer.run(() async {
+      if (_pendingSettings.isNotEmpty) {
+        await _saveSettingsBatch();
+      }
+    });
   }
 
-  Future<void> _saveSettings() async {
+  // Save batched settings
+  Future<void> _saveSettingsBatch() async {
     try {
-      await _gameFirebaseService.saveGameSettings(_settings);
+      final settingsToSave = Map<String, dynamic>.from(_pendingSettings);
+      _pendingSettings.clear();
+      
+      // Create batch if needed
+      if (_pendingSettingsBatch == null) {
+        _pendingSettingsBatch = FirebaseFirestore.instance.batch();
+      }
+      
+      // Save settings with batch
+      await _gameFirebaseService.saveGameSettings(
+        settingsToSave,
+        existingBatch: _pendingSettingsBatch,
+      );
+      
+      // Commit the batch
+      await _pendingSettingsBatch?.commit();
+      _pendingSettingsBatch = null;
+      
+      debugPrint('Settings saved with debouncing: ${settingsToSave.keys.join(', ')}');
     } catch (e) {
-      debugPrint('Error saving settings: $e');
+      debugPrint('Error saving batched settings: $e');
+      _pendingSettingsBatch = null;
     }
   }
 
@@ -453,6 +495,7 @@ class GameProvider extends ChangeNotifier {
   void dispose() {
     _gameTimer?.cancel();
     _recentGamesSubscription?.cancel();
+    _settingsDebouncer.dispose();
     super.dispose();
   }
 }

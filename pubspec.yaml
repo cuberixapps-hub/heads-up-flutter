@@ -92,6 +92,9 @@ dependencies:
 
   # AdMob
   google_mobile_ads: ^5.2.0
+  
+  # Image compression
+  flutter_image_compress: ^2.3.0
 
 dev_dependencies:
   flutter_test:
