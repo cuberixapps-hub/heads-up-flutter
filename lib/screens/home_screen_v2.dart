@@ -53,7 +53,6 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   final GlobalKey _categoryChipsKey = GlobalKey();
   final GlobalKey _dailyChallengeKey = GlobalKey();
   final GlobalKey _continuePlayingKey = GlobalKey();
-  final GlobalKey _bottomNavKey = GlobalKey();
 
   // Gradient fade configuration
   static const double _gradientFadeDistance =
@@ -308,7 +307,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   void _nextTutorialStep() {
-    if (_tutorialStep < 4) {
+    if (_tutorialStep < 3) {
       setState(() {
         _tutorialStep++;
       });
@@ -363,12 +362,6 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             title: 'Continue Playing',
             description: 'Your recent games appear here for quick access.',
             targetKey: _continuePlayingKey,
-          ),
-          TutorialStep(
-            title: 'Navigation',
-            description:
-                'Access home, explore new content, view your games, or change settings using the bottom navigation.',
-            targetKey: _bottomNavKey,
           ),
         ];
 
@@ -704,7 +697,6 @@ class _HomeScreenV2State extends State<HomeScreenV2>
           return Scaffold(
             backgroundColor: Colors.black,
             extendBodyBehindAppBar: true,
-            bottomNavigationBar: _buildBottomNav(),
             body: Stack(
               children: [
                 // Black background
@@ -3130,112 +3122,6 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      key: _bottomNavKey,
-      height: 72.s,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withOpacity(0.0),
-            Colors.black.withOpacity(0.95),
-            Colors.black,
-          ],
-          stops: const [0.0, 0.2, 1.0],
-        ),
-      ),
-      child: ClipRRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  color: Colors.white.withOpacity(0.08),
-                  width: 0.5,
-                ),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(
-                  icon: Icons.home_rounded,
-                  label: 'Home',
-                  isSelected: true,
-                  onTap: () {},
-                ),
-                _buildNavItem(
-                  icon: Icons.explore_outlined,
-                  label: 'New & Hot',
-                  isSelected: false,
-                  onTap: () {
-                    _hapticService.lightImpact();
-                    context.push('/categories');
-                  },
-                ),
-                _buildNavItem(
-                  icon: Icons.account_circle_outlined,
-                  label: 'My Games',
-                  isSelected: false,
-                  onTap: () {
-                    _hapticService.lightImpact();
-                    context.push('/custom-decks');
-                  },
-                ),
-                _buildNavItem(
-                  icon: Icons.settings_rounded,
-                  label: 'Settings',
-                  isSelected: false,
-                  onTap: () {
-                    _hapticService.lightImpact();
-                    context.push('/settings');
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: 8.s),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
-              size: 26.s,
-            ),
-            SizedBox(height: 4.s),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 11.sp,
-                color:
-                    isSelected ? Colors.white : Colors.white.withOpacity(0.5),
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
