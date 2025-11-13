@@ -5,12 +5,16 @@ import '../services/deck_firebase_service.dart';
 import '../services/local_storage_service.dart';
 import '../services/location_service.dart';
 import '../services/cache_service.dart';
+import '../services/sync_config_service.dart';
+import '../services/listener_manager.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class DeckProvider extends ChangeNotifier {
   final DeckFirebaseService _deckFirebaseService = DeckFirebaseService();
   final LocalStorageService _localStorageService = LocalStorageService();
   final CacheService _cacheService = CacheService();
+  final SyncConfigService _syncConfigService = SyncConfigService();
+  final ListenerManager _listenerManager = ListenerManager();
 
   List<Deck> _defaultDecks = [];
   List<Deck> _customDecks = [];
@@ -57,6 +61,13 @@ class DeckProvider extends ChangeNotifier {
     try {
       debugPrint('🎮 HEADS UP: Starting app initialization...');
       
+      // Initialize sync config service
+      await _syncConfigService.initialize();
+      debugPrint('✅ Sync config service initialized');
+      
+      // Initialize listener manager
+      _listenerManager.initialize();
+      
       // Initialize cache service
       await _cacheService.initialize();
       debugPrint('✅ Cache service initialized');
@@ -88,8 +99,8 @@ class DeckProvider extends ChangeNotifier {
 
         debugPrint('✅ Loaded ${_defaultDecks.length} decks for country: $_userCountryCode');
 
-        // Set up real-time listeners
-      _setupRealtimeListeners();
+        // Set up real-time listeners only if enabled in sync settings
+        _setupRealtimeListeners();
 
       // Load user-specific data
       await _loadUserData();
@@ -116,9 +127,17 @@ class DeckProvider extends ChangeNotifier {
   }
 
   void _setupRealtimeListeners() {
+    // Only set up real-time listeners if enabled in sync settings
+    if (!_syncConfigService.shouldEnableRealtimeDecks()) {
+      debugPrint('📊 Real-time deck listeners DISABLED (using manual refresh)');
+      return;
+    }
+    
+    debugPrint('📡 Setting up real-time deck listeners');
+    
     // Listen to country-filtered decks changes
-    _defaultDecksSubscription?.cancel();
-    _defaultDecksSubscription = _deckFirebaseService
+    _listenerManager.cancelListener('decks_default');
+    final subscription = _deckFirebaseService
         .streamDecksByCountry(_userCountryCode)
         .listen(
           (decks) {
@@ -132,9 +151,10 @@ class DeckProvider extends ChangeNotifier {
             notifyListeners();
           },
         );
+    
+    _listenerManager.registerListener('decks_default', subscription);
 
-    // Custom decks remain locally stored
-    _customDecksSubscription?.cancel();
+    // Custom decks remain locally stored (no listener needed)
   }
 
   Future<void> _loadUserData() async {
@@ -166,6 +186,38 @@ class DeckProvider extends ChangeNotifier {
     debugPrint('🔄 Force refreshing decks...');
     await _deckFirebaseService.refreshDecksByCountry(_userCountryCode);
     await refreshData();
+  }
+  
+  // Manual refresh for when real-time listeners are disabled
+  Future<void> manualRefreshDecks() async {
+    if (_syncConfigService.shouldEnableRealtimeDecks()) {
+      debugPrint('📊 Real-time enabled, skipping manual refresh');
+      return;
+    }
+    
+    // Check if enough time has passed for manual refresh
+    final shouldRefresh = await _syncConfigService.shouldManualRefresh('decks');
+    if (!shouldRefresh) {
+      debugPrint('📊 Manual refresh not needed yet');
+      return;
+    }
+    
+    debugPrint('🔄 Manual refreshing decks...');
+    _isLoading = true;
+    notifyListeners();
+    
+    try {
+      _defaultDecks = await _deckFirebaseService.getDecksByCountry(_userCountryCode);
+      await _syncConfigService.recordManualRefresh('decks');
+      _errorMessage = '';
+      debugPrint('✅ Manual refresh complete: ${_defaultDecks.length} decks');
+    } catch (e) {
+      debugPrint('❌ Manual refresh failed: $e');
+      _errorMessage = 'Failed to refresh decks';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   // Search decks globally across all countries

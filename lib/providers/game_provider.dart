@@ -4,6 +4,8 @@ import '../models/game_session.dart';
 import '../models/deck.dart';
 import '../services/game_firebase_service.dart';
 import '../services/firebase_service.dart';
+import '../services/sync_config_service.dart';
+import '../services/listener_manager.dart';
 import '../models/video_recording_result.dart';
 import '../utils/debounce.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,6 +13,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class GameProvider extends ChangeNotifier {
   final GameFirebaseService _gameFirebaseService = GameFirebaseService();
   final FirebaseService _firebaseService = FirebaseService();
+  final SyncConfigService _syncConfigService = SyncConfigService();
+  final ListenerManager _listenerManager = ListenerManager();
 
   GameSession? _currentSession;
   Timer? _gameTimer;
@@ -61,16 +65,30 @@ class GameProvider extends ChangeNotifier {
   }
 
   Future<void> _initialize() async {
+    await _syncConfigService.initialize();
     await _loadSettings();
     await _loadStatistics();
     await _loadGameHistory();
-    _setupRealtimeListeners();
+    // Don't set up listeners initially - only during gameplay
   }
 
   void _setupRealtimeListeners() {
+    // Only enable real-time listeners if configured and during active gameplay
+    if (!_syncConfigService.shouldEnableRealtimeGames()) {
+      debugPrint('📊 Real-time game listeners DISABLED (using manual refresh)');
+      return;
+    }
+    
+    if (!_isGameActive) {
+      debugPrint('📊 Not in active gameplay, skipping game listeners');
+      return;
+    }
+    
+    debugPrint('📡 Setting up real-time game listeners');
+    
     // Listen to recent games
-    _recentGamesSubscription?.cancel();
-    _recentGamesSubscription = _gameFirebaseService
+    _listenerManager.cancelListener('games_recent');
+    final subscription = _gameFirebaseService
         .streamRecentGames(limit: 10)
         .listen(
           (games) {
@@ -83,6 +101,14 @@ class GameProvider extends ChangeNotifier {
             debugPrint('Error streaming recent games: $error');
           },
         );
+    
+    _listenerManager.registerListener('games_recent', subscription);
+  }
+  
+  // Cancel real-time listeners when not in active gameplay
+  void _cancelRealtimeListeners() {
+    debugPrint('🔌 Cancelling real-time game listeners');
+    _listenerManager.cancelListenersByCategory('games');
   }
 
   Future<void> _loadSettings() async {
@@ -105,10 +131,34 @@ class GameProvider extends ChangeNotifier {
 
   Future<void> _loadGameHistory() async {
     try {
-      _gameHistory = await _gameFirebaseService.getGameHistory(limit: 50);
+      _gameHistory = await _gameFirebaseService.getGameHistory(limit: 10);
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading game history: $e');
+    }
+  }
+  
+  // Manual refresh for game history when listeners are disabled
+  Future<void> manualRefreshGameHistory() async {
+    if (_syncConfigService.shouldEnableRealtimeGames()) {
+      debugPrint('📊 Real-time enabled, skipping manual refresh');
+      return;
+    }
+    
+    final shouldRefresh = await _syncConfigService.shouldManualRefresh('games');
+    if (!shouldRefresh) {
+      debugPrint('📊 Manual refresh not needed yet');
+      return;
+    }
+    
+    debugPrint('🔄 Manual refreshing game history...');
+    try {
+      _gameHistory = await _gameFirebaseService.getGameHistory(limit: 10);
+      await _syncConfigService.recordManualRefresh('games');
+      notifyListeners();
+      debugPrint('✅ Manual refresh complete');
+    } catch (e) {
+      debugPrint('❌ Manual refresh failed: $e');
     }
   }
 
@@ -132,6 +182,9 @@ class GameProvider extends ChangeNotifier {
     _isGameActive = true;
     _remainingTime = Duration(seconds: roundDuration);
     _startTimer();
+
+    // Set up real-time listeners for active gameplay
+    _setupRealtimeListeners();
 
     // Log event to Firebase Analytics
     _firebaseService.logEvent(
@@ -215,6 +268,9 @@ class GameProvider extends ChangeNotifier {
     _gameTimer?.cancel();
     _isGameActive = false;
     _currentSession = _currentSession!.end();
+    
+    // Cancel real-time listeners when game ends
+    _cancelRealtimeListeners();
 
     // Save to Firebase
     await _saveGameSession();

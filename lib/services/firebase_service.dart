@@ -50,7 +50,7 @@ class FirebaseService {
       // Enable Firestore offline persistence
       _firestore.settings = const Settings(
         persistenceEnabled: true,
-        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+        cacheSizeBytes: 100 * 1024 * 1024, // 100MB cache limit (was unlimited)
       );
 
       // Configure Crashlytics
@@ -227,6 +227,33 @@ class FirebaseService {
       debugPrint('Error logging event: $e');
     }
   }
+  
+  // Log event with sampling rate to reduce Analytics costs
+  // samplingRate: 0.0-1.0 (e.g., 0.2 = 20% of events logged)
+  Future<void> logEventSampled(
+    String name, {
+    Map<String, dynamic>? parameters,
+    double samplingRate = 1.0,
+  }) async {
+    if (samplingRate >= 1.0) {
+      // Always log if sampling rate is 100%
+      await logEvent(name, parameters: parameters);
+      return;
+    }
+    
+    if (samplingRate <= 0.0) {
+      // Never log if sampling rate is 0%
+      return;
+    }
+    
+    // Use deterministic sampling based on milliseconds
+    // This ensures consistent sampling across app sessions
+    final shouldLog = (DateTime.now().millisecondsSinceEpoch % 100) < (samplingRate * 100);
+    
+    if (shouldLog) {
+      await logEvent(name, parameters: parameters);
+    }
+  }
 
   // Log screen view
   Future<void> logScreenView(String screenName) async {
@@ -255,8 +282,8 @@ class FirebaseService {
           fetchTimeout: const Duration(minutes: 1),
           minimumFetchInterval:
               kDebugMode
-                  ? const Duration(minutes: 5) // 5 minutes in debug for testing
-                  : const Duration(hours: 12), // 12 hours in production
+                  ? const Duration(hours: 1) // 1 hour in debug (was 5 min)
+                  : const Duration(hours: 24), // 24 hours in production (was 12)
         ),
       );
 
