@@ -4,8 +4,10 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../config/firebase';
 import { IconPicker } from './IconPicker';
 import { type IconInfo } from '../data/icons';
-import { Plus, X, Sparkles, Palette, Save, ArrowLeft, Upload } from 'lucide-react';
+import { Plus, X, Sparkles, Palette, Save, ArrowLeft, Upload, Wand2 } from 'lucide-react';
 import * as FaIcons from 'react-icons/fa';
+import { generateAdditionalCards, isContentGenerationAvailable } from '../services/aiContentService';
+import { generateDeckImage, isImageGenerationAvailable } from '../services/aiImageService';
 import '../styles/DeckForm.css';
 
 interface Deck {
@@ -88,6 +90,11 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
     const [imagePreview, setImagePreview] = useState<string | null>(deck?.imageUrl || null);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string>('');
+    const [showAIAssist, setShowAIAssist] = useState(false);
+    const [isGeneratingAICards, setIsGeneratingAICards] = useState(false);
+    const [isGeneratingAIImage, setIsGeneratingAIImage] = useState(false);
+    const [hasAIContent, setHasAIContent] = useState(isContentGenerationAvailable());
+    const [hasAIImage, setHasAIImage] = useState(isImageGenerationAvailable());
 
     const validateForm = () => {
         const newErrors: { [key: string]: string } = {};
@@ -166,8 +173,31 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
         setCards(cards.filter((_, i) => i !== index));
     };
 
-    const generateAISuggestions = () => {
-        // Generate contextual suggestions based on deck name
+    const generateAISuggestions = async () => {
+        if (!name.trim()) {
+            alert('Please enter a deck name first');
+            return;
+        }
+
+        setIsGeneratingAICards(true);
+        setShowAISuggestions(true);
+
+        try {
+            // Try to use Claude API if available
+            if (hasAIContent) {
+                const suggestions = await generateAdditionalCards(name, cards, 10);
+                if (suggestions && suggestions.length > 0) {
+                    setAiSuggestions(suggestions);
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error('Failed to generate AI suggestions:', error);
+        } finally {
+            setIsGeneratingAICards(false);
+        }
+
+        // Fallback to hardcoded suggestions
         const deckNameLower = name.toLowerCase();
         let suggestions: string[] = [];
 
@@ -215,7 +245,6 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
         }
 
         setAiSuggestions(suggestions);
-        setShowAISuggestions(true);
     };
 
     const addAISuggestion = (suggestion: string) => {
@@ -295,6 +324,32 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
         setImageUrl('');
     };
 
+    const generateAIImage = async () => {
+        if (!name.trim()) {
+            alert('Please enter a deck name first');
+            return;
+        }
+
+        if (!hasAIImage) {
+            alert('AI image generation is not available. Please configure your OpenAI API key.');
+            return;
+        }
+
+        setIsGeneratingAIImage(true);
+        setUploadError('');
+
+        try {
+            const generatedImageUrl = await generateDeckImage(name);
+            setImageUrl(generatedImageUrl);
+            setImagePreview(generatedImageUrl);
+        } catch (error: any) {
+            console.error('Failed to generate AI image:', error);
+            setUploadError('Failed to generate image. Please try again.');
+        } finally {
+            setIsGeneratingAIImage(false);
+        }
+    };
+
     return (
         <div className="deck-form-container">
             <div className="deck-form-header">
@@ -305,20 +360,43 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
                     <h1>{deck ? 'Edit Deck' : 'Create New Deck'}</h1>
                     <p>{deck ? 'Modify your deck details' : 'Build a new custom deck'}</p>
                 </div>
-                <button
-                    className="save-button"
-                    onClick={handleSubmit}
-                    disabled={isLoading}
-                >
-                    {isLoading ? (
-                        <span className="loading-spinner"></span>
-                    ) : (
-                        <>
-                            <Save size={18} />
-                            Save
-                        </>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    {(hasAIContent || hasAIImage) && (
+                        <button
+                            type="button"
+                            className="ai-assist-button"
+                            onClick={() => setShowAIAssist(true)}
+                            style={{
+                                padding: '10px 20px',
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <Wand2 size={18} />
+                            AI Assist
+                        </button>
                     )}
-                </button>
+                    <button
+                        className="save-button"
+                        onClick={handleSubmit}
+                        disabled={isLoading}
+                    >
+                        {isLoading ? (
+                            <span className="loading-spinner"></span>
+                        ) : (
+                            <>
+                                <Save size={18} />
+                                Save
+                            </>
+                        )}
+                    </button>
+                </div>
             </div>
 
             <form onSubmit={handleSubmit} className="deck-form">
@@ -355,8 +433,8 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
                     <div className="form-group">
                         <label>Deck Image</label>
                         
-                        {/* Upload Button */}
-                        <div style={{ marginBottom: '12px' }}>
+                        {/* Upload Buttons */}
+                        <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                             <input
                                 type="file"
                                 id="imageUpload"
@@ -384,6 +462,28 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
                                 <Upload size={18} />
                                 {isUploading ? 'Uploading...' : 'Upload Image'}
                             </button>
+                            
+                            {hasAIImage && (
+                                <button
+                                    type="button"
+                                    onClick={generateAIImage}
+                                    disabled={isGeneratingAIImage || !name.trim()}
+                                    style={{
+                                        padding: '10px 16px',
+                                        background: isGeneratingAIImage || !name.trim() ? '#ccc' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        cursor: isGeneratingAIImage || !name.trim() ? 'not-allowed' : 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                    }}
+                                >
+                                    <Wand2 size={18} />
+                                    {isGeneratingAIImage ? 'Generating...' : 'AI Generate'}
+                                </button>
+                            )}
                         </div>
 
                         {/* Image Preview */}
@@ -632,9 +732,10 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
                             type="button"
                             className="ai-button"
                             onClick={generateAISuggestions}
+                            disabled={isGeneratingAICards}
                         >
                             <Sparkles size={16} />
-                            AI Suggestions
+                            {isGeneratingAICards ? 'Generating...' : 'AI Suggestions'}
                         </button>
                     </div>
 

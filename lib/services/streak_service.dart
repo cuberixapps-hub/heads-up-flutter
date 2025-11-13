@@ -302,3 +302,4 @@ class AchievementStatus {
     required this.isActive,
   });
 }
+

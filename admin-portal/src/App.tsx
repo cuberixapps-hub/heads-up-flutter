@@ -5,6 +5,8 @@ import { auth } from './config/firebase';
 import { DeckList } from './components/DeckList';
 import { DeckForm } from './components/DeckForm';
 import { DailyDeckManager } from './components/DailyDeckManager';
+import { AIDeckGenerator } from './components/AIDeckGenerator';
+import { ImageGeneratorTest } from './components/ImageGeneratorTest';
 import './App.css';
 
 interface Deck {
@@ -28,9 +30,9 @@ interface Deck {
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<'list' | 'form' | 'daily'>('list');
+  const [currentView, setCurrentView] = useState<'list' | 'form' | 'daily' | 'ai' | 'test'>('list');
   const [editingDeck, setEditingDeck] = useState<Deck | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<'decks' | 'daily'>('decks');
+  const [activeTab, setActiveTab] = useState<'decks' | 'daily' | 'ai' | 'test'>('decks');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -128,6 +130,26 @@ function App() {
               <span className="tab-icon">📅</span>
               Daily Heads Up
             </button>
+            <button
+              className={`tab ${activeTab === 'ai' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('ai');
+                setCurrentView('ai');
+              }}
+            >
+              <span className="tab-icon">✨</span>
+              AI Generator
+            </button>
+            <button
+              className={`tab ${activeTab === 'test' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('test');
+                setCurrentView('test');
+              }}
+            >
+              <span className="tab-icon">🧪</span>
+              Image Test
+            </button>
           </div>
         </div>
 
@@ -144,6 +166,8 @@ function App() {
             )
           )}
           {activeTab === 'daily' && <DailyDeckManager />}
+          {activeTab === 'ai' && <AIDeckGenerator />}
+          {activeTab === 'test' && <ImageGeneratorTest />}
         </div>
       </main>
     </div>

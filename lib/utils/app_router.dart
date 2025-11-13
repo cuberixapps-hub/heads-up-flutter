@@ -41,7 +41,13 @@ class AppRouter {
       ),
       GoRoute(
         path: '/explore',
-        builder: (context, state) => ExploreScreen(),
+        builder: (context, state) {
+          final categoryParam = state.uri.queryParameters['category'];
+          final category = categoryParam != null 
+              ? Uri.decodeComponent(categoryParam) 
+              : null;
+          return ExploreScreen(category: category);
+        },
       ),
       GoRoute(
         path: '/search',
