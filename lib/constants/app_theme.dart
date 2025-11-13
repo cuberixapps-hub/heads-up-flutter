@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../utils/responsive.dart';
 
 class AppTheme {
   // Modern Brand Colors - Solid colors focused
@@ -72,7 +73,7 @@ class AppTheme {
       iconTheme: const IconThemeData(color: textPrimary),
       titleTextStyle: GoogleFonts.poppins(
         color: textPrimary,
-        fontSize: 20,
+        fontSize: 20.sp,
         fontWeight: FontWeight.w600,
       ),
     ),
@@ -80,84 +81,84 @@ class AppTheme {
     // Text Theme
     textTheme: TextTheme(
       displayLarge: GoogleFonts.poppins(
-        fontSize: 36,
+        fontSize: 36.sp,
         fontWeight: FontWeight.w800,
         color: textPrimary,
         letterSpacing: -1.5,
       ),
       displayMedium: GoogleFonts.poppins(
-        fontSize: 30,
+        fontSize: 30.sp,
         fontWeight: FontWeight.w700,
         color: textPrimary,
         letterSpacing: -0.5,
       ),
       displaySmall: GoogleFonts.poppins(
-        fontSize: 26,
+        fontSize: 26.sp,
         fontWeight: FontWeight.w600,
         color: textPrimary,
       ),
       headlineLarge: GoogleFonts.poppins(
-        fontSize: 22,
+        fontSize: 22.sp,
         fontWeight: FontWeight.w600,
         color: textPrimary,
       ),
       headlineMedium: GoogleFonts.poppins(
-        fontSize: 19,
+        fontSize: 19.sp,
         fontWeight: FontWeight.w600,
         color: textPrimary,
       ),
       headlineSmall: GoogleFonts.poppins(
-        fontSize: 17,
+        fontSize: 17.sp,
         fontWeight: FontWeight.w600,
         color: textPrimary,
       ),
       titleLarge: GoogleFonts.poppins(
-        fontSize: 20,
+        fontSize: 20.sp,
         fontWeight: FontWeight.w500,
         color: textPrimary,
       ),
       titleMedium: GoogleFonts.poppins(
-        fontSize: 16,
+        fontSize: 16.sp,
         fontWeight: FontWeight.w500,
         color: textPrimary,
       ),
       titleSmall: GoogleFonts.poppins(
-        fontSize: 14,
+        fontSize: 14.sp,
         fontWeight: FontWeight.w500,
         color: textPrimary,
       ),
       bodyLarge: GoogleFonts.inter(
-        fontSize: 16,
+        fontSize: 16.sp,
         fontWeight: FontWeight.w400,
         color: textPrimary,
         height: 1.5,
       ),
       bodyMedium: GoogleFonts.inter(
-        fontSize: 14,
+        fontSize: 14.sp,
         fontWeight: FontWeight.w400,
         color: textSecondary,
         height: 1.5,
       ),
       bodySmall: GoogleFonts.inter(
-        fontSize: 12,
+        fontSize: 12.sp,
         fontWeight: FontWeight.w400,
         color: textTertiary,
         height: 1.5,
       ),
       labelLarge: GoogleFonts.poppins(
-        fontSize: 14,
+        fontSize: 14.sp,
         fontWeight: FontWeight.w600,
         color: textPrimary,
         letterSpacing: 0.5,
       ),
       labelMedium: GoogleFonts.poppins(
-        fontSize: 12,
+        fontSize: 12.sp,
         fontWeight: FontWeight.w600,
         color: textPrimary,
         letterSpacing: 0.5,
       ),
       labelSmall: GoogleFonts.poppins(
-        fontSize: 10,
+        fontSize: 10.sp,
         fontWeight: FontWeight.w600,
         color: textSecondary,
         letterSpacing: 0.5,
@@ -170,10 +171,10 @@ class AppTheme {
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: EdgeInsets.symmetric(horizontal: 24.s, vertical: 14.s),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.s)),
         textStyle: GoogleFonts.poppins(
-          fontSize: 16,
+          fontSize: 16.sp,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.5,
         ),
@@ -184,11 +185,11 @@ class AppTheme {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: primaryColor,
-        side: const BorderSide(color: primaryColor, width: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        side: BorderSide(color: primaryColor, width: 2.s),
+        padding: EdgeInsets.symmetric(horizontal: 24.s, vertical: 14.s),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.s)),
         textStyle: GoogleFonts.poppins(
-          fontSize: 16,
+          fontSize: 16.sp,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.5,
         ),
@@ -199,9 +200,9 @@ class AppTheme {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: primaryColor,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: 16.s, vertical: 8.s),
         textStyle: GoogleFonts.poppins(
-          fontSize: 14,
+          fontSize: 14.sp,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.5,
         ),
@@ -213,7 +214,7 @@ class AppTheme {
       color: surfaceColor,
       elevation: 0,
       shadowColor: Colors.black12,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.s)),
     ),
 
     // Input Decoration Theme
@@ -221,23 +222,23 @@ class AppTheme {
       filled: true,
       fillColor: Colors.white,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(12.s),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(12.s),
         borderSide: BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: primaryColor, width: 2),
+        borderRadius: BorderRadius.circular(12.s),
+        borderSide: BorderSide(color: primaryColor, width: 2.s),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(12.s),
         borderSide: const BorderSide(color: errorColor),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      hintStyle: GoogleFonts.inter(color: textTertiary, fontSize: 14),
+      contentPadding: EdgeInsets.symmetric(horizontal: 20.s, vertical: 14.s),
+      hintStyle: GoogleFonts.inter(color: textTertiary, fontSize: 14.sp),
     ),
 
     // Chip Theme
@@ -246,11 +247,11 @@ class AppTheme {
       selectedColor: primaryColor.withOpacity(0.2),
       disabledColor: dividerColor,
       labelStyle: GoogleFonts.poppins(
-        fontSize: 14,
+        fontSize: 14.sp,
         fontWeight: FontWeight.w500,
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+      padding: EdgeInsets.symmetric(horizontal: 16.s, vertical: 8.s),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25.s)),
     ),
 
     // Bottom Navigation Bar Theme
@@ -259,11 +260,11 @@ class AppTheme {
       selectedItemColor: primaryColor,
       unselectedItemColor: textTertiary,
       selectedLabelStyle: GoogleFonts.poppins(
-        fontSize: 12,
+        fontSize: 12.sp,
         fontWeight: FontWeight.w600,
       ),
       unselectedLabelStyle: GoogleFonts.poppins(
-        fontSize: 12,
+        fontSize: 12.sp,
         fontWeight: FontWeight.w400,
       ),
       type: BottomNavigationBarType.fixed,
@@ -279,43 +280,43 @@ class AppTheme {
   static const Duration mediumAnimation = Duration(milliseconds: 500);
   static const Duration longAnimation = Duration(milliseconds: 800);
 
-  // Border Radius
-  static const double smallRadius = 8.0;
-  static const double mediumRadius = 12.0;
-  static const double largeRadius = 16.0;
-  static const double extraLargeRadius = 24.0;
+  // Border Radius (using responsive scaling)
+  static double get smallRadius => 8.0.s;
+  static double get mediumRadius => 12.0.s;
+  static double get largeRadius => 16.0.s;
+  static double get extraLargeRadius => 24.0.s;
 
-  // Compact Spacing
-  static const double spacing4 = 4.0;
-  static const double spacing8 = 8.0;
-  static const double spacing12 = 12.0;
-  static const double spacing16 = 16.0;
-  static const double spacing20 = 20.0;
-  static const double spacing24 = 24.0;
-  static const double spacing32 = 32.0;
+  // Compact Spacing (using responsive scaling)
+  static double get spacing4 => 4.0.s;
+  static double get spacing8 => 8.0.s;
+  static double get spacing12 => 12.0.s;
+  static double get spacing16 => 16.0.s;
+  static double get spacing20 => 20.0.s;
+  static double get spacing24 => 24.0.s;
+  static double get spacing32 => 32.0.s;
 
   // Modern Shadows - Subtle and clean
   static List<BoxShadow> get softShadow => [
     BoxShadow(
       color: Colors.black.withOpacity(0.06),
-      blurRadius: 20,
-      offset: const Offset(0, 4),
+      blurRadius: 20.s,
+      offset: Offset(0, 4.s),
     ),
   ];
 
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
       color: Colors.black.withOpacity(0.08),
-      blurRadius: 24,
-      offset: const Offset(0, 8),
+      blurRadius: 24.s,
+      offset: Offset(0, 8.s),
     ),
   ];
 
   static List<BoxShadow> get buttonShadow => [
     BoxShadow(
       color: primaryColor.withOpacity(0.2),
-      blurRadius: 16,
-      offset: const Offset(0, 6),
+      blurRadius: 16.s,
+      offset: Offset(0, 6.s),
     ),
   ];
 }

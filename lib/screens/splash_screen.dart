@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:math' as math;
 import 'dart:ui';
+import '../utils/responsive.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -147,17 +148,17 @@ class _SplashScreenState extends State<SplashScreen>
                 // Logo with Modern Animation
                 _buildModernLogo(accentColor),
 
-                const SizedBox(height: 50),
+                SizedBox(height: 50.s),
 
                 // App Title with Typewriter Effect
                 _buildModernTitle(isDarkMode),
 
-                const SizedBox(height: 20),
+                SizedBox(height: 20.s),
 
                 // Tagline with Slide Animation
                 _buildModernTagline(isDarkMode),
 
-                const SizedBox(height: 80),
+                SizedBox(height: 80.s),
 
                 // Modern Loading Animation
                 _buildModernLoadingIndicator(accentColor),
@@ -282,7 +283,7 @@ class _SplashScreenState extends State<SplashScreen>
             return Text(
                   letter,
                   style: TextStyle(
-                    fontSize: 42,
+                    fontSize: 42.sp,
                     fontWeight: FontWeight.w800,
                     color: textColor,
                     letterSpacing: 2,
@@ -314,15 +315,15 @@ class _SplashScreenState extends State<SplashScreen>
     final textColor = isDarkMode ? Colors.white70 : const Color(0xFF5A6C8C);
 
     return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          padding: EdgeInsets.symmetric(horizontal: 24.s, vertical: 12.s),
           decoration: BoxDecoration(
             border: Border.all(color: textColor.withOpacity(0.3), width: 1),
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(30.s),
           ),
           child: Text(
             'The Ultimate Party Game',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 16.sp,
               color: textColor,
               letterSpacing: 1.5,
               fontWeight: FontWeight.w300,

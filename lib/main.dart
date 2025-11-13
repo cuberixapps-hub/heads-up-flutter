@@ -9,6 +9,7 @@ import 'widgets/network_status_widget.dart';
 import 'services/firebase_service.dart';
 import 'services/ad_service.dart';
 import 'utils/app_router.dart';
+import 'utils/responsive.dart';
 
 // Custom scroll behavior for smooth, elegant scrolling
 class SmoothScrollBehavior extends MaterialScrollBehavior {
@@ -93,15 +94,22 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => DeckProvider()),
         ChangeNotifierProvider(create: (_) => GameProvider()),
       ],
-      child: MaterialApp.router(
-        title: 'Heads Up!',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        routerConfig: AppRouter.router,
-        scrollBehavior: SmoothScrollBehavior(),
-        builder: (context, child) {
-          // Wrap the child with NetworkStatusWidget after MaterialApp provides Directionality
-          return NetworkStatusWidget(child: child ?? const SizedBox.shrink());
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Initialize responsive utility BEFORE MaterialApp uses the theme
+          Responsive.init(context);
+          
+          return MaterialApp.router(
+            title: 'Heads Up!',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            routerConfig: AppRouter.router,
+            scrollBehavior: SmoothScrollBehavior(),
+            builder: (context, child) {
+              // Wrap the child with NetworkStatusWidget after MaterialApp provides Directionality
+              return NetworkStatusWidget(child: child ?? const SizedBox.shrink());
+            },
+          );
         },
       ),
     );

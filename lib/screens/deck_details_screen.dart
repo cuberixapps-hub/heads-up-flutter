@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
 import '../models/deck.dart';
 import '../services/haptic_service.dart';
+import '../utils/responsive.dart';
 
 class DeckDetailsScreen extends StatefulWidget {
   final Deck deck;
@@ -439,7 +440,7 @@ class _DeckDetailsScreenState extends State<DeckDetailsScreen> {
                                     Text(
                                           widget.deck.name,
                                           style: GoogleFonts.poppins(
-                                            fontSize: 32,
+                                            fontSize: 32.sp,
                                             fontWeight: FontWeight.w600,
                                             color: Colors.white,
                                             height: 1.2,
@@ -456,13 +457,13 @@ class _DeckDetailsScreenState extends State<DeckDetailsScreen> {
                                           curve: Curves.easeOutCubic,
                                         ),
 
-                                    const SizedBox(height: 12),
+                                    SizedBox(height: 12.s),
 
                                     // Description with subtle styling
                                     Text(
                                       widget.deck.description,
                                       style: GoogleFonts.inter(
-                                        fontSize: 16,
+                                        fontSize: 16.sp,
                                         fontWeight: FontWeight.w400,
                                         color: Colors.white.withOpacity(0.7),
                                         height: 1.6,
@@ -534,7 +535,7 @@ class _DeckDetailsScreenState extends State<DeckDetailsScreen> {
                                     Text(
                                       'Game Features',
                                       style: GoogleFonts.poppins(
-                                        fontSize: 20,
+                                        fontSize: 20.sp,
                                         fontWeight: FontWeight.w600,
                                         color: Colors.white,
                                       ),
@@ -543,7 +544,7 @@ class _DeckDetailsScreenState extends State<DeckDetailsScreen> {
                                       duration: 500.ms,
                                     ),
 
-                                    const SizedBox(height: 16),
+                                    SizedBox(height: 16.s),
 
                                     _buildFeatureCard(
                                       icon: Icons.celebration_rounded,
@@ -643,7 +644,7 @@ class _DeckDetailsScreenState extends State<DeckDetailsScreen> {
                                           Text(
                                             'Start Game',
                                             style: GoogleFonts.poppins(
-                                              fontSize: 17,
+                                              fontSize: 17.sp,
                                               fontWeight: FontWeight.w600,
                                               color: Colors.white,
                                               letterSpacing: 0.5,

@@ -22,6 +22,7 @@ import '../widgets/home_screen/streak_widget.dart';
 import '../widgets/home_screen/daily_deck_widget.dart';
 import '../widgets/home_screen/tutorial_overlay.dart';
 import '../widgets/home_screen/home_screen_utils.dart';
+import '../utils/responsive.dart';
 
 class HomeScreenV2 extends StatefulWidget {
   const HomeScreenV2({super.key});
@@ -716,7 +717,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 1200),
                     curve: Curves.easeInOut,
-                    height: 780,
+                    height: 780.s,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
@@ -761,7 +762,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             // Header with user greeting
                             _buildHeader(),
 
-                            const SizedBox(height: 20),
+                            SizedBox(height: 20.s),
 
                             // Featured deck
                             Consumer<DeckProvider>(
@@ -792,12 +793,12 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               },
                             ),
 
-                            const SizedBox(height: 0),
+                            SizedBox(height: 0.s),
 
                             // Category chips
                             _buildCategoryChips(),
 
-                            const SizedBox(height: 16),
+                            SizedBox(height: 16.s),
 
                             // Daily deck section
                             if (_todaysDeck != null) ...[
@@ -841,13 +842,13 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                 hapticService: _hapticService,
                                 tutorialKey: _dailyChallengeKey,
                               ),
-                              const SizedBox(height: 30),
+                              SizedBox(height: 30.s),
                             ],
 
                             // Continue playing section with larger cards
                             if (_recentDecks.isNotEmpty) ...[
                               _buildContinueWatchingSection(),
-                              const SizedBox(height: 24),
+                              SizedBox(height: 24.s),
                             ],
 
                             // Recommended for you (filtered by category)
@@ -888,7 +889,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               ),
                             ),
 
-                            const SizedBox(height: 32),
+                            SizedBox(height: 32.s),
 
                             // Enhanced streak widget
                             StreakWidget(
@@ -902,7 +903,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               hapticService: _hapticService,
                             ),
 
-                            const SizedBox(height: 32),
+                            SizedBox(height: 32.s),
 
                             // Party favorites
                             Consumer<DeckProvider>(
@@ -919,12 +920,12 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               },
                             ),
 
-                            const SizedBox(height: 24),
+                            SizedBox(height: 24.s),
 
                             // Quick stats banner
                             _buildStatsSection(),
 
-                            const SizedBox(height: 24),
+                            SizedBox(height: 24.s),
 
                             // Custom decks with better presentation
                             Consumer<DeckProvider>(
@@ -942,7 +943,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               },
                             ),
 
-                            const SizedBox(height: 24),
+                            SizedBox(height: 24.s),
 
                             // Premium decks with better presentation
                             Consumer<DeckProvider>(
@@ -960,7 +961,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               },
                             ),
 
-                            const SizedBox(height: 100),
+                            SizedBox(height: 100.s),
                           ],
                         ),
                       ),
@@ -978,9 +979,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   Widget _buildHeader() {
     return Container(
       padding: EdgeInsets.fromLTRB(
-        24,
-        MediaQuery.of(context).padding.top + 8,
-        24,
+        24.s,
+        MediaQuery.of(context).padding.top + 8.s,
+        24.s,
         0,
       ),
       child: Column(
@@ -997,7 +998,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   children: [
                     // Animated wave icon container
                     Container(
-                          padding: const EdgeInsets.all(10),
+                          padding: EdgeInsets.all(10.s),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
@@ -1007,16 +1008,16 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                 Colors.white.withOpacity(0.05),
                               ],
                             ),
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(16.s),
                             border: Border.all(
                               color: Colors.white.withOpacity(0.1),
-                              width: 1,
+                              width: 1.s,
                             ),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.waving_hand_rounded,
                             color: Color(0xFFFFD700),
-                            size: 24,
+                            size: 24.s,
                           ),
                         )
                         .animate(
@@ -1037,7 +1038,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                           curve: Curves.easeInOut,
                         ),
 
-                    const SizedBox(width: 16),
+                    SizedBox(width: 16.s),
 
                     // Text content
                     Expanded(
@@ -1049,7 +1050,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               Text(
                                     'Welcome back',
                                     style: GoogleFonts.poppins(
-                                      fontSize: 26,
+                                      fontSize: 26.sp,
                                       fontWeight: FontWeight.w700,
                                       color: Colors.white,
                                       letterSpacing: -0.8,
@@ -1078,10 +1079,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                     return const SizedBox();
                                   }
                                   return Container(
-                                        margin: const EdgeInsets.only(left: 12),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 4,
+                                        margin: EdgeInsets.only(left: 12.s),
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 10.s,
+                                          vertical: 4.s,
                                         ),
                                         decoration: BoxDecoration(
                                           gradient: LinearGradient(
@@ -1091,15 +1092,15 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                             ],
                                           ),
                                           borderRadius: BorderRadius.circular(
-                                            16,
+                                            16.s,
                                           ),
                                           boxShadow: [
                                             BoxShadow(
                                               color: const Color(
                                                 0xFFFFD700,
                                               ).withOpacity(0.3),
-                                              blurRadius: 8,
-                                              offset: const Offset(0, 2),
+                                              blurRadius: 8.s,
+                                              offset: Offset(0, 2.s),
                                             ),
                                           ],
                                         ),
@@ -1108,14 +1109,14 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                           children: [
                                             Icon(
                                               Icons.workspace_premium_rounded,
-                                              size: 14,
+                                              size: 14.s,
                                               color: Colors.black,
                                             ),
-                                            const SizedBox(width: 4),
+                                            SizedBox(width: 4.s),
                                             Text(
                                               'VIP',
                                               style: GoogleFonts.poppins(
-                                                fontSize: 11,
+                                                fontSize: 11.sp,
                                                 fontWeight: FontWeight.w800,
                                                 color: Colors.black,
                                                 letterSpacing: 0.5,
@@ -1143,7 +1144,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             ],
                           ),
 
-                          const SizedBox(height: 4),
+                          SizedBox(height: 4.s),
 
                           ShaderMask(
                                 shaderCallback:
@@ -1156,7 +1157,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                 child: Text(
                                   'What would you like to play today?',
                                   style: GoogleFonts.inter(
-                                    fontSize: 13.5,
+                                    fontSize: 13.5.sp,
                                     fontWeight: FontWeight.w400,
                                     color: Colors.white,
                                     letterSpacing: -0.1,
@@ -1192,10 +1193,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                 child: AnimatedContainer(
                       duration: const Duration(milliseconds: 400),
                       curve: Curves.easeInOutCubic,
-                      margin: const EdgeInsets.only(left: 12),
+                      margin: EdgeInsets.only(left: 12.s),
                       padding: EdgeInsets.symmetric(
-                        horizontal: _streakBadgeExpanded ? 14 : 10,
-                        vertical: 8,
+                        horizontal: _streakBadgeExpanded ? 14.s : 10.s,
+                        vertical: 8.s,
                       ),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -1206,16 +1207,16 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             const Color(0xFFFF8C00).withOpacity(0.15),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(20.s),
                         border: Border.all(
                           color: const Color(0xFFFFD700).withOpacity(0.3),
-                          width: 1.5,
+                          width: 1.5.s,
                         ),
                         boxShadow: [
                           BoxShadow(
                             color: const Color(0xFFFFD700).withOpacity(0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                            blurRadius: 12.s,
+                            offset: Offset(0, 4.s),
                           ),
                         ],
                       ),
@@ -1225,7 +1226,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                           Icon(
                                 Icons.local_fire_department_rounded,
                                 color: const Color(0xFFFFD700),
-                                size: 18,
+                                size: 18.s,
                               )
                               .animate(
                                 onPlay: (controller) => controller.repeat(),
@@ -1252,11 +1253,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                     ? Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const SizedBox(width: 7),
+                                        SizedBox(width: 7.s),
                                         Text(
                                           '$_currentStreak day${_currentStreak == 1 ? '' : 's'}',
                                           style: GoogleFonts.poppins(
-                                            fontSize: 12.5,
+                                            fontSize: 12.5.sp,
                                             fontWeight: FontWeight.w600,
                                             color: const Color(0xFFFFD700),
                                             letterSpacing: 0.2,
@@ -1267,11 +1268,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                     : Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const SizedBox(width: 6),
+                                        SizedBox(width: 6.s),
                                         Text(
                                           '$_currentStreak',
                                           style: GoogleFonts.poppins(
-                                            fontSize: 13,
+                                            fontSize: 13.sp,
                                             fontWeight: FontWeight.w700,
                                             color: const Color(0xFFFFD700),
                                             letterSpacing: 0.1,
@@ -1309,29 +1310,29 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     final categories = _getDynamicCategories(context);
 
     return Container(
-      height: 52,
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      height: 52.s,
+      margin: EdgeInsets.symmetric(vertical: 8.s),
       child: Align(
         alignment: Alignment.center,
         child: SizedBox(
-          height: 42,
+          height: 42.s,
           child: Row(
             children: [
               // Fixed search bubble on the left
               Padding(
-                padding: const EdgeInsets.only(left: 24, right: 12),
+                padding: EdgeInsets.only(left: 24.s, right: 12.s),
                 child: _buildSearchChip(),
               ),
 
               // Elegant vertical divider
               Container(
-                    margin: const EdgeInsets.only(
+                    margin: EdgeInsets.only(
                       left: 0,
                       right: 0,
-                      top: 6,
-                      bottom: 6,
+                      top: 6.s,
+                      bottom: 6.s,
                     ),
-                    width: 1.5,
+                    width: 1.5.s,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
@@ -1403,7 +1404,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                     physics: const BouncingScrollPhysics(
                       parent: AlwaysScrollableScrollPhysics(),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    padding: EdgeInsets.symmetric(horizontal: 14.s),
                     itemCount: categories.length,
                     itemBuilder: (context, index) {
                       final category = categories[index];
@@ -1449,7 +1450,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     int newCount = 0,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(right: 12),
+      padding: EdgeInsets.only(right: 12.s),
       child: Material(
             color: Colors.transparent,
             child: InkWell(
@@ -1469,10 +1470,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeOutCubic,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 10,
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 18.s, vertical: 10.s),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(24),
                   gradient:
@@ -1542,17 +1540,17 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                 : Colors.white.withOpacity(0.7),
                         fontWeight:
                             isSelected ? FontWeight.w600 : FontWeight.w400,
-                        fontSize: 13.5,
+                        fontSize: 13.5.sp,
                         letterSpacing: 0.1,
                       ),
                     ),
                     // Show "NEW" badge for categories with new content
                     if (hasNew && newCount > 0) ...[
-                      const SizedBox(width: 6),
+                      SizedBox(width: 6.s),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6.s,
+                          vertical: 2.s,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.red,
@@ -1562,7 +1560,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                           'NEW',
                           style: GoogleFonts.poppins(
                             color: Colors.white,
-                            fontSize: 9,
+                            fontSize: 9.sp,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.5,
                           ),
@@ -1571,11 +1569,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                     ]
                     // Show count badge if no NEW badge
                     else if (count != null && count > 0 && !hasNew) ...[
-                      const SizedBox(width: 6),
+                      SizedBox(width: 6.s),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6.s,
+                          vertical: 2.s,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.2),
@@ -1585,7 +1583,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                           '$count',
                           style: GoogleFonts.poppins(
                             color: Colors.white,
-                            fontSize: 10,
+                            fontSize: 10.sp,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1618,7 +1616,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         _getTrendingDecks(deckProvider.allDecks).take(3).toList();
 
     return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
+          margin: EdgeInsets.symmetric(horizontal: 20.s),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1662,16 +1660,16 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
                       // Content
                       Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 32,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 20.s,
+                          vertical: 32.s,
                         ),
                         child: Column(
                           children: [
                             // Icon with elegant animation
                             Container(
-                                  width: 64,
-                                  height: 64,
+                                  width: 64.s,
+                                  height: 64.s,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     gradient: LinearGradient(
@@ -1705,7 +1703,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   child: Icon(
                                     Icons.star_rounded,
                                     color: const Color(0xFFFFD700),
-                                    size: 32,
+                                    size: 32.s,
                                   ),
                                 )
                                 .animate(
@@ -1725,13 +1723,13 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   color: Colors.white.withOpacity(0.2),
                                 ),
 
-                            const SizedBox(height: 20),
+                            SizedBox(height: 20.s),
 
                             // Title with premium typography
                             Text(
                                   'No Favorites Yet',
                                   style: GoogleFonts.inter(
-                                    fontSize: 22,
+                                    fontSize: 22.sp,
                                     fontWeight: FontWeight.w700,
                                     color: Colors.white,
                                     letterSpacing: -0.5,
@@ -1749,13 +1747,13 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   curve: Curves.easeOutCubic,
                                 ),
 
-                            const SizedBox(height: 12),
+                            SizedBox(height: 12.s),
 
                             // Subtitle with elegant opacity
                             Text(
                                   'Tap the star icon on any deck to add it to your favorites for quick access anytime!',
                                   style: GoogleFonts.inter(
-                                    fontSize: 14,
+                                    fontSize: 14.sp,
                                     fontWeight: FontWeight.w400,
                                     color: Colors.white.withOpacity(0.6),
                                     letterSpacing: -0.1,
@@ -1773,7 +1771,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   curve: Curves.easeOutCubic,
                                 ),
 
-                            const SizedBox(height: 24),
+                            SizedBox(height: 24.s),
 
                             // Feature highlights
                             Row(
@@ -1802,20 +1800,20 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
               // Suggested decks to get started
               if (suggestedDecks.isNotEmpty) ...[
-                const SizedBox(height: 32),
+                SizedBox(height: 32.s),
                 Row(
                   children: [
                     Container(
-                          width: 36,
-                          height: 36,
+                          width: 36.s,
+                          height: 36.s,
                           decoration: BoxDecoration(
                             color: const Color(0xFFFF6B35).withOpacity(0.15),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.local_fire_department_rounded,
                             color: Color(0xFFFF6B35),
-                            size: 20,
+                            size: 20.s,
                           ),
                         )
                         .animate()
@@ -1827,11 +1825,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                           duration: 500.ms,
                           curve: Curves.easeOutBack,
                         ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12.s),
                     Text(
                           'Suggested to Get Started',
                           style: GoogleFonts.inter(
-                            fontSize: 20,
+                            fontSize: 20.sp,
                             fontWeight: FontWeight.w600,
                             color: Colors.white,
                             letterSpacing: -0.5,
@@ -1848,10 +1846,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16.s),
                 // Horizontal scrolling deck cards like other sections
                 SizedBox(
-                  height: 200,
+                  height: 200.s,
                   child: ShaderMask(
                     shaderCallback: (Rect bounds) {
                       return LinearGradient(
@@ -2006,7 +2004,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
           splashColor: searchColor.withOpacity(0.1),
           highlightColor: searchColor.withOpacity(0.05),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: EdgeInsets.symmetric(horizontal: 14.s, vertical: 10.s),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
               gradient: LinearGradient(
@@ -2043,10 +2041,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ).createShader(bounds),
-                      child: const Icon(
+                      child: Icon(
                         Icons.search_rounded,
                         color: Colors.white,
-                        size: 20,
+                        size: 20.s,
                       ),
                     )
                     .animate(
@@ -2074,20 +2072,20 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: EdgeInsets.symmetric(horizontal: 16.s, vertical: 8.s),
           child: Text(
             'Continue Playing',
             style: GoogleFonts.poppins(
-              fontSize: 20,
+              fontSize: 20.sp,
               fontWeight: FontWeight.w600,
               color: Colors.white,
               letterSpacing: 0.2,
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8.s),
         SizedBox(
-          height: 140,
+          height: 140.s,
           child: ShaderMask(
             shaderCallback: (Rect bounds) {
               return LinearGradient(
@@ -2108,7 +2106,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             },
             blendMode: BlendMode.dstIn,
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: EdgeInsets.symmetric(horizontal: 12.s),
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(
                 parent: AlwaysScrollableScrollPhysics(),
@@ -2126,8 +2124,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
   Widget _buildContinueCard(Deck deck) {
     return Container(
-      width: 200,
-      margin: const EdgeInsets.only(right: 8),
+      width: 200.s,
+      margin: EdgeInsets.only(right: 8.s),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -2181,28 +2179,28 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                 // Play button
                 Center(
                   child: Container(
-                    width: 50,
-                    height: 50,
+                    width: 50.s,
+                    height: 50.s,
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.3),
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.play_arrow,
                       color: Colors.white,
-                      size: 32,
+                      size: 32.s,
                     ),
                   ),
                 ),
 
                 // Info button (bottom left)
                 Positioned(
-                  bottom: 8,
-                  left: 8,
+                  bottom: 8.s,
+                  left: 8.s,
                   child: Container(
-                    width: 32,
-                    height: 32,
+                    width: 32.s,
+                    height: 32.s,
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(0.6),
                       shape: BoxShape.circle,
@@ -2217,11 +2215,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
                 // More button (bottom right)
                 Positioned(
-                  bottom: 8,
-                  right: 8,
+                  bottom: 8.s,
+                  right: 8.s,
                   child: Container(
-                    width: 32,
-                    height: 32,
+                    width: 32.s,
+                    height: 32.s,
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(0.6),
                       shape: BoxShape.circle,
@@ -2267,13 +2265,13 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       children: [
         // Section header
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          padding: EdgeInsets.fromLTRB(20.s, 8.s, 20.s, 16.s),
           child: Row(
             children: [
               if (icon != null) ...[
                 Container(
-                      width: 36,
-                      height: 36,
+                      width: 36.s,
+                      height: 36.s,
                       decoration: BoxDecoration(
                         color: (iconColor ?? Colors.white).withOpacity(0.15),
                         borderRadius: BorderRadius.circular(10),
@@ -2293,12 +2291,12 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                       duration: 500.ms,
                       curve: Curves.easeOutBack,
                     ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12.s),
               ],
               Text(
                     title,
                     style: GoogleFonts.inter(
-                      fontSize: 22,
+                      fontSize: 22.sp,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
                       letterSpacing: -0.5,
@@ -2319,9 +2317,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         );
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12.s,
+                          vertical: 8.s,
                         ),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
@@ -2346,7 +2344,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               style: GoogleFonts.inter(
                                 color: Colors.white.withOpacity(0.85),
                                 fontWeight: FontWeight.w500,
-                                fontSize: 13,
+                                fontSize: 13.sp,
                                 letterSpacing: 0.2,
                               ),
                             ),
@@ -2389,9 +2387,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                     },
                     borderRadius: BorderRadius.circular(8),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12.s,
+                        vertical: 6.s,
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -2401,7 +2399,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             style: GoogleFonts.inter(
                               color: Colors.white.withOpacity(0.6),
                               fontWeight: FontWeight.w500,
-                              fontSize: 13,
+                              fontSize: 13.sp,
                               letterSpacing: -0.1,
                             ),
                           ),
@@ -2422,7 +2420,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
         // Deck cards scroll view with elegant gradient mask
         SizedBox(
-          height: 200,
+          height: 200.s,
           child: ShaderMask(
             shaderCallback: (Rect bounds) {
               return LinearGradient(
@@ -2443,7 +2441,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             },
             blendMode: BlendMode.dstIn,
             child: ListView.builder(
-              padding: const EdgeInsets.only(left: 20, right: 12),
+              padding: EdgeInsets.only(left: 20.s, right: 12.s),
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(
                 parent: AlwaysScrollableScrollPhysics(),
@@ -2477,8 +2475,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             return MaterialRectArcTween(begin: begin, end: end);
           },
           child: Container(
-            width: 150,
-            margin: const EdgeInsets.only(right: 16),
+            width: 150.s,
+            margin: EdgeInsets.only(right: 16.s),
             child: Material(
               color: Colors.transparent,
               child: InkWell(
@@ -2498,8 +2496,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   children: [
                     // Card container with premium styling
                     Container(
-                      height: 200,
-                      width: 150,
+                      height: 200.s,
+                      width: 150.s,
                       decoration: BoxDecoration(
                         color: const Color(0xFF2C2C2E),
                         borderRadius: BorderRadius.circular(16),
@@ -2563,7 +2561,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   child: Icon(
                                     deck.icon,
                                     color: deck.color,
-                                    size: 40,
+                                    size: 40.s,
                                   ),
                                 ),
                               ),
@@ -2585,9 +2583,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
                             // Deck info overlay
                             Positioned(
-                              bottom: 12,
-                              left: 12,
-                              right: 12,
+                              bottom: 12.s,
+                              left: 12.s,
+                              right: 12.s,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisSize: MainAxisSize.min,
@@ -2595,7 +2593,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   Text(
                                     deck.name,
                                     style: GoogleFonts.inter(
-                                      fontSize: 14,
+                                      fontSize: 14.sp,
                                       fontWeight: FontWeight.w600,
                                       color: Colors.white,
                                       letterSpacing: -0.2,
@@ -2604,11 +2602,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  const SizedBox(height: 4),
+                                  SizedBox(height: 4.s),
                                   Text(
                                     '${deck.cards.length} cards',
                                     style: GoogleFonts.inter(
-                                      fontSize: 11,
+                                      fontSize: 11.sp,
                                       fontWeight: FontWeight.w500,
                                       color: Colors.white.withOpacity(0.6),
                                       letterSpacing: 0.1,
@@ -2626,7 +2624,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                 ),
                                 child: Center(
                                   child: Container(
-                                    padding: const EdgeInsets.all(16),
+                                    padding: EdgeInsets.all(16.s),
                                     decoration: BoxDecoration(
                                       color: Colors.black.withOpacity(0.3),
                                       shape: BoxShape.circle,
@@ -2637,10 +2635,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                         width: 2,
                                       ),
                                     ),
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.lock_rounded,
                                       color: Color(0xFFFFC107),
-                                      size: 24,
+                                      size: 24.s,
                                     ),
                                   ),
                                 ),
@@ -2649,11 +2647,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             // Play icon hint (top right)
                             if (!isPremium || isUnlocked)
                               Positioned(
-                                top: 8,
-                                right: 8,
+                                top: 8.s,
+                                right: 8.s,
                                 child: Container(
-                                      width: 32,
-                                      height: 32,
+                                      width: 32.s,
+                                      height: 32.s,
                                       decoration: BoxDecoration(
                                         color: Colors.white.withOpacity(0.9),
                                         borderRadius: BorderRadius.circular(8),
@@ -2677,12 +2675,12 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             // Premium badge
                             if (isPremium)
                               Positioned(
-                                top: 8,
-                                left: 8,
+                                top: 8.s,
+                                left: 8.s,
                                 child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 8.s,
+                                        vertical: 4.s,
                                       ),
                                       decoration: BoxDecoration(
                                         gradient: LinearGradient(
@@ -2716,7 +2714,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                           Text(
                                             'PREMIUM',
                                             style: GoogleFonts.poppins(
-                                              fontSize: 9,
+                                              fontSize: 9.sp,
                                               fontWeight: FontWeight.w700,
                                               color: Colors.black,
                                               letterSpacing: 0.5,
@@ -2817,7 +2815,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       pageBuilder: (context, animation, secondaryAnimation) {
         return Center(
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 24),
+            margin: EdgeInsets.symmetric(horizontal: 24.s),
             constraints: const BoxConstraints(maxWidth: 400),
             child: Material(
               color: Colors.transparent,
@@ -2874,7 +2872,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   ),
                                   child: Icon(
                                     Icons.lock_rounded,
-                                    size: 40,
+                                    size: 40.s,
                                     color: Colors.white,
                                   ),
                                 ),
@@ -2882,7 +2880,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                 Text(
                                   deck.name,
                                   style: GoogleFonts.poppins(
-                                    fontSize: 20,
+                                    fontSize: 20.sp,
                                     fontWeight: FontWeight.w700,
                                     color: Colors.white,
                                   ),
@@ -2897,7 +2895,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
                     // Content
                     Padding(
-                      padding: const EdgeInsets.all(24),
+                      padding: EdgeInsets.all(24.s),
                       child: Column(
                         children: [
                           // Title
@@ -2905,7 +2903,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(8),
+                                padding: EdgeInsets.all(8.s),
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     colors: [
@@ -2925,14 +2923,14 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               Text(
                                 'Unlock Premium',
                                 style: GoogleFonts.poppins(
-                                  fontSize: 24,
+                                  fontSize: 24.sp,
                                   fontWeight: FontWeight.w700,
                                   color: Colors.white,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 20),
+                          SizedBox(height: 20.s),
 
                           // Benefits list
                           ...[
@@ -2954,13 +2952,13 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             ),
                           ],
 
-                          const SizedBox(height: 24),
+                          SizedBox(height: 24.s),
 
                           // Price
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 12,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 20.s,
+                              vertical: 12.s,
                             ),
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.05),
@@ -2975,7 +2973,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                 Text(
                                   'One-time purchase',
                                   style: GoogleFonts.poppins(
-                                    fontSize: 14,
+                                    fontSize: 14.sp,
                                     color: Colors.white.withOpacity(0.7),
                                   ),
                                 ),
@@ -2983,7 +2981,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                 Text(
                                   '\$2.99',
                                   style: GoogleFonts.poppins(
-                                    fontSize: 20,
+                                    fontSize: 20.sp,
                                     fontWeight: FontWeight.w700,
                                     color: Colors.white,
                                   ),
@@ -2992,12 +2990,12 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             ),
                           ),
 
-                          const SizedBox(height: 20),
+                          SizedBox(height: 20.s),
 
                           // CTA Buttons
                           SizedBox(
                             width: double.infinity,
-                            height: 52,
+                            height: 52.s,
                             child: Material(
                               color: Colors.transparent,
                               child: InkWell(
@@ -3039,7 +3037,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                     child: Text(
                                       'Unlock Now',
                                       style: GoogleFonts.poppins(
-                                        fontSize: 16,
+                                        fontSize: 16.sp,
                                         fontWeight: FontWeight.w700,
                                         color: Colors.black,
                                       ),
@@ -3062,7 +3060,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   'Maybe Later',
                                   style: GoogleFonts.poppins(
                                     color: Colors.white.withOpacity(0.6),
-                                    fontSize: 14,
+                                    fontSize: 14.sp,
                                   ),
                                 ),
                               ),
@@ -3076,7 +3074,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   'Restore Purchases',
                                   style: GoogleFonts.poppins(
                                     color: const Color(0xFFFFD700),
-                                    fontSize: 14,
+                                    fontSize: 14.sp,
                                   ),
                                 ),
                               ),
@@ -3109,24 +3107,24 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
   Widget _buildBenefitItem(IconData icon, String text) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.symmetric(vertical: 8.s),
       child: Row(
         children: [
           Container(
-            width: 32,
-            height: 32,
+            width: 32.s,
+            height: 32.s,
             decoration: BoxDecoration(
               color: const Color(0xFFFFD700).withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, size: 18, color: const Color(0xFFFFD700)),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: 16.s),
           Expanded(
             child: Text(
               text,
               style: GoogleFonts.poppins(
-                fontSize: 14,
+                fontSize: 14.sp,
                 color: Colors.white.withOpacity(0.9),
               ),
             ),
@@ -3139,7 +3137,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   Widget _buildBottomNav() {
     return Container(
       key: _bottomNavKey,
-      height: 72,
+      height: 72.s,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -3217,20 +3215,20 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: EdgeInsets.symmetric(vertical: 8.s),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
               color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
-              size: 26,
+              size: 26.s,
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4.s),
             Text(
               label,
               style: GoogleFonts.poppins(
-                fontSize: 11,
+                fontSize: 11.sp,
                 color:
                     isSelected ? Colors.white : Colors.white.withOpacity(0.5),
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
@@ -3305,8 +3303,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
   Widget _buildStatDivider() {
     return Container(
-      width: 1,
-      height: 40,
+      width: 1.s,
+      height: 40.s,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -3333,13 +3331,13 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         children: [
           // Icon with subtle background
           Container(
-                width: 44,
-                height: 44,
+                width: 44.s,
+                height: 44.s,
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: color, size: 22),
+                child: Icon(icon, color: color, size: 22.s),
               )
               .animate()
               .fadeIn(delay: (600 + index * 100).ms, duration: 500.ms)
@@ -3357,7 +3355,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
           Text(
                 value,
                 style: GoogleFonts.inter(
-                  fontSize: 24,
+                  fontSize: 24.sp,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
                   letterSpacing: -0.5,
@@ -3379,7 +3377,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
           Text(
             label,
             style: GoogleFonts.inter(
-              fontSize: 11,
+              fontSize: 11.sp,
               fontWeight: FontWeight.w500,
               color: Colors.white.withOpacity(0.4),
               letterSpacing: 0.2,
@@ -3453,8 +3451,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                           children: [
                             // Icon with elegant animation
                             Container(
-                                  width: 56,
-                                  height: 56,
+                                  width: 56.s,
+                                  height: 56.s,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     gradient: LinearGradient(
@@ -3483,10 +3481,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                       ),
                                     ],
                                   ),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.add_rounded,
                                     color: Colors.white,
-                                    size: 28,
+                                    size: 28.s,
                                   ),
                                 )
                                 .animate(
@@ -3512,7 +3510,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             Text(
                                   'Create Your Own Deck',
                                   style: GoogleFonts.inter(
-                                    fontSize: 20,
+                                    fontSize: 20.sp,
                                     fontWeight: FontWeight.w700,
                                     color: Colors.white,
                                     letterSpacing: -0.5,
@@ -3536,7 +3534,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             Text(
                                   'Make custom decks with your own words and categories!',
                                   style: GoogleFonts.inter(
-                                    fontSize: 13,
+                                    fontSize: 13.sp,
                                     fontWeight: FontWeight.w400,
                                     color: Colors.white.withOpacity(0.6),
                                     letterSpacing: -0.1,
@@ -3602,7 +3600,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                           Text(
                                             'Create Deck',
                                             style: GoogleFonts.inter(
-                                              fontSize: 15,
+                                              fontSize: 15.sp,
                                               fontWeight: FontWeight.w600,
                                               color: Colors.black,
                                               letterSpacing: -0.2,
@@ -3702,7 +3700,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               Text(
                 label,
                 style: GoogleFonts.inter(
-                  fontSize: 11,
+                  fontSize: 11.sp,
                   fontWeight: FontWeight.w500,
                   color: Colors.white.withOpacity(0.7),
                   letterSpacing: -0.1,
@@ -3742,14 +3740,14 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                 children: [
                   Icon(
                     Icons.wifi_off_rounded,
-                    size: 80,
+                    size: 80.s,
                     color: Colors.white.withOpacity(0.5),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24.s),
                   Text(
                     'Unable to Load Decks',
                     style: GoogleFonts.poppins(
-                      fontSize: 24,
+                      fontSize: 24.sp,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
                     ),
@@ -3758,12 +3756,12 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   Text(
                     'Please check your internet connection and try again',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 16.sp,
                       color: Colors.white.withOpacity(0.7),
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 32),
+                  SizedBox(height: 32.s),
                   ElevatedButton(
                     onPressed: () {
                       _hapticService.selection();
@@ -3788,7 +3786,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         Text(
                           'Retry',
                           style: GoogleFonts.poppins(
-                            fontSize: 16,
+                            fontSize: 16.sp,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -3813,14 +3811,14 @@ class _HomeScreenV2State extends State<HomeScreenV2>
           children: [
             Icon(
               Icons.inbox_rounded,
-              size: 64,
+              size: 64.s,
               color: Colors.white.withOpacity(0.3),
             ),
             const SizedBox(height: 16),
             Text(
               'No decks available',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 18.sp,
                 color: Colors.white.withOpacity(0.5),
               ),
             ),
@@ -3845,8 +3843,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             children: [
               if (icon != null) ...[
                 Container(
-                  width: 36,
-                  height: 36,
+                  width: 36.s,
+                  height: 36.s,
                   decoration: BoxDecoration(
                     color: (iconColor ?? Colors.white).withOpacity(0.15),
                     borderRadius: BorderRadius.circular(10),
@@ -3858,7 +3856,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               Text(
                 title,
                 style: GoogleFonts.inter(
-                  fontSize: 22,
+                  fontSize: 22.sp,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
                   letterSpacing: -0.5,
@@ -3871,7 +3869,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
         // Skeleton cards scroll view
         SizedBox(
-          height: 200,
+          height: 200.s,
           child: ListView.builder(
             padding: const EdgeInsets.only(left: 20, right: 12),
             scrollDirection: Axis.horizontal,
@@ -3895,8 +3893,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         children: [
           // Skeleton card container
           Container(
-                height: 200,
-                width: 150,
+                height: 200.s,
+                width: 150.s,
                 decoration: BoxDecoration(
                   color: const Color(0xFF2C2C2E).withOpacity(0.5),
                   borderRadius: BorderRadius.circular(16),
@@ -3913,8 +3911,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                     children: [
                       // Skeleton icon
                       Container(
-                        width: 40,
-                        height: 40,
+                        width: 40.s,
+                        height: 40.s,
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.05),
                           borderRadius: BorderRadius.circular(12),

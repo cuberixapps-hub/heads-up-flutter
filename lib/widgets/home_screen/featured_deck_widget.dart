@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/deck.dart';
 import '../../services/haptic_service.dart';
+import '../../utils/responsive.dart';
 
 class FeaturedDeckWidget extends StatelessWidget {
   final List<Deck> availableDecks;

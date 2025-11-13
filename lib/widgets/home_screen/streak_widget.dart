@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/haptic_service.dart';
 import '../../services/streak_service.dart' show StreakMilestone;
+import '../../utils/responsive.dart';
 
 class StreakWidget extends StatefulWidget {
   final int currentStreak;
@@ -195,7 +196,9 @@ class _StreakWidgetState extends State<StreakWidget> {
                                                         Colors.white,
                                                         Colors.white,
                                                       ],
-                                              stops: const [0.0, 0.5, 1.0],
+                                              stops: widget.currentStreak > 0
+                                                  ? const [0.0, 0.5, 1.0]
+                                                  : const [0.0, 1.0],
                                             ).createShader(bounds),
                                         child: Text(
                                           '${widget.currentStreak}',

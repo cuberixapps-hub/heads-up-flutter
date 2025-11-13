@@ -18,6 +18,7 @@ import 'results_screen.dart';
 import 'team_results_screen.dart';
 import '../services/camera_recording_service.dart';
 import '../models/video_recording_result.dart';
+import '../utils/responsive.dart';
 
 class GameplayScreen extends StatefulWidget {
   final Deck deck;
@@ -714,7 +715,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                   end: Alignment.bottomRight,
                   colors: [Colors.white, Colors.white.withOpacity(0.95)],
                 ),
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(28.s),
                 boxShadow: [
                   BoxShadow(
                     color: widget.deck.color.withOpacity(0.3),
@@ -734,21 +735,21 @@ class _GameplayScreenState extends State<GameplayScreen>
                       size: 48,
                       color: widget.deck.color,
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
+                    SizedBox(height: 16.s),
+                    Text(
                       'Finish Game?',
                       style: TextStyle(
-                        fontSize: 24,
+                        fontSize: 24.sp,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8.s),
                     Text(
                       'Are you sure you want to end this game?',
-                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                      style: TextStyle(fontSize: 16.sp, color: Colors.grey[600]),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 24),
+                    SizedBox(height: 24.s),
                     Row(
                       children: [
                         Expanded(
@@ -777,7 +778,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                                   widget.deck.color.withOpacity(0.8),
                                 ],
                               ),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(12.s),
                               boxShadow: [
                                 BoxShadow(
                                   color: widget.deck.color.withOpacity(0.3),
@@ -797,7 +798,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                                   context.read<GameProvider>().endGame();
                                   _navigateToResults();
                                 },
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(12.s),
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 12,
@@ -846,7 +847,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                   end: Alignment.bottomRight,
                   colors: [Colors.white, Colors.white.withOpacity(0.95)],
                 ),
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(28.s),
                 boxShadow: [
                   BoxShadow(
                     color: widget.deck.color.withOpacity(0.3),
@@ -1936,7 +1937,7 @@ class _GameplayScreenState extends State<GameplayScreen>
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(12.s),
             border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
           ),
           child: Icon(

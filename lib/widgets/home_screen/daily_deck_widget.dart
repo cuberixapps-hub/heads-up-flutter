@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/daily_deck.dart';
 import '../../services/haptic_service.dart';
+import '../../utils/responsive.dart';
 
 class DailyDeckWidget extends StatelessWidget {
   final DailyDeck? todaysDeck;
