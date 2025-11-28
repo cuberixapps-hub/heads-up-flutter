@@ -1,0 +1,741 @@
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
+import 'app_localizations.dart';
+
+// ignore_for_file: type=lint
+
+/// The translations for Thai (`th`).
+class AppLocalizationsTh extends AppLocalizations {
+  AppLocalizationsTh([String locale = 'th']) : super(locale);
+
+  @override
+  String get appTitle => 'Heads Up!';
+
+  @override
+  String get home => 'Home';
+
+  @override
+  String get settings => 'Settings';
+
+  @override
+  String get search => 'Search';
+
+  @override
+  String get explore => 'Explore';
+
+  @override
+  String get back => 'Back';
+
+  @override
+  String get close => 'Close';
+
+  @override
+  String get done => 'Done';
+
+  @override
+  String get next => 'Next';
+
+  @override
+  String get previous => 'Previous';
+
+  @override
+  String get skip => 'Skip';
+
+  @override
+  String get save => 'Save';
+
+  @override
+  String get cancel => 'Cancel';
+
+  @override
+  String get delete => 'Delete';
+
+  @override
+  String get edit => 'Edit';
+
+  @override
+  String get share => 'Share';
+
+  @override
+  String get import => 'Import';
+
+  @override
+  String get export => 'Export';
+
+  @override
+  String get refresh => 'Refresh';
+
+  @override
+  String get retry => 'Retry';
+
+  @override
+  String get addAll => 'Add All';
+
+  @override
+  String get watchAd => 'Watch Ad';
+
+  @override
+  String get startRecording => 'Start Recording';
+
+  @override
+  String get testRecording => 'Test Recording';
+
+  @override
+  String get playVideo => 'Play Video';
+
+  @override
+  String get playNow => 'Play Now';
+
+  @override
+  String get play => 'Play';
+
+  @override
+  String get pass => 'Pass';
+
+  @override
+  String get correct => 'Correct';
+
+  @override
+  String get timer => 'Timer';
+
+  @override
+  String get score => 'Score';
+
+  @override
+  String get round => 'Round';
+
+  @override
+  String get gameOver => 'Game Over';
+
+  @override
+  String get startGame => 'Start Game';
+
+  @override
+  String get pauseGame => 'Pause Game';
+
+  @override
+  String get resumeGame => 'Resume Game';
+
+  @override
+  String get quitGame => 'Quit Game';
+
+  @override
+  String get recalibrate => 'Recalibrate';
+
+  @override
+  String get categories => 'Categories';
+
+  @override
+  String get trending => 'Trending';
+
+  @override
+  String get trendingNow => 'Trending Now';
+
+  @override
+  String get quick => 'Quick';
+
+  @override
+  String get quickGames => 'Quick Games';
+
+  @override
+  String get party => 'Party';
+
+  @override
+  String get partyMode => 'Party Mode';
+
+  @override
+  String get myDecks => 'My Decks';
+
+  @override
+  String get yourCreations => 'Your Creations';
+
+  @override
+  String get favorites => 'Favorites';
+
+  @override
+  String get myFavorites => 'My Favorites';
+
+  @override
+  String get allDecks => 'All Decks';
+
+  @override
+  String get newLabel => 'New';
+
+  @override
+  String get popular => 'Popular';
+
+  @override
+  String get selectDeck => 'Select Deck';
+
+  @override
+  String get createDeck => 'Create Deck';
+
+  @override
+  String get editDeck => 'Edit Deck';
+
+  @override
+  String get deleteDeck => 'Delete Deck';
+
+  @override
+  String get customDecks => 'Custom Decks';
+
+  @override
+  String get deckName => 'Deck Name';
+
+  @override
+  String get deckDescription => 'Deck Description';
+
+  @override
+  String get deckCategory => 'Deck Category';
+
+  @override
+  String get deckColor => 'Deck Color';
+
+  @override
+  String get deckIcon => 'Deck Icon';
+
+  @override
+  String get cards => 'Cards';
+
+  @override
+  String get addCard => 'Add Card';
+
+  @override
+  String nCards(int count) {
+    return '$count Cards';
+  }
+
+  @override
+  String get shareDeck => 'Share Deck';
+
+  @override
+  String get importDeck => 'Import Deck';
+
+  @override
+  String get exportDeck => 'Export Deck';
+
+  @override
+  String get createYourFirstDeck => 'Create Your First Deck';
+
+  @override
+  String get searchDecks => 'Search Decks';
+
+  @override
+  String get searchPlaceholder => 'Search for decks...';
+
+  @override
+  String get noResults => 'No Results';
+
+  @override
+  String get noDecksFound => 'No Decks Found';
+
+  @override
+  String get dailyChallenge => 'Daily Challenge';
+
+  @override
+  String get dailyDeck => 'Daily Deck';
+
+  @override
+  String get todaysChallenge => 'Today\'s Challenge';
+
+  @override
+  String get streak => 'Streak';
+
+  @override
+  String get currentStreak => 'Current Streak';
+
+  @override
+  String get weeklyProgress => 'Weekly Progress';
+
+  @override
+  String get milestone => 'Milestone';
+
+  @override
+  String get nextMilestone => 'Next Milestone';
+
+  @override
+  String get completeDailyChallenge => 'Complete Daily Challenge';
+
+  @override
+  String get results => 'Results';
+
+  @override
+  String get finalScore => 'Final Score';
+
+  @override
+  String get correctAnswers => 'Correct Answers';
+
+  @override
+  String get passedCards => 'Passed Cards';
+
+  @override
+  String get accuracy => 'Accuracy';
+
+  @override
+  String get totalTime => 'Total Time';
+
+  @override
+  String get bestStreak => 'Best Streak';
+
+  @override
+  String get shareResults => 'Share Results';
+
+  @override
+  String get playAgain => 'Play Again';
+
+  @override
+  String get noGameData => 'No game data';
+
+  @override
+  String get noGameDataAvailable => 'No game data available';
+
+  @override
+  String get gameSettings => 'Game Settings';
+
+  @override
+  String get soundEffects => 'Sound Effects';
+
+  @override
+  String get playSoundsDuringGameplay => 'Play sounds during gameplay';
+
+  @override
+  String get hapticFeedback => 'Haptic Feedback';
+
+  @override
+  String get subtleTouchFeedback => 'Subtle touch feedback';
+
+  @override
+  String get roundDuration => 'Round Duration';
+
+  @override
+  String get timePerRoundInSeconds => 'Time per round in seconds';
+
+  @override
+  String get kidFriendlyMode => 'Kid-Friendly Mode';
+
+  @override
+  String get filterInappropriateContent => 'Filter inappropriate content';
+
+  @override
+  String get showWordsAfterPass => 'Show Words After Pass';
+
+  @override
+  String get displayPassedWordsAfterRound => 'Display passed words after round';
+
+  @override
+  String get recordReactions => 'Record Reactions';
+
+  @override
+  String get captureFunMoments => 'Capture fun moments';
+
+  @override
+  String get gameplayControls => 'Gameplay Controls';
+
+  @override
+  String get manualControls => 'Manual Controls';
+
+  @override
+  String get useButtonsInsteadOfTilt => 'Use buttons instead of tilt';
+
+  @override
+  String get landscapeMode => 'Landscape Mode';
+
+  @override
+  String get playInHorizontalOrientation => 'Play in horizontal orientation';
+
+  @override
+  String get general => 'General';
+
+  @override
+  String get notifications => 'Notifications';
+
+  @override
+  String get receiveGameReminders => 'Receive game reminders';
+
+  @override
+  String get showTutorials => 'Show Tutorials';
+
+  @override
+  String get displayHelpfulHints => 'Display helpful hints';
+
+  @override
+  String get language => 'Language';
+
+  @override
+  String get selectLanguage => 'Select Language';
+
+  @override
+  String get changeLanguage => 'Change Language';
+
+  @override
+  String get appAppearance => 'App Appearance';
+
+  @override
+  String get about => 'About';
+
+  @override
+  String get version => 'Version';
+
+  @override
+  String get rateUs => 'Rate Us';
+
+  @override
+  String get welcomeToHeadsUp => 'Welcome to Heads Up!';
+
+  @override
+  String get tutorial => 'Tutorial';
+
+  @override
+  String get tutorialStep1Title => 'Welcome to Heads Up!';
+
+  @override
+  String get tutorialStep1Description =>
+      'This is your featured deck. Swipe left or right to explore different decks, or tap to see details.';
+
+  @override
+  String get tutorialStep2Title => 'Browse Categories';
+
+  @override
+  String get tutorialStep2Description =>
+      'Explore different categories or search for specific decks using these chips.';
+
+  @override
+  String get tutorialStep3Title => 'Daily Challenge';
+
+  @override
+  String get tutorialStep3Description =>
+      'Complete a new challenge every day to maintain your streak!';
+
+  @override
+  String get tutorialStep4Title => 'Continue Playing';
+
+  @override
+  String get tutorialStep4Description =>
+      'Your recent games appear here for quick access.';
+
+  @override
+  String get teams => 'Teams';
+
+  @override
+  String get teamSetup => 'Team Setup';
+
+  @override
+  String get teamName => 'Team Name';
+
+  @override
+  String get enterTeamName => 'Enter team name';
+
+  @override
+  String get teamResults => 'Team Results';
+
+  @override
+  String get pleaseEnterNamesForAllTeams => 'Please enter names for all teams';
+
+  @override
+  String get teamNamesMustBeUnique => 'Team names must be unique';
+
+  @override
+  String get videoDebug => 'Video Debug';
+
+  @override
+  String get saveReactionOnly => 'Save Reaction Only';
+
+  @override
+  String get shareReactionVideo => 'Share Reaction Video';
+
+  @override
+  String get shareWithGameOverlay => 'Share with Game Overlay';
+
+  @override
+  String get videoWithOverlaySaved => 'Video with overlay saved to gallery!';
+
+  @override
+  String startingGameWithDeck(String deckName) {
+    return 'Starting game with $deckName!';
+  }
+
+  @override
+  String switchedToMode(String modeName) {
+    return 'Switched to $modeName mode';
+  }
+
+  @override
+  String get customDeckCreatedSuccessfully =>
+      'Custom deck created successfully!';
+
+  @override
+  String get deckUpdatedSuccessfully => 'Deck updated successfully!';
+
+  @override
+  String deckDeleted(String deckName) {
+    return '$deckName deleted';
+  }
+
+  @override
+  String areYouSureDeleteDeck(String deckName) {
+    return 'Are you sure you want to delete \"$deckName\"?';
+  }
+
+  @override
+  String get adIntegrationComingSoon => 'Ad integration coming soon!';
+
+  @override
+  String get inAppPurchasesComingSoon => 'In-app purchases coming soon!';
+
+  @override
+  String get noCustomDecksYet => 'No Custom Decks Yet';
+
+  @override
+  String get noFavoritesYet => 'No Favorites Yet';
+
+  @override
+  String get continuePlayingTitle => 'Continue Playing';
+
+  @override
+  String get error => 'Error';
+
+  @override
+  String get errorOccurred => 'An error occurred';
+
+  @override
+  String get failedToLoadDecks => 'Failed to load decks';
+
+  @override
+  String get checkYourInternetConnection =>
+      'Please check your internet connection';
+
+  @override
+  String get failedToLoadData => 'Failed to load data';
+
+  @override
+  String get noInternetConnection => 'No internet connection';
+
+  @override
+  String get tryAgainLater => 'Please try again later';
+
+  @override
+  String get invalidInput => 'Invalid input';
+
+  @override
+  String get requiredField => 'This field is required';
+
+  @override
+  String get deckNameRequired => 'Deck name is required';
+
+  @override
+  String get atLeastOneCardRequired => 'At least one card is required';
+
+  @override
+  String atLeastCardsRequired(int count) {
+    return 'At least $count cards are required';
+  }
+
+  @override
+  String get errorLoadingDailyDeck => 'Error loading daily deck';
+
+  @override
+  String get errorLoadingStreakData => 'Error loading streak data';
+
+  @override
+  String get failedToSaveSettings => 'Failed to save settings';
+
+  @override
+  String get areYouSure => 'Are you sure?';
+
+  @override
+  String get cannotBeUndone => 'This action cannot be undone';
+
+  @override
+  String get yes => 'Yes';
+
+  @override
+  String get no => 'No';
+
+  @override
+  String get ok => 'OK';
+
+  @override
+  String get syncSettings => 'Sync Settings';
+
+  @override
+  String get syncMode => 'Sync Mode';
+
+  @override
+  String get syncing => 'Syncing...';
+
+  @override
+  String get syncComplete => 'Sync complete';
+
+  @override
+  String get syncFailed => 'Sync failed';
+
+  @override
+  String get lastSync => 'Last sync';
+
+  @override
+  String get featured => 'Featured';
+
+  @override
+  String get featuredDecks => 'Featured Decks';
+
+  @override
+  String get featuredDeck => 'Featured Deck';
+
+  @override
+  String get partyFavorites => 'Party Favorites';
+
+  @override
+  String get unlockMoreFun => 'Unlock More Fun';
+
+  @override
+  String get noDecksAvailable => 'No decks available';
+
+  @override
+  String get unableToLoadDecks => 'Unable to Load Decks';
+
+  @override
+  String get checkInternetAndRetry =>
+      'Please check your internet connection and try again';
+
+  @override
+  String get helloUser => 'Hello!';
+
+  @override
+  String get whatWouldYouLikeToPlayToday =>
+      'What would you like to play today?';
+
+  @override
+  String get tapStarToAddFavorites =>
+      'Tap the star icon on any deck to add it to your favorites for quick access anytime!';
+
+  @override
+  String get quickAccess => 'Quick Access';
+
+  @override
+  String get trackFavorites => 'Track Favorites';
+
+  @override
+  String get createCustomDeckPromptTitle => 'Create Your Own';
+
+  @override
+  String get createCustomDeckPromptSubtitle =>
+      'Make custom decks with your own words and categories!';
+
+  @override
+  String get unlockNow => 'Unlock Now';
+
+  @override
+  String get maybeLater => 'Maybe Later';
+
+  @override
+  String get restorePurchases => 'Restore Purchases';
+
+  @override
+  String get languageSettings => 'Language Settings';
+
+  @override
+  String get welcomeBack => 'Welcome back';
+
+  @override
+  String get newBadge => 'NEW';
+
+  @override
+  String get day => 'DAY';
+
+  @override
+  String get startYourStreakToday => 'Start your streak today!';
+
+  @override
+  String get gamesWon => 'Games Won';
+
+  @override
+  String get winStreak => 'Win Streak';
+
+  @override
+  String get playersMet => 'Players Met';
+
+  @override
+  String get avgScore => 'Avg Score';
+
+  @override
+  String get quickSetup => 'Quick Setup';
+
+  @override
+  String get customize => 'Customize';
+
+  @override
+  String get thisWeek => 'This Week';
+
+  @override
+  String get gettingStarted => 'Getting Started';
+
+  @override
+  String daysToGo(int count) {
+    return '$count days to go';
+  }
+
+  @override
+  String get weekWarrior => 'Week Warrior';
+
+  @override
+  String get consistentPlayer => 'Consistent Player';
+
+  @override
+  String get monthlyMaster => 'Monthly Master';
+
+  @override
+  String get dedicatedGamer => 'Dedicated Gamer';
+
+  @override
+  String get centuryClub => 'Century Club';
+
+  @override
+  String get premiumUnlockComingSoon => 'Premium unlock coming soon!';
+
+  @override
+  String dayCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'days',
+      one: 'day',
+    );
+    return '$count $_temp0';
+  }
+
+  @override
+  String get searchForDecks => 'Search for decks';
+
+  @override
+  String get trendingSearches => 'Trending Searches';
+
+  @override
+  String get popularCategoriesRightNow => 'Popular categories right now';
+
+  @override
+  String get recentSearches => 'Recent Searches';
+
+  @override
+  String get noResultsFound => 'No results found';
+
+  @override
+  String get tryAdjustingYourSearch => 'Try adjusting your search';
+
+  @override
+  String get clearSearch => 'Clear search';
+
+  @override
+  String get movies => 'Movies';
+
+  @override
+  String get music => 'Music';
+
+  @override
+  String get gaming => 'Gaming';
+
+  @override
+  String get world => 'World';
+
+  @override
+  String get romance => 'Romance';
+}

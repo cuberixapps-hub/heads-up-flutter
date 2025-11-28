@@ -3,8 +3,8 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { generateDeckContent } from '../services/aiContentService';
 import { generateDeckImage } from '../services/aiImageService';
-import { validateAPIKeys, getAIConfig } from '../services/aiConfig';
-import { AIGenerationProgress, AIErrorCode } from '../types/ai';
+import { validateAPIKeys } from '../services/aiConfig';
+import { AIGenerationProgress } from '../types/ai';
 import type { DeckContent, AIError } from '../types/ai';
 import { DeckForm } from './DeckForm';
 import { Sparkles, AlertCircle, RefreshCw, Edit, Save, Loader, Wand2 } from 'lucide-react';
@@ -37,7 +37,7 @@ export const AIDeckGenerator: React.FC = () => {
   const handleGenerate = async () => {
     if (!topic.trim()) {
       setError({
-        code: AIErrorCode.INVALID_RESPONSE,
+        code: 'invalid_response',
         message: 'Please enter a topic for your deck'
       });
       return;
@@ -232,7 +232,7 @@ export const AIDeckGenerator: React.FC = () => {
               {progress === AIGenerationProgress.FINALIZING && 'Finalizing your deck...'}
             </h3>
             <div className="progress-steps">
-              <div className={`step ${progress !== AIGenerationProgress.IDLE ? 'active' : ''}`}>
+              <div className={`step ${(progress === AIGenerationProgress.GENERATING_CONTENT || progress === AIGenerationProgress.GENERATING_IMAGE || progress === AIGenerationProgress.FINALIZING) ? 'active' : ''}`}>
                 <span className="step-number">1</span>
                 <span className="step-label">Generate Content</span>
               </div>

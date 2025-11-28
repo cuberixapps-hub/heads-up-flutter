@@ -1,0 +1,21 @@
+{
+  "name": "heads-up-admin-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "migrate-images": "ts-node scripts/migrateImages.ts"
+  },
+  "dependencies": {
+    "firebase": "^10.7.1",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
+
+
+
+

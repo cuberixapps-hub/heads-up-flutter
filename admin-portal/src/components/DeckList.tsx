@@ -12,6 +12,7 @@ interface Deck {
     iconCodePoint: number;
     iconFontFamily: string;
     colorValue: number;
+    imageUrl?: string;
     isPremium: boolean;
     country?: string;
     tags?: string[];
@@ -32,6 +33,7 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [selectedDeck, setSelectedDeck] = useState<string | null>(null);
+    const [modalImage, setModalImage] = useState<{ url: string; name: string } | null>(null);
 
     useEffect(() => {
         const unsubscribe = onSnapshot(
@@ -79,6 +81,23 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
             setFilteredDecks(decks);
         }
     }, [searchQuery, decks]);
+
+    // Handle ESC key to close modal
+    useEffect(() => {
+        const handleEscKey = (event: KeyboardEvent) => {
+            if (event.key === 'Escape' && modalImage) {
+                setModalImage(null);
+            }
+        };
+
+        if (modalImage) {
+            document.addEventListener('keydown', handleEscKey);
+        }
+
+        return () => {
+            document.removeEventListener('keydown', handleEscKey);
+        };
+    }, [modalImage]);
 
     const handleDelete = async (deckId: string) => {
         if (window.confirm('Are you sure you want to delete this deck?')) {
@@ -137,8 +156,27 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
     };
 
     const renderIcon = (deck: Deck) => {
-        // For simplicity, we'll just show a placeholder icon
-        // In production, you'd map the iconCodePoint and fontFamily to actual icons
+        // If deck has an image, display it
+        if (deck.imageUrl) {
+            return (
+                <div
+                    className="deck-icon deck-image"
+                    style={{
+                        backgroundImage: `url(${deck.imageUrl})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        cursor: 'pointer'
+                    }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setModalImage({ url: deck.imageUrl!, name: deck.name });
+                    }}
+                    title="Click to view full image"
+                />
+            );
+        }
+        
+        // Otherwise show placeholder with first letter
         return (
             <div
                 className="deck-icon"
@@ -163,6 +201,27 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
 
     return (
         <div className="deck-list-container">
+            {/* Image Modal */}
+            {modalImage && (
+                <div className="image-modal-overlay" onClick={() => setModalImage(null)}>
+                    <div className="image-modal-content" onClick={(e) => e.stopPropagation()}>
+                        <button 
+                            className="image-modal-close" 
+                            onClick={() => setModalImage(null)}
+                            aria-label="Close"
+                        >
+                            ×
+                        </button>
+                        <h3 className="image-modal-title">{modalImage.name}</h3>
+                        <img 
+                            src={modalImage.url} 
+                            alt={modalImage.name}
+                            className="image-modal-img"
+                        />
+                    </div>
+                </div>
+            )}
+
             <div className="deck-list-header">
                 <div className="header-left">
                     <h1>Deck Management</h1>

@@ -488,6 +488,23 @@ class MockFirebaseService extends _i1.Mock implements _i13.FirebaseService {
           as _i9.Future<void>);
 
   @override
+  _i9.Future<void> logEventSampled(
+    String? name, {
+    Map<String, dynamic>? parameters,
+    double? samplingRate = 1.0,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #logEventSampled,
+              [name],
+              {#parameters: parameters, #samplingRate: samplingRate},
+            ),
+            returnValue: _i9.Future<void>.value(),
+            returnValueForMissingStub: _i9.Future<void>.value(),
+          )
+          as _i9.Future<void>);
+
+  @override
   _i9.Future<void> logScreenView(String? screenName) =>
       (super.noSuchMethod(
             Invocation.method(#logScreenView, [screenName]),
@@ -947,6 +964,15 @@ class MockDeckProvider extends _i1.Mock implements _i18.DeckProvider {
           as _i9.Future<void>);
 
   @override
+  _i9.Future<void> manualRefreshDecks() =>
+      (super.noSuchMethod(
+            Invocation.method(#manualRefreshDecks, []),
+            returnValue: _i9.Future<void>.value(),
+            returnValueForMissingStub: _i9.Future<void>.value(),
+          )
+          as _i9.Future<void>);
+
+  @override
   _i9.Future<List<_i15.Deck>> searchDecksGlobally(String? searchTerm) =>
       (super.noSuchMethod(
             Invocation.method(#searchDecksGlobally, [searchTerm]),
@@ -1193,6 +1219,15 @@ class MockGameProvider extends _i1.Mock implements _i22.GameProvider {
   bool get hasListeners =>
       (super.noSuchMethod(Invocation.getter(#hasListeners), returnValue: false)
           as bool);
+
+  @override
+  _i9.Future<void> manualRefreshGameHistory() =>
+      (super.noSuchMethod(
+            Invocation.method(#manualRefreshGameHistory, []),
+            returnValue: _i9.Future<void>.value(),
+            returnValueForMissingStub: _i9.Future<void>.value(),
+          )
+          as _i9.Future<void>);
 
   @override
   void startGame({

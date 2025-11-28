@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/deck.dart';
 import '../../services/haptic_service.dart';
-import '../../utils/responsive.dart';
+import '../../services/image_cache_manager.dart';
 
 class FeaturedDeckWidget extends StatelessWidget {
   final List<Deck> availableDecks;
@@ -149,10 +150,34 @@ class FeaturedDeckWidget extends StatelessWidget {
                         return Transform.scale(
                           scale: scale,
                           alignment: Alignment.center,
-                          child: Image.network(
-                            imageUrl,
+                          child: CachedNetworkImage(
+                            imageUrl: imageUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
+                            memCacheWidth: 600,
+                            memCacheHeight: 800,
+                            maxWidthDiskCache: 600,
+                            maxHeightDiskCache: 800,
+                            cacheManager: CustomImageCacheManager(),
+                            placeholder: (context, url) => Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    featuredDeck.color,
+                                    featuredDeck.color.withOpacity(0.6),
+                                  ],
+                                ),
+                              ),
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.white.withOpacity(0.5),
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                            fadeInDuration: const Duration(milliseconds: 400),
+                            errorWidget: (context, error, stackTrace) {
                               return Container(
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(

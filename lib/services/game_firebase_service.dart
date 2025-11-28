@@ -187,11 +187,27 @@ class GameFirebaseService {
 
     try {
       final currentStats = await getUserStatistics();
+      
+      // Calculate if this game was won
+      final isWon = _isGameWon(session);
+      final currentWinStreak = currentStats['currentWinStreak'] ?? 0;
+      final newWinStreak = isWon ? currentWinStreak + 1 : 0;
+      final longestWinStreak = currentStats['longestWinStreak'] ?? 0;
+      
+      // Track total cards for accuracy calculation
+      final totalCards = session.correctCount + session.passCount;
+      final previousTotalCards = currentStats['totalCards'] ?? 0;
+      final newTotalCards = previousTotalCards + totalCards;
+      
+      // Calculate running average accuracy
+      final totalCorrect = (currentStats['totalCorrect'] ?? 0) + session.correctCount;
+      final averageAccuracy = newTotalCards > 0 
+          ? (totalCorrect / newTotalCards) * 100 
+          : 0.0;
 
       final newStats = {
         'totalGames': (currentStats['totalGames'] ?? 0) + 1,
-        'totalCorrect':
-            (currentStats['totalCorrect'] ?? 0) + session.correctCount,
+        'totalCorrect': totalCorrect,
         'totalPassed': (currentStats['totalPassed'] ?? 0) + session.passCount,
         'highScore':
             (session.correctCount > (currentStats['highScore'] ?? 0))
@@ -201,6 +217,13 @@ class GameFirebaseService {
             (currentStats['totalPlayTime'] ?? 0) +
             session.elapsedTime.inSeconds,
         'lastPlayed': FieldValue.serverTimestamp(),
+        // New statistics
+        'gamesWon': (currentStats['gamesWon'] ?? 0) + (isWon ? 1 : 0),
+        'currentWinStreak': newWinStreak,
+        'longestWinStreak': newWinStreak > longestWinStreak ? newWinStreak : longestWinStreak,
+        'teamGamesPlayed': (currentStats['teamGamesPlayed'] ?? 0) + (session.isTeamMode ? 1 : 0),
+        'totalCards': newTotalCards,
+        'averageAccuracy': averageAccuracy,
       };
 
       batch.update(_userRef, {'statistics': newStats});
@@ -479,7 +502,20 @@ class GameFirebaseService {
       'highScore': 0,
       'totalPlayTime': 0,
       'averageScore': 0.0,
+      'gamesWon': 0,
+      'currentWinStreak': 0,
+      'longestWinStreak': 0,
+      'teamGamesPlayed': 0,
+      'totalCards': 0, // Track total cards played for accuracy calculation
     };
+  }
+  
+  // Helper: Calculate if a game is won (accuracy >= 70%)
+  bool _isGameWon(GameSession session) {
+    final totalCards = session.correctCount + session.passCount;
+    if (totalCards == 0) return false;
+    final accuracy = (session.correctCount / totalCards) * 100;
+    return accuracy >= 70.0;
   }
 
   // Default settings

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
 import 'constants/app_theme.dart';
 import 'providers/deck_provider.dart';
 import 'providers/game_provider.dart';
+import 'providers/language_provider.dart';
 import 'widgets/network_status_widget.dart';
 
 import 'services/firebase_service.dart';
@@ -91,23 +94,39 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ChangeNotifierProvider(create: (_) => DeckProvider()),
         ChangeNotifierProvider(create: (_) => GameProvider()),
       ],
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Initialize responsive utility BEFORE MaterialApp uses the theme
-          Responsive.init(context);
-          
-          return MaterialApp.router(
-            title: 'Heads Up!',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.lightTheme,
-            routerConfig: AppRouter.router,
-            scrollBehavior: SmoothScrollBehavior(),
-            builder: (context, child) {
-              // Wrap the child with NetworkStatusWidget after MaterialApp provides Directionality
-              return NetworkStatusWidget(child: child ?? const SizedBox.shrink());
+      child: Consumer<LanguageProvider>(
+        builder: (context, languageProvider, child) {
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              // Initialize responsive utility BEFORE MaterialApp uses the theme
+              Responsive.init(context);
+              
+              return MaterialApp.router(
+                title: 'Heads Up!',
+                debugShowCheckedModeBanner: false,
+                theme: AppTheme.lightTheme,
+                routerConfig: AppRouter.router,
+                scrollBehavior: SmoothScrollBehavior(),
+                
+                    // Localization configuration
+                    locale: languageProvider.locale,
+                    localizationsDelegates: const [
+                      AppLocalizations.delegate,
+                      GlobalMaterialLocalizations.delegate,
+                      GlobalWidgetsLocalizations.delegate,
+                      GlobalCupertinoLocalizations.delegate,
+                    ],
+                    supportedLocales: LanguageProvider.supportedLocales,
+                
+                builder: (context, child) {
+                  // Wrap the child with NetworkStatusWidget after MaterialApp provides Directionality
+                  return NetworkStatusWidget(child: child ?? const SizedBox.shrink());
+                },
+              );
             },
           );
         },

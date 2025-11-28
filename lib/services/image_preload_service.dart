@@ -1,9 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/deck.dart';
 import '../services/firebase_service.dart';
+import 'image_cache_manager.dart';
 
 /// Service for preloading images in the background to improve performance
 /// Only preloads on WiFi to respect data usage preferences
@@ -73,9 +73,12 @@ class ImagePreloadService {
         if (_preloadedUrls.contains(deck.imageUrl!)) continue;
 
         try {
-          // Use CachedNetworkImage's provider to preload
+          // Use CachedNetworkImage's provider to preload with custom cache manager
           await precacheImage(
-            CachedNetworkImageProvider(deck.imageUrl!),
+            CachedNetworkImageProvider(
+              deck.imageUrl!,
+              cacheManager: CustomImageCacheManager(),
+            ),
             context,
           );
 
@@ -131,7 +134,10 @@ class ImagePreloadService {
 
     try {
       await precacheImage(
-        CachedNetworkImageProvider(imageUrl),
+        CachedNetworkImageProvider(
+          imageUrl,
+          cacheManager: CustomImageCacheManager(),
+        ),
         context,
       );
       _preloadedUrls.add(imageUrl);
@@ -156,9 +162,8 @@ class ImagePreloadService {
   /// Returns size in MB
   Future<double> getCachedImagesSizeMB() async {
     try {
-      // Note: This is an estimate based on typical compressed image sizes
-      // Actual cache size would require platform-specific implementations
-      const averageImageSizeKB = 150; // ~150KB per compressed image
+      // Updated estimate based on 600x800 WebP images (~80-150KB average)
+      const averageImageSizeKB = 100; // Optimized WebP images
       final estimatedSizeKB = _preloadedUrls.length * averageImageSizeKB;
       return estimatedSizeKB / 1024; // Convert to MB
     } catch (e) {
@@ -220,7 +225,7 @@ class ImagePreloadService {
       'preloaded_count': _preloadedUrls.length,
       'is_preloading': _isPreloading,
       'is_enabled': _enabled,
-      'estimated_size_mb': ((_preloadedUrls.length * 150) / 1024).toStringAsFixed(2),
+      'estimated_size_mb': ((_preloadedUrls.length * 100) / 1024).toStringAsFixed(2), // Updated for optimized WebP images
     };
   }
 }

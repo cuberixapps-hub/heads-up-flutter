@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/deck.dart';
 import '../services/haptic_service.dart';
 import '../utils/responsive.dart';
@@ -325,13 +326,40 @@ class _DeckDetailsScreenState extends State<DeckDetailsScreen> {
                                                     .deck
                                                     .imageUrl!
                                                     .isNotEmpty)
-                                              Image.network(
-                                                widget.deck.imageUrl!,
+                                              CachedNetworkImage(
+                                                imageUrl: widget.deck.imageUrl!,
                                                 fit: BoxFit.cover,
-                                                errorBuilder: (
+                                                memCacheWidth: 210,
+                                                memCacheHeight: 280,
+                                                maxWidthDiskCache: 600,
+                                                maxHeightDiskCache: 800,
+                                                placeholder: (context, url) => Container(
+                                                  decoration: BoxDecoration(
+                                                    gradient: LinearGradient(
+                                                      begin:
+                                                          Alignment.topLeft,
+                                                      end:
+                                                          Alignment
+                                                              .bottomRight,
+                                                      colors: [
+                                                        widget.deck.color,
+                                                        widget.deck.color
+                                                            .withOpacity(0.7),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  child: Center(
+                                                    child: CircularProgressIndicator(
+                                                      color: Colors.white.withOpacity(0.5),
+                                                      strokeWidth: 2,
+                                                    ),
+                                                  ),
+                                                ),
+                                                fadeInDuration: const Duration(milliseconds: 300),
+                                                errorWidget: (
                                                   context,
+                                                  url,
                                                   error,
-                                                  stackTrace,
                                                 ) {
                                                   return Container(
                                                     decoration: BoxDecoration(

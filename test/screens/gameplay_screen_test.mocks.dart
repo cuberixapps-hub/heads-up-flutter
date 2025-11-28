@@ -3,10 +3,10 @@
 // Do not manually edit this file.
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'dart:async' as _i5;
+import 'dart:async' as _i4;
 import 'dart:ui' as _i7;
 
-import 'package:heads_up_game/models/deck.dart' as _i4;
+import 'package:heads_up_game/models/deck.dart' as _i5;
 import 'package:heads_up_game/models/game_session.dart' as _i3;
 import 'package:heads_up_game/models/video_recording_result.dart' as _i6;
 import 'package:heads_up_game/providers/game_provider.dart' as _i2;
@@ -111,8 +111,17 @@ class MockGameProvider extends _i1.Mock implements _i2.GameProvider {
           as bool);
 
   @override
+  _i4.Future<void> manualRefreshGameHistory() =>
+      (super.noSuchMethod(
+            Invocation.method(#manualRefreshGameHistory, []),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
+          )
+          as _i4.Future<void>);
+
+  @override
   void startGame({
-    required _i4.Deck? deck,
+    required _i5.Deck? deck,
     bool? isTeamMode = false,
     List<String>? teamNames,
     int? totalRounds = 1,
@@ -145,13 +154,13 @@ class MockGameProvider extends _i1.Mock implements _i2.GameProvider {
   );
 
   @override
-  _i5.Future<void> endGame() =>
+  _i4.Future<void> endGame() =>
       (super.noSuchMethod(
             Invocation.method(#endGame, []),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i4.Future<void>);
 
   @override
   void nextTeam() => super.noSuchMethod(
@@ -166,83 +175,83 @@ class MockGameProvider extends _i1.Mock implements _i2.GameProvider {
   );
 
   @override
-  _i5.Future<void> updateRoundDuration(int? seconds) =>
+  _i4.Future<void> updateRoundDuration(int? seconds) =>
       (super.noSuchMethod(
             Invocation.method(#updateRoundDuration, [seconds]),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i4.Future<void>);
 
   @override
-  _i5.Future<void> toggleSound() =>
+  _i4.Future<void> toggleSound() =>
       (super.noSuchMethod(
             Invocation.method(#toggleSound, []),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i4.Future<void>);
 
   @override
-  _i5.Future<void> toggleVibration() =>
+  _i4.Future<void> toggleVibration() =>
       (super.noSuchMethod(
             Invocation.method(#toggleVibration, []),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i4.Future<void>);
 
   @override
-  _i5.Future<void> toggleKidFriendlyMode() =>
+  _i4.Future<void> toggleKidFriendlyMode() =>
       (super.noSuchMethod(
             Invocation.method(#toggleKidFriendlyMode, []),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i4.Future<void>);
 
   @override
-  _i5.Future<void> toggleShowWordsAfterPass() =>
+  _i4.Future<void> toggleShowWordsAfterPass() =>
       (super.noSuchMethod(
             Invocation.method(#toggleShowWordsAfterPass, []),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i4.Future<void>);
 
   @override
-  _i5.Future<List<Map<String, dynamic>>> getGlobalLeaderboard({
+  _i4.Future<List<Map<String, dynamic>>> getGlobalLeaderboard({
     int? limit = 100,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#getGlobalLeaderboard, [], {#limit: limit}),
-            returnValue: _i5.Future<List<Map<String, dynamic>>>.value(
+            returnValue: _i4.Future<List<Map<String, dynamic>>>.value(
               <Map<String, dynamic>>[],
             ),
           )
-          as _i5.Future<List<Map<String, dynamic>>>);
+          as _i4.Future<List<Map<String, dynamic>>>);
 
   @override
-  _i5.Future<List<Map<String, dynamic>>> getDeckLeaderboard(
+  _i4.Future<List<Map<String, dynamic>>> getDeckLeaderboard(
     String? deckId, {
     int? limit = 50,
   }) =>
       (super.noSuchMethod(
             Invocation.method(#getDeckLeaderboard, [deckId], {#limit: limit}),
-            returnValue: _i5.Future<List<Map<String, dynamic>>>.value(
+            returnValue: _i4.Future<List<Map<String, dynamic>>>.value(
               <Map<String, dynamic>>[],
             ),
           )
-          as _i5.Future<List<Map<String, dynamic>>>);
+          as _i4.Future<List<Map<String, dynamic>>>);
 
   @override
-  _i5.Future<void> refreshData() =>
+  _i4.Future<void> refreshData() =>
       (super.noSuchMethod(
             Invocation.method(#refreshData, []),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i4.Future<void>);
 
   @override
   Map<String, dynamic> getStatistics() =>
@@ -267,13 +276,13 @@ class MockGameProvider extends _i1.Mock implements _i2.GameProvider {
           as Map<String, double>);
 
   @override
-  _i5.Future<void> clearAllData() =>
+  _i4.Future<void> clearAllData() =>
       (super.noSuchMethod(
             Invocation.method(#clearAllData, []),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i4.Future<void>);
 
   @override
   void setVideoRecording(_i6.VideoRecordingResult? recording) =>

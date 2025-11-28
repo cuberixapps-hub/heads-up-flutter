@@ -167,6 +167,15 @@ class MockDeckProvider extends _i1.Mock implements _i2.DeckProvider {
           as _i5.Future<void>);
 
   @override
+  _i5.Future<void> manualRefreshDecks() =>
+      (super.noSuchMethod(
+            Invocation.method(#manualRefreshDecks, []),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
   _i5.Future<List<_i3.Deck>> searchDecksGlobally(String? searchTerm) =>
       (super.noSuchMethod(
             Invocation.method(#searchDecksGlobally, [searchTerm]),
@@ -413,6 +422,15 @@ class MockGameProvider extends _i1.Mock implements _i8.GameProvider {
   bool get hasListeners =>
       (super.noSuchMethod(Invocation.getter(#hasListeners), returnValue: false)
           as bool);
+
+  @override
+  _i5.Future<void> manualRefreshGameHistory() =>
+      (super.noSuchMethod(
+            Invocation.method(#manualRefreshGameHistory, []),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
 
   @override
   void startGame({

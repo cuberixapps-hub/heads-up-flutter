@@ -13,6 +13,19 @@ A React TypeScript admin dashboard for managing game decks in the Heads Up! Flut
 - **AI Suggestions**: Get AI-powered card suggestions for your decks
 - **Search & Filter**: Quickly find decks with powerful search functionality
 - **Premium Decks**: Mark decks as premium for in-app purchases
+- **Multi-Page Navigation**: Clean routing with React Router for seamless navigation
+
+### 📄 Available Pages
+
+The admin portal includes multiple pages accessible through the navigation bar:
+
+- **Regular Decks** (`/`) - Manage game decks (create, edit, delete)
+- **Daily Heads Up** (`/daily`) - Schedule and manage daily featured decks
+- **AI Generator** (`/ai-generator`) - Generate decks using AI (Claude/GPT)
+- **Automated** (`/automated`) - Batch generation and automated scheduling
+- **Image Test** (`/image-test`) - Test and preview image generation APIs
+
+See [ROUTING.md](./ROUTING.md) for detailed routing documentation.
 
 ### 🎨 Icon Categories
 
@@ -64,21 +77,52 @@ The portal will be available at `http://localhost:5173`
 
 ## Usage
 
+### Navigation
+
+The admin portal uses a tabbed navigation system at the top:
+
+- **Regular Decks** - Main deck management page
+- **Daily Heads Up** - Schedule daily featured decks
+- **AI Generator** - Generate decks using AI
+- **Automated** - Batch generation tools
+- **Image Test** - Test image generation
+
+Click any tab to navigate to that page. The active tab is highlighted in purple.
+
 ### Creating a Deck
 
-1. Click the "Create Deck" button
-2. Enter deck information:
+1. Go to the **Regular Decks** page (home)
+2. Click the "Create Deck" button
+3. Enter deck information:
    - **Name**: Unique deck name
    - **Description**: Optional deck description
    - **Premium**: Toggle for premium status
-3. Customize appearance:
+   - **Country**: Select target country (optional)
+4. Customize appearance:
    - Click "Change Icon" to open the icon picker
    - Click "Change Color" to select a theme color
-4. Add cards:
+5. Add cards:
    - Type card text and press Enter or click +
    - Use "AI Suggestions" for inspiration
    - Minimum 5 cards required
-5. Click "Save" to create the deck
+6. Click "Save" to create the deck
+
+### Using AI Generator
+
+1. Navigate to **AI Generator** tab
+2. Select a topic or enter a custom one
+3. Choose target country
+4. Click "Generate Deck" to create AI-powered content
+5. Review and edit generated cards
+6. Save to Firebase when satisfied
+
+### Automated Generation
+
+1. Navigate to **Automated** tab
+2. Configure batch generation settings
+3. Select multiple topics and countries
+4. Run automated generation
+5. Review and publish generated decks
 
 ### Icon Selection
 
@@ -156,19 +200,36 @@ The icon system is designed to work seamlessly between the React admin portal an
 ```
 admin-portal/
 ├── src/
+│   ├── pages/                # Page components (routes)
+│   │   ├── DecksPage.tsx     # Regular decks management
+│   │   ├── DailyPage.tsx     # Daily deck scheduling
+│   │   ├── AIGeneratorPage.tsx  # AI deck generator
+│   │   ├── AutomatedPage.tsx # Automated generation
+│   │   ├── ImageTestPage.tsx # Image testing
+│   │   └── NotFoundPage.tsx  # 404 error page
 │   ├── components/
+│   │   ├── Layout.tsx        # Shared layout with navigation
 │   │   ├── DeckList.tsx      # Deck list view
 │   │   ├── DeckForm.tsx      # Create/edit deck form
+│   │   ├── DailyDeckManager.tsx  # Daily deck management
+│   │   ├── AIDeckGenerator.tsx   # AI generation interface
+│   │   ├── AutomatedDeckGenerator.tsx  # Automation interface
 │   │   └── IconPicker.tsx    # Icon selection modal
 │   ├── config/
 │   │   └── firebase.ts       # Firebase configuration
 │   ├── data/
 │   │   └── icons.ts          # Icon categories and mappings
-│   ├── styles/
+│   ├── services/             # Business logic and API calls
+│   │   ├── aiContentService.ts   # AI content generation
+│   │   ├── aiImageService.ts     # AI image generation
+│   │   └── automationService.ts  # Automation logic
+│   ├── styles/               # Component styles
+│   │   ├── Layout.css        # Layout styles
 │   │   ├── DeckList.css      # Deck list styles
-│   │   ├── DeckForm.css      # Form styles
-│   │   └── IconPicker.css    # Icon picker styles
-│   └── App.tsx               # Main application
+│   │   └── ...
+│   └── App.tsx               # Main application with routing
+├── ROUTING.md                # Routing documentation
+└── ROUTING_IMPLEMENTATION_SUMMARY.md  # Implementation details
 ```
 
 ### Building for Production
@@ -183,18 +244,47 @@ The built files will be in the `dist/` directory.
 
 You can deploy the admin portal to:
 
-- Firebase Hosting
+- Firebase Hosting (recommended)
 - Vercel
 - Netlify
 - Any static hosting service
 
-Example Firebase Hosting deployment:
+#### Firebase Hosting Deployment
+
+The project is configured for Firebase Hosting with proper routing support:
 
 ```bash
 npm install -g firebase-tools
 firebase init hosting
+# Select your project
+# Set public directory to: dist
+# Configure as single-page app: Yes
+# Set up automatic builds with GitHub: Optional
 firebase deploy
 ```
+
+The `firebase.json` configuration already includes the necessary rewrite rules for client-side routing:
+
+```json
+{
+  "hosting": {
+    "public": "dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
+```
+
+This ensures all routes (like `/ai-generator`, `/daily`) work correctly when deployed.
+
+#### Other Hosting Services
+
+For Vercel/Netlify, the app works out of the box as they automatically handle SPA routing.
 
 ## Security
 

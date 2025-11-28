@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../constants/app_theme.dart';
 import '../providers/deck_provider.dart';
 import '../providers/game_provider.dart';
@@ -920,7 +921,7 @@ class _HomeScreenState extends State<HomeScreen>
                   image:
                       deck.imageUrl != null
                           ? DecorationImage(
-                            image: NetworkImage(deck.imageUrl!),
+                            image: CachedNetworkImageProvider(deck.imageUrl!),
                             fit: BoxFit.cover,
                           )
                           : null,

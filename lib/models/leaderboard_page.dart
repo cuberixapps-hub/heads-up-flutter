@@ -48,3 +48,6 @@ class CachedLeaderboardData {
   int get totalEntries => pages.fold(0, (sum, page) => sum + page.length);
   bool get hasMore => pages.isEmpty ? true : pages.last.hasMore;
 }
+
+
+

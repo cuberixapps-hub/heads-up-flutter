@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../l10n/app_localizations.dart';
 
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_theme.dart';
 import '../providers/game_provider.dart';
+import '../providers/language_provider.dart';
 
 import '../services/audio_service.dart';
 import '../services/haptic_service.dart';
@@ -197,80 +199,91 @@ class _SettingsScreenState extends State<SettingsScreen>
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     // Game Settings Section
-                    _buildModernSection('Game Settings', Icons.tune_rounded, [
-                      _buildModernToggleItem(
-                        'Sound Effects',
-                        'Play sounds during gameplay',
-                        Icons.volume_up_rounded,
-                        _soundEnabled,
-                        (value) {
-                          setState(() => _soundEnabled = value);
-                          _saveSettings();
-                          _hapticService.lightImpact();
-                        },
-                      ),
-                      _buildItemDivider(),
-                      _buildModernToggleItem(
-                        'Haptic Feedback',
-                        'Subtle touch feedback',
-                        Icons.vibration_rounded,
-                        _hapticEnabled,
-                        (value) {
-                          setState(() => _hapticEnabled = value);
-                          _saveSettings();
-                          if (value) _hapticService.mediumImpact();
-                        },
-                      ),
-                      _buildItemDivider(),
-                      _buildModernTimerItem(),
-                      _buildItemDivider(),
-                      _buildModernToggleItem(
-                        'Kid-Friendly Mode',
-                        'Filter inappropriate content',
-                        Icons.child_care_rounded,
-                        _kidFriendlyMode,
-                        (value) {
-                          setState(() => _kidFriendlyMode = value);
-                          _saveSettings();
-                          _hapticService.lightImpact();
-                        },
-                      ),
-                      _buildItemDivider(),
-                      _buildModernToggleItem(
-                        'Show Words After Pass',
-                        'Display passed words after round',
-                        Icons.visibility_rounded,
-                        _showWordsAfterPass,
-                        (value) {
-                          setState(() => _showWordsAfterPass = value);
-                          _saveSettings();
-                          _hapticService.lightImpact();
-                        },
-                      ),
-                      _buildItemDivider(),
-                      _buildModernToggleItem(
-                        'Record Reactions',
-                        'Capture fun moments',
-                        Icons.videocam_rounded,
-                        _reactionRecordingEnabled,
-                        (value) {
-                          setState(() => _reactionRecordingEnabled = value);
-                          _saveSettings();
-                          _hapticService.lightImpact();
-                        },
-                      ),
-                    ], 0),
+                    _buildModernSection(
+                      AppLocalizations.of(context)!.gameSettings,
+                      Icons.tune_rounded,
+                      [
+                        _buildModernToggleItem(
+                          AppLocalizations.of(context)!.soundEffects,
+                          AppLocalizations.of(
+                            context,
+                          )!.playSoundsDuringGameplay,
+                          Icons.volume_up_rounded,
+                          _soundEnabled,
+                          (value) {
+                            setState(() => _soundEnabled = value);
+                            _saveSettings();
+                            _hapticService.lightImpact();
+                          },
+                        ),
+                        _buildItemDivider(),
+                        _buildModernToggleItem(
+                          AppLocalizations.of(context)!.hapticFeedback,
+                          AppLocalizations.of(context)!.subtleTouchFeedback,
+                          Icons.vibration_rounded,
+                          _hapticEnabled,
+                          (value) {
+                            setState(() => _hapticEnabled = value);
+                            _saveSettings();
+                            if (value) _hapticService.mediumImpact();
+                          },
+                        ),
+                        _buildItemDivider(),
+                        _buildModernTimerItem(),
+                        _buildItemDivider(),
+                        _buildModernToggleItem(
+                          AppLocalizations.of(context)!.kidFriendlyMode,
+                          AppLocalizations.of(
+                            context,
+                          )!.filterInappropriateContent,
+                          Icons.child_care_rounded,
+                          _kidFriendlyMode,
+                          (value) {
+                            setState(() => _kidFriendlyMode = value);
+                            _saveSettings();
+                            _hapticService.lightImpact();
+                          },
+                        ),
+                        _buildItemDivider(),
+                        _buildModernToggleItem(
+                          AppLocalizations.of(context)!.showWordsAfterPass,
+                          AppLocalizations.of(
+                            context,
+                          )!.displayPassedWordsAfterRound,
+                          Icons.visibility_rounded,
+                          _showWordsAfterPass,
+                          (value) {
+                            setState(() => _showWordsAfterPass = value);
+                            _saveSettings();
+                            _hapticService.lightImpact();
+                          },
+                        ),
+                        _buildItemDivider(),
+                        _buildModernToggleItem(
+                          AppLocalizations.of(context)!.recordReactions,
+                          AppLocalizations.of(context)!.captureFunMoments,
+                          Icons.videocam_rounded,
+                          _reactionRecordingEnabled,
+                          (value) {
+                            setState(() => _reactionRecordingEnabled = value);
+                            _saveSettings();
+                            _hapticService.lightImpact();
+                          },
+                        ),
+                      ],
+                      0,
+                    ),
 
                     const SizedBox(height: 28),
 
                     // Gameplay Controls Section
                     _buildModernSection(
-                      'Gameplay Controls',
+                      AppLocalizations.of(context)!.gameplayControls,
                       Icons.gamepad_rounded,
                       [
                         _buildModernToggleItem(
-                          'Manual Controls',
-                          'Use buttons instead of tilt',
+                          AppLocalizations.of(context)!.manualControls,
+                          AppLocalizations.of(context)!.useButtonsInsteadOfTilt,
                           Icons.touch_app_rounded,
                           _useManualControls,
                           (value) {
@@ -281,8 +294,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                         ),
                         _buildItemDivider(),
                         _buildModernToggleItem(
-                          'Landscape Mode',
-                          'Play in horizontal orientation',
+                          AppLocalizations.of(context)!.landscapeMode,
+                          AppLocalizations.of(
+                            context,
+                          )!.playInHorizontalOrientation,
                           Icons.screen_rotation_rounded,
                           _preferLandscape,
                           (value) {
@@ -298,37 +313,52 @@ class _SettingsScreenState extends State<SettingsScreen>
                     const SizedBox(height: 28),
 
                     // General Section
-                    _buildModernSection('General', Icons.settings_rounded, [
-                      _buildModernToggleItem(
-                        'Notifications',
-                        'Receive game reminders',
-                        Icons.notifications_rounded,
-                        _notificationsEnabled,
-                        (value) {
-                          setState(() => _notificationsEnabled = value);
-                          _saveSettings();
-                          _hapticService.lightImpact();
-                        },
-                      ),
-                      _buildItemDivider(),
-                      _buildModernToggleItem(
-                        'Show Tutorials',
-                        'Display helpful hints',
-                        Icons.lightbulb_rounded,
-                        _showTutorials,
-                        (value) {
-                          setState(() => _showTutorials = value);
-                          _saveSettings();
-                          _hapticService.lightImpact();
-                        },
-                      ),
-                    ], 2),
+                    _buildModernSection(
+                      AppLocalizations.of(context)!.general,
+                      Icons.settings_rounded,
+                      [
+                        _buildModernToggleItem(
+                          AppLocalizations.of(context)!.notifications,
+                          AppLocalizations.of(context)!.receiveGameReminders,
+                          Icons.notifications_rounded,
+                          _notificationsEnabled,
+                          (value) {
+                            setState(() => _notificationsEnabled = value);
+                            _saveSettings();
+                            _hapticService.lightImpact();
+                          },
+                        ),
+                        _buildItemDivider(),
+                        _buildModernToggleItem(
+                          AppLocalizations.of(context)!.showTutorials,
+                          AppLocalizations.of(context)!.displayHelpfulHints,
+                          Icons.lightbulb_rounded,
+                          _showTutorials,
+                          (value) {
+                            setState(() => _showTutorials = value);
+                            _saveSettings();
+                            _hapticService.lightImpact();
+                          },
+                        ),
+                      ],
+                      2,
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // Language Section
+                    _buildModernSection(
+                      AppLocalizations.of(context)!.language,
+                      Icons.language_rounded,
+                      [_buildLanguageSelector()],
+                      3,
+                    ),
 
                     const SizedBox(height: 28),
 
                     // App Appearance Section
                     _buildModernSection(
-                      'App Appearance',
+                      AppLocalizations.of(context)!.appAppearance,
                       Icons.palette_rounded,
                       [
                         Padding(
@@ -336,25 +366,30 @@ class _SettingsScreenState extends State<SettingsScreen>
                           child: const VersionSwitcher(),
                         ),
                       ],
-                      3,
+                      4,
                     ),
 
                     const SizedBox(height: 28),
 
                     // About Section
-                    _buildModernSection('About', Icons.info_rounded, [
-                      _buildModernInfoItem(
-                        'Version',
-                        '1.0.0',
-                        Icons.verified_rounded,
-                      ),
-                      _buildItemDivider(),
-                      _buildModernLinkItem(
-                        'Rate Us',
-                        Icons.star_rounded,
-                        _rateApp,
-                      ),
-                    ], 4),
+                    _buildModernSection(
+                      AppLocalizations.of(context)!.about,
+                      Icons.info_rounded,
+                      [
+                        _buildModernInfoItem(
+                          AppLocalizations.of(context)!.version,
+                          '1.0.0',
+                          Icons.verified_rounded,
+                        ),
+                        _buildItemDivider(),
+                        _buildModernLinkItem(
+                          AppLocalizations.of(context)!.rateUs,
+                          Icons.star_rounded,
+                          _rateApp,
+                        ),
+                      ],
+                      5,
+                    ),
 
                     const SizedBox(height: 24),
                   ]),
@@ -641,9 +676,9 @@ class _SettingsScreenState extends State<SettingsScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Round Duration',
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context)!.roundDuration,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
@@ -653,7 +688,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Time per round in seconds',
+                  AppLocalizations.of(context)!.timePerRoundInSeconds,
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.45),
                     fontSize: 13,
@@ -875,5 +910,220 @@ class _SettingsScreenState extends State<SettingsScreen>
     }
 
     _launchUrl(url);
+  }
+
+  // Language Selector Widget
+  Widget _buildLanguageSelector() {
+    final languageProvider = context.watch<LanguageProvider>();
+    final currentLanguageCode = languageProvider.locale.languageCode;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      child: Row(
+        children: [
+          // Icon Container
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppTheme.primaryColor.withOpacity(0.2),
+                  AppTheme.primaryColor.withOpacity(0.1),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              Icons.language_rounded,
+              color: AppTheme.primaryColor,
+              size: 22,
+            ),
+          ),
+
+          const SizedBox(width: 18),
+
+          // Label
+          Expanded(
+            child: Text(
+              AppLocalizations.of(context)!.selectLanguage,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                letterSpacing: -0.4,
+                height: 1.3,
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 16),
+
+          // Language Dropdown
+          GestureDetector(
+            onTap: () => _showLanguagePicker(context),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.08),
+                  width: 0.5,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    LanguageProvider.getLanguageName(currentLanguageCode),
+                    style: TextStyle(
+                      color: AppTheme.primaryColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.arrow_drop_down_rounded,
+                    color: AppTheme.primaryColor,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Show Language Picker Dialog
+  void _showLanguagePicker(BuildContext context) {
+    final languageProvider = context.read<LanguageProvider>();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF111111),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.1),
+              width: 0.5,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+
+              // Title
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  AppLocalizations.of(context)!.selectLanguage,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ),
+
+              // Language List
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: LanguageProvider.supportedLocales.length,
+                  itemBuilder: (context, index) {
+                    final locale = LanguageProvider.supportedLocales[index];
+                    final languageName = LanguageProvider.getLanguageName(
+                      locale.languageCode,
+                    );
+                    final isSelected = languageProvider.locale == locale;
+
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () async {
+                          _hapticService.lightImpact();
+                          await languageProvider.setLocale(locale);
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                isSelected
+                                    ? AppTheme.primaryColor.withOpacity(0.1)
+                                    : Colors.transparent,
+                            border: Border(
+                              top: BorderSide(
+                                color: Colors.white.withOpacity(0.05),
+                                width: 0.5,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  languageName,
+                                  style: TextStyle(
+                                    color:
+                                        isSelected
+                                            ? AppTheme.primaryColor
+                                            : Colors.white,
+                                    fontSize: 16,
+                                    fontWeight:
+                                        isSelected
+                                            ? FontWeight.w600
+                                            : FontWeight.w400,
+                                    letterSpacing: -0.3,
+                                  ),
+                                ),
+                              ),
+                              if (isSelected)
+                                Icon(
+                                  Icons.check_circle_rounded,
+                                  color: AppTheme.primaryColor,
+                                  size: 24,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 24),
+            ],
+          ),
+        );
+      },
+    );
   }
 }

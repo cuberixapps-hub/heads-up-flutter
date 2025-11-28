@@ -200,3 +200,6 @@ Settings saved with debouncing: soundEnabled, vibrationEnabled
 - Debounces settings for fewer writes
 
 The Firebase free tier can now handle **2,000-3,000 daily active users** comfortably!
+
+
+

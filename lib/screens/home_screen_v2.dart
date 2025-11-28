@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../l10n/app_localizations.dart';
 import '../models/deck.dart';
 import '../providers/deck_provider.dart';
 import '../providers/game_provider.dart';
@@ -423,22 +425,23 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
   String _getCategoryTitle() {
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+    final l10n = AppLocalizations.of(context)!;
 
     switch (_selectedCategory) {
       case 'Trending':
-        return 'Trending Now';
+        return l10n.trendingNow;
       case 'Quick':
-        return 'Quick Games';
+        return l10n.quickGames;
       case 'Party':
-        return 'Party Mode';
+        return l10n.partyMode;
       case 'My Decks':
         final count = deckProvider.customDecks.length;
-        return count > 0 ? 'Your Creations' : 'No Custom Decks Yet';
+        return count > 0 ? l10n.yourCreations : l10n.noCustomDecksYet;
       case 'Favorites':
         final count = deckProvider.favoriteDecks.length;
-        return count > 0 ? 'My Favorites' : 'No Favorites Yet';
+        return count > 0 ? l10n.myFavorites : l10n.noFavoritesYet;
       default:
-        return 'All Decks';
+        return l10n.allDecks;
     }
   }
 
@@ -473,6 +476,25 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         return const Color(0xFFFFD700);
       default:
         return Colors.purple;
+    }
+  }
+
+  /// Translate category name to localized version
+  String _getLocalizedCategoryName(String categoryName) {
+    final l10n = AppLocalizations.of(context)!;
+    switch (categoryName) {
+      case 'Trending':
+        return l10n.trending;
+      case 'Quick':
+        return l10n.quick;
+      case 'Party':
+        return l10n.party;
+      case 'My Decks':
+        return l10n.myDecks;
+      case 'Favorites':
+        return l10n.favorites;
+      default:
+        return categoryName;
     }
   }
 
@@ -901,7 +923,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             Consumer<DeckProvider>(
                               builder: (context, deckProvider, _) {
                                 return _buildSection(
-                                  title: 'Party Favorites',
+                                  title:
+                                      AppLocalizations.of(
+                                        context,
+                                      )!.partyFavorites,
                                   decks:
                                       deckProvider.freeDecks
                                           .where((d) => d.cards.length > 15)
@@ -926,7 +951,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   return _buildCreateCustomDeckPrompt();
                                 }
                                 return _buildSection(
-                                  title: 'Your Creations',
+                                  title:
+                                      AppLocalizations.of(
+                                        context,
+                                      )!.yourCreations,
                                   decks: deckProvider.customDecks,
                                   icon: Icons.create_rounded,
                                   iconColor: Colors.blue,
@@ -942,7 +970,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               builder: (context, deckProvider, _) {
                                 if (deckProvider.premiumDecks.isNotEmpty) {
                                   return _buildSection(
-                                    title: 'Unlock More Fun',
+                                    title:
+                                        AppLocalizations.of(
+                                          context,
+                                        )!.unlockMoreFun,
                                     decks: deckProvider.premiumDecks,
                                     icon: Icons.star_rounded,
                                     iconColor: Colors.amber,
@@ -1040,7 +1071,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                           Row(
                             children: [
                               Text(
-                                    'Welcome back',
+                                    AppLocalizations.of(context)!.welcomeBack,
                                     style: GoogleFonts.poppins(
                                       fontSize: 26.sp,
                                       fontWeight: FontWeight.w700,
@@ -1147,7 +1178,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                       ],
                                     ).createShader(bounds),
                                 child: Text(
-                                  'What would you like to play today?',
+                                  AppLocalizations.of(
+                                    context,
+                                  )!.whatWouldYouLikeToPlayToday,
                                   style: GoogleFonts.inter(
                                     fontSize: 13.5.sp,
                                     fontWeight: FontWeight.w400,
@@ -1247,7 +1280,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                       children: [
                                         SizedBox(width: 7.s),
                                         Text(
-                                          '$_currentStreak day${_currentStreak == 1 ? '' : 's'}',
+                                          AppLocalizations.of(
+                                            context,
+                                          )!.dayCount(_currentStreak),
                                           style: GoogleFonts.poppins(
                                             fontSize: 12.5.sp,
                                             fontWeight: FontWeight.w600,
@@ -1522,7 +1557,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      categoryName,
+                      _getLocalizedCategoryName(categoryName),
                       style: GoogleFonts.poppins(
                         color:
                             isSelected
@@ -1549,7 +1584,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          'NEW',
+                          AppLocalizations.of(context)!.newBadge,
                           style: GoogleFonts.poppins(
                             color: Colors.white,
                             fontSize: 9.sp,
@@ -1719,7 +1754,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
                             // Title with premium typography
                             Text(
-                                  'No Favorites Yet',
+                                  AppLocalizations.of(context)!.noFavoritesYet,
                                   style: GoogleFonts.inter(
                                     fontSize: 22.sp,
                                     fontWeight: FontWeight.w700,
@@ -1743,7 +1778,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
                             // Subtitle with elegant opacity
                             Text(
-                                  'Tap the star icon on any deck to add it to your favorites for quick access anytime!',
+                                  AppLocalizations.of(
+                                    context,
+                                  )!.tapStarToAddFavorites,
                                   style: GoogleFonts.inter(
                                     fontSize: 14.sp,
                                     fontWeight: FontWeight.w400,
@@ -1771,13 +1808,17 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               children: [
                                 _buildFeatureTag(
                                   icon: Icons.favorite_rounded,
-                                  label: 'Quick Access',
+                                  label:
+                                      AppLocalizations.of(context)!.quickAccess,
                                   delay: 400,
                                 ),
                                 const SizedBox(width: 8),
                                 _buildFeatureTag(
                                   icon: Icons.trending_up_rounded,
-                                  label: 'Track Favorites',
+                                  label:
+                                      AppLocalizations.of(
+                                        context,
+                                      )!.trackFavorites,
                                   delay: 500,
                                 ),
                               ],
@@ -2066,7 +2107,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 16.s, vertical: 8.s),
           child: Text(
-            'Continue Playing',
+            AppLocalizations.of(context)!.continuePlayingTitle,
             style: GoogleFonts.poppins(
               fontSize: 20.sp,
               fontWeight: FontWeight.w600,
@@ -2146,11 +2187,28 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                 // Image if available
                 if (deck.imageUrl != null && deck.imageUrl!.isNotEmpty)
                   Positioned.fill(
-                    child: Image.network(
-                      deck.imageUrl!,
+                    child: CachedNetworkImage(
+                      imageUrl: deck.imageUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder:
-                          (context, error, stackTrace) => const SizedBox(),
+                      memCacheWidth: 158,
+                      memCacheHeight: 210,
+                      maxWidthDiskCache: 600,
+                      maxHeightDiskCache: 800,
+                      placeholder:
+                          (context, url) => Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  deck.color,
+                                  deck.color.withOpacity(0.7),
+                                ],
+                              ),
+                            ),
+                          ),
+                      fadeInDuration: const Duration(milliseconds: 300),
+                      errorWidget: (context, url, error) => const SizedBox(),
                     ),
                   ),
 
@@ -2526,10 +2584,29 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             // Background image or color
                             if (deck.imageUrl != null &&
                                 deck.imageUrl!.isNotEmpty)
-                              Image.network(
-                                deck.imageUrl!,
+                              CachedNetworkImage(
+                                imageUrl: deck.imageUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
+                                memCacheWidth: 158,
+                                memCacheHeight: 210,
+                                maxWidthDiskCache: 600,
+                                maxHeightDiskCache: 800,
+                                placeholder:
+                                    (context, url) => Container(
+                                      decoration: BoxDecoration(
+                                        color: deck.color.withOpacity(0.15),
+                                      ),
+                                      child: Center(
+                                        child: CircularProgressIndicator(
+                                          color: deck.color.withOpacity(0.5),
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    ),
+                                fadeInDuration: const Duration(
+                                  milliseconds: 300,
+                                ),
+                                errorWidget: (context, url, error) {
                                   return Container(
                                     decoration: BoxDecoration(
                                       color: deck.color.withOpacity(0.2),
@@ -2998,7 +3075,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                        'Premium unlock coming soon!',
+                                        AppLocalizations.of(
+                                          context,
+                                        )!.premiumUnlockComingSoon,
                                         style: GoogleFonts.poppins(),
                                       ),
                                       backgroundColor: const Color(0xFFFFD700),
@@ -3027,7 +3106,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   ),
                                   child: Center(
                                     child: Text(
-                                      'Unlock Now',
+                                      AppLocalizations.of(context)!.unlockNow,
                                       style: GoogleFonts.poppins(
                                         fontSize: 16.sp,
                                         fontWeight: FontWeight.w700,
@@ -3049,7 +3128,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               TextButton(
                                 onPressed: () => Navigator.pop(context),
                                 child: Text(
-                                  'Maybe Later',
+                                  AppLocalizations.of(context)!.maybeLater,
                                   style: GoogleFonts.poppins(
                                     color: Colors.white.withOpacity(0.6),
                                     fontSize: 14.sp,
@@ -3063,7 +3142,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   // TODO: Implement restore purchases
                                 },
                                 child: Text(
-                                  'Restore Purchases',
+                                  AppLocalizations.of(
+                                    context,
+                                  )!.restorePurchases,
                                   style: GoogleFonts.poppins(
                                     color: const Color(0xFFFFD700),
                                     fontSize: 14.sp,
@@ -3127,64 +3208,80 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   Widget _buildStatsSection() {
-    return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1C1C1E),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-                spreadRadius: -4,
+    return Consumer<GameProvider>(
+      builder: (context, gameProvider, child) {
+        // Get real statistics from provider
+        final gamesWon = gameProvider.gamesWon;
+        final winStreak = gameProvider.currentWinStreak;
+        final teamGamesPlayed = gameProvider.teamGamesPlayed;
+        final avgAccuracy = gameProvider.averageAccuracy;
+
+        return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C1E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.08),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                    spreadRadius: -4,
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildStatItem(
-                  Icons.emoji_events_rounded,
-                  '12',
-                  'Games Won',
-                  const Color(0xFFFFC107),
-                  0,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 24,
                 ),
-                _buildStatDivider(),
-                _buildStatItem(
-                  Icons.local_fire_department_rounded,
-                  '3',
-                  'Win Streak',
-                  const Color(0xFFFF6B35),
-                  1,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildStatItem(
+                      Icons.emoji_events_rounded,
+                      '$gamesWon',
+                      AppLocalizations.of(context)!.gamesWon,
+                      const Color(0xFFFFC107),
+                      0,
+                    ),
+                    _buildStatDivider(),
+                    _buildStatItem(
+                      Icons.local_fire_department_rounded,
+                      '$winStreak',
+                      AppLocalizations.of(context)!.winStreak,
+                      const Color(0xFFFF6B35),
+                      1,
+                    ),
+                    _buildStatDivider(),
+                    _buildStatItem(
+                      Icons.groups_rounded,
+                      '$teamGamesPlayed',
+                      AppLocalizations.of(context)!.playersMet,
+                      const Color(0xFF0A84FF),
+                      2,
+                    ),
+                    _buildStatDivider(),
+                    _buildStatItem(
+                      Icons.star_rounded,
+                      avgAccuracy.toStringAsFixed(1),
+                      AppLocalizations.of(context)!.avgScore,
+                      const Color(0xFFBF5AF2),
+                      3,
+                    ),
+                  ],
                 ),
-                _buildStatDivider(),
-                _buildStatItem(
-                  Icons.groups_rounded,
-                  '48',
-                  'Players Met',
-                  const Color(0xFF0A84FF),
-                  2,
-                ),
-                _buildStatDivider(),
-                _buildStatItem(
-                  Icons.star_rounded,
-                  '4.8',
-                  'Avg Score',
-                  const Color(0xFFBF5AF2),
-                  3,
-                ),
-              ],
-            ),
-          ),
-        )
-        .animate()
-        .fadeIn(delay: 500.ms, duration: 700.ms)
-        .slideY(begin: 0.2, end: 0, delay: 500.ms, duration: 700.ms);
+              ),
+            )
+            .animate()
+            .fadeIn(delay: 500.ms, duration: 700.ms)
+            .slideY(begin: 0.2, end: 0, delay: 500.ms, duration: 700.ms);
+      },
+    );
   }
 
   Widget _buildStatDivider() {
@@ -3394,7 +3491,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
                             // Title with premium typography
                             Text(
-                                  'Create Your Own Deck',
+                                  AppLocalizations.of(
+                                    context,
+                                  )!.createCustomDeckPromptTitle,
                                   style: GoogleFonts.inter(
                                     fontSize: 20.sp,
                                     fontWeight: FontWeight.w700,
@@ -3418,7 +3517,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
                             // Subtitle with elegant opacity
                             Text(
-                                  'Make custom decks with your own words and categories!',
+                                  AppLocalizations.of(
+                                    context,
+                                  )!.createCustomDeckPromptSubtitle,
                                   style: GoogleFonts.inter(
                                     fontSize: 13.sp,
                                     fontWeight: FontWeight.w400,
@@ -3484,7 +3585,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                           ),
                                           const SizedBox(width: 8),
                                           Text(
-                                            'Create Deck',
+                                            AppLocalizations.of(
+                                              context,
+                                            )!.createDeck,
                                             style: GoogleFonts.inter(
                                               fontSize: 15.sp,
                                               fontWeight: FontWeight.w600,
@@ -3521,19 +3624,21 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               children: [
                                 _buildFeatureTag(
                                   icon: Icons.speed_rounded,
-                                  label: 'Quick Setup',
+                                  label:
+                                      AppLocalizations.of(context)!.quickSetup,
                                   delay: 500,
                                 ),
                                 const SizedBox(width: 8),
                                 _buildFeatureTag(
                                   icon: Icons.palette_outlined,
-                                  label: 'Customize',
+                                  label:
+                                      AppLocalizations.of(context)!.customize,
                                   delay: 600,
                                 ),
                                 const SizedBox(width: 8),
                                 _buildFeatureTag(
                                   icon: Icons.share_rounded,
-                                  label: 'Share',
+                                  label: AppLocalizations.of(context)!.share,
                                   delay: 700,
                                 ),
                               ],
@@ -3631,7 +3736,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   ),
                   SizedBox(height: 24.s),
                   Text(
-                    'Unable to Load Decks',
+                    AppLocalizations.of(context)!.unableToLoadDecks,
                     style: GoogleFonts.poppins(
                       fontSize: 24.sp,
                       fontWeight: FontWeight.w600,
@@ -3640,7 +3745,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Please check your internet connection and try again',
+                    AppLocalizations.of(context)!.checkInternetAndRetry,
                     style: TextStyle(
                       fontSize: 16.sp,
                       color: Colors.white.withOpacity(0.7),
@@ -3670,7 +3775,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         const Icon(Icons.refresh_rounded),
                         const SizedBox(width: 8),
                         Text(
-                          'Retry',
+                          AppLocalizations.of(context)!.retry,
                           style: GoogleFonts.poppins(
                             fontSize: 16.sp,
                             fontWeight: FontWeight.w600,
@@ -3702,7 +3807,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             ),
             const SizedBox(height: 16),
             Text(
-              'No decks available',
+              AppLocalizations.of(context)!.noDecksAvailable,
               style: TextStyle(
                 fontSize: 18.sp,
                 color: Colors.white.withOpacity(0.5),

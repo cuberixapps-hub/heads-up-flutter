@@ -257,3 +257,6 @@ The Firebase free tier can now comfortably handle **2,500 daily active users** i
 **Built with ❤️ and optimized for scale**
 
 *Last updated: November 13, 2025*
+
+
+

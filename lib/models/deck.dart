@@ -1,6 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
+/// Translation data for a deck
+class DeckTranslation {
+  final String name;
+  final String description;
+  final List<String>? cards;
+
+  DeckTranslation({
+    required this.name,
+    required this.description,
+    this.cards,
+  });
+
+  factory DeckTranslation.fromMap(Map<String, dynamic> map) {
+    return DeckTranslation(
+      name: map['name'] as String,
+      description: map['description'] as String,
+      cards: map['cards'] != null ? List<String>.from(map['cards'] as List) : null,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'description': description,
+      if (cards != null) 'cards': cards,
+    };
+  }
+}
+
 class Deck {
   final String id;
   final String name;
@@ -17,6 +46,7 @@ class Deck {
   final List<String> tags;
   final int priority; // Lower number = higher priority
   final bool isActive; // Enable/disable deck remotely
+  final Map<String, DeckTranslation>? translations; // Language code -> Translation
 
   Deck({
     String? id,
@@ -34,10 +64,21 @@ class Deck {
     this.tags = const [],
     this.priority = 0,
     this.isActive = true,
+    this.translations,
   }) : id = id ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now();
 
   factory Deck.fromMap(Map<String, dynamic> map) {
+    // Parse translations if available
+    Map<String, DeckTranslation>? parsedTranslations;
+    if (map['translations'] != null) {
+      final translationsMap = map['translations'] as Map<String, dynamic>;
+      parsedTranslations = {};
+      translationsMap.forEach((key, value) {
+        parsedTranslations![key] = DeckTranslation.fromMap(value as Map<String, dynamic>);
+      });
+    }
+
     return Deck(
       id: map['id'] as String,
       name: map['name'] as String,
@@ -62,10 +103,18 @@ class Deck {
           : [],
       priority: map['priority'] as int? ?? 0,
       isActive: map['isActive'] as bool? ?? true,
+      translations: parsedTranslations,
     );
   }
 
   Map<String, dynamic> toMap() {
+    final translationsMap = <String, dynamic>{};
+    if (translations != null) {
+      translations!.forEach((key, value) {
+        translationsMap[key] = value.toMap();
+      });
+    }
+
     return {
       'id': id,
       'name': name,
@@ -83,6 +132,7 @@ class Deck {
       'tags': tags,
       'priority': priority,
       'isActive': isActive,
+      if (translations != null && translations!.isNotEmpty) 'translations': translationsMap,
     };
   }
 
@@ -102,6 +152,7 @@ class Deck {
     List<String>? tags,
     int? priority,
     bool? isActive,
+    Map<String, DeckTranslation>? translations,
   }) {
     return Deck(
       id: id ?? this.id,
@@ -119,18 +170,73 @@ class Deck {
       tags: tags ?? this.tags,
       priority: priority ?? this.priority,
       isActive: isActive ?? this.isActive,
+      translations: translations ?? this.translations,
     );
   }
 
-  // Get shuffled cards for gameplay
-  List<String> getShuffledCards() {
-    final shuffled = List<String>.from(cards);
+  /// Get localized name for the given locale code
+  /// Falls back to original name if translation not available
+  String getLocalizedName(String locale) {
+    if (translations != null && translations!.containsKey(locale)) {
+      return translations![locale]!.name;
+    }
+    // Fall back to English if available
+    if (locale != 'en' && translations != null && translations!.containsKey('en')) {
+      return translations!['en']!.name;
+    }
+    // Fall back to original name
+    return name;
+  }
+
+  /// Get localized description for the given locale code
+  /// Falls back to original description if translation not available
+  String getLocalizedDescription(String locale) {
+    if (translations != null && translations!.containsKey(locale)) {
+      return translations![locale]!.description;
+    }
+    // Fall back to English if available
+    if (locale != 'en' && translations != null && translations!.containsKey('en')) {
+      return translations!['en']!.description;
+    }
+    // Fall back to original description
+    return description;
+  }
+
+  /// Get localized cards for the given locale code
+  /// Falls back to original cards if translation not available
+  List<String> getLocalizedCards(String locale) {
+    if (translations != null && translations!.containsKey(locale)) {
+      final translation = translations![locale]!;
+      if (translation.cards != null && translation.cards!.isNotEmpty) {
+        return translation.cards!;
+      }
+    }
+    // Fall back to English if available
+    if (locale != 'en' && translations != null && translations!.containsKey('en')) {
+      final enTranslation = translations!['en']!;
+      if (enTranslation.cards != null && enTranslation.cards!.isNotEmpty) {
+        return enTranslation.cards!;
+      }
+    }
+    // Fall back to original cards
+    return cards;
+  }
+
+  // Get shuffled cards for gameplay (localized)
+  List<String> getShuffledCards([String? locale]) {
+    final cardsToShuffle = locale != null ? getLocalizedCards(locale) : cards;
+    final shuffled = List<String>.from(cardsToShuffle);
     shuffled.shuffle();
     return shuffled;
   }
 
   // Check if deck has enough cards for a game
   bool get hasEnoughCards => cards.length >= 5;
+
+  /// Check if translation is available for a given locale
+  bool hasTranslation(String locale) {
+    return translations != null && translations!.containsKey(locale);
+  }
 
   @override
   bool operator ==(Object other) {
@@ -143,6 +249,6 @@ class Deck {
 
   @override
   String toString() {
-    return 'Deck(id: $id, name: $name, cards: ${cards.length})';
+    return 'Deck(id: $id, name: $name, cards: ${cards.length}, translations: ${translations?.keys.length ?? 0})';
   }
 }

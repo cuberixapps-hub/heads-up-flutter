@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/deck.dart';
 import '../providers/deck_provider.dart';
 import '../services/haptic_service.dart';
@@ -573,10 +574,26 @@ class _ExploreScreenState extends State<ExploreScreen>
                 children: [
                   // Background image or color
                   if (deck.imageUrl != null && deck.imageUrl!.isNotEmpty)
-                    Image.network(
-                      deck.imageUrl!,
+                    CachedNetworkImage(
+                      imageUrl: deck.imageUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
+                      memCacheWidth: 158,
+                      memCacheHeight: 210,
+                      maxWidthDiskCache: 600,
+                      maxHeightDiskCache: 800,
+                      placeholder: (context, url) => Container(
+                        decoration: BoxDecoration(
+                          color: deck.color.withOpacity(0.15),
+                        ),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: deck.color.withOpacity(0.5),
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      ),
+                      fadeInDuration: const Duration(milliseconds: 300),
+                      errorWidget: (context, url, error) {
                         return Container(
                           decoration: BoxDecoration(
                             color: deck.color.withOpacity(0.2),

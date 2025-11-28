@@ -4,9 +4,11 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/deck.dart';
 import '../providers/deck_provider.dart';
 import '../services/haptic_service.dart';
+import '../l10n/app_localizations.dart';
 import 'deck_details_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -431,7 +433,7 @@ class _SearchScreenState extends State<SearchScreen>
                                             child: Opacity(
                                               opacity: (progress - 0.2) / 0.8,
                                               child: Text(
-                                                'Search for decks',
+                                                AppLocalizations.of(context)!.searchForDecks,
                                                 style: GoogleFonts.inter(
                                                   color: Colors.white
                                                       .withOpacity(0.4),
@@ -559,7 +561,7 @@ class _SearchScreenState extends State<SearchScreen>
                                                 height: 1.0,
                                               ),
                                               decoration: InputDecoration(
-                                                hintText: 'Search for decks',
+                                                hintText: AppLocalizations.of(context)!.searchForDecks,
                                                 hintStyle: GoogleFonts.inter(
                                                   color: Colors.white
                                                       .withOpacity(0.4),
@@ -692,35 +694,36 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildModernSearchSuggestions() {
+    final l10n = AppLocalizations.of(context)!;
     final categories = [
       {
         'icon': Icons.local_fire_department_rounded,
-        'text': 'Trending',
+        'text': l10n.trending,
         'gradient': [const Color(0xFFFF6B6B), const Color(0xFFFF8C42)],
       },
       {
         'icon': Icons.movie_rounded,
-        'text': 'Movies',
+        'text': l10n.movies,
         'gradient': [const Color(0xFF667EEA), const Color(0xFF764BA2)],
       },
       {
         'icon': Icons.music_note_rounded,
-        'text': 'Music',
+        'text': l10n.music,
         'gradient': [const Color(0xFF06BEB6), const Color(0xFF48B1BF)],
       },
       {
         'icon': Icons.sports_esports_rounded,
-        'text': 'Gaming',
+        'text': l10n.gaming,
         'gradient': [const Color(0xFFF093FB), const Color(0xFFF5576C)],
       },
       {
         'icon': Icons.public_rounded,
-        'text': 'World',
+        'text': l10n.world,
         'gradient': [const Color(0xFF4FACFE), const Color(0xFF00F2FE)],
       },
       {
         'icon': Icons.favorite_rounded,
-        'text': 'Romance',
+        'text': l10n.romance,
         'gradient': [const Color(0xFFFA709A), const Color(0xFFFEE140)],
       },
     ];
@@ -732,7 +735,7 @@ class _SearchScreenState extends State<SearchScreen>
         children: [
           // Trending searches section
           Text(
-                'Trending Searches',
+                AppLocalizations.of(context)!.trendingSearches,
                 style: GoogleFonts.inter(
                   color: Colors.white,
                   fontSize: 20,
@@ -747,7 +750,7 @@ class _SearchScreenState extends State<SearchScreen>
           const SizedBox(height: 4),
 
           Text(
-            'Popular categories right now',
+            AppLocalizations.of(context)!.popularCategoriesRightNow,
             style: GoogleFonts.inter(
               color: Colors.white.withOpacity(0.4),
               fontSize: 14,
@@ -832,7 +835,7 @@ class _SearchScreenState extends State<SearchScreen>
 
           // Recent searches
           Text(
-            'Recent Searches',
+            AppLocalizations.of(context)!.recentSearches,
             style: GoogleFonts.inter(
               color: Colors.white,
               fontSize: 18,
@@ -981,7 +984,7 @@ class _SearchScreenState extends State<SearchScreen>
             const SizedBox(height: 32),
 
             Text(
-                  'No results found',
+                  AppLocalizations.of(context)!.noResultsFound,
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: 22,
@@ -996,7 +999,7 @@ class _SearchScreenState extends State<SearchScreen>
             const SizedBox(height: 8),
 
             Text(
-              'Try adjusting your search',
+              AppLocalizations.of(context)!.tryAdjustingYourSearch,
               style: GoogleFonts.inter(
                 color: Colors.white.withOpacity(0.4),
                 fontSize: 15,
@@ -1025,7 +1028,7 @@ class _SearchScreenState extends State<SearchScreen>
                         ),
                       ),
                       child: Text(
-                        'Clear search',
+                        AppLocalizations.of(context)!.clearSearch,
                         style: GoogleFonts.inter(
                           color: _primaryAccent,
                           fontSize: 14,
@@ -1093,10 +1096,26 @@ class _SearchScreenState extends State<SearchScreen>
                     children: [
                       // Background image or color
                       if (deck.imageUrl != null && deck.imageUrl!.isNotEmpty)
-                        Image.network(
-                          deck.imageUrl!,
+                        CachedNetworkImage(
+                          imageUrl: deck.imageUrl!,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
+                          memCacheWidth: 158,
+                          memCacheHeight: 210,
+                          maxWidthDiskCache: 600,
+                          maxHeightDiskCache: 800,
+                          placeholder: (context, url) => Container(
+                            decoration: BoxDecoration(
+                              color: deck.color.withOpacity(0.15),
+                            ),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: deck.color.withOpacity(0.5),
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          ),
+                          fadeInDuration: const Duration(milliseconds: 300),
+                          errorWidget: (context, url, error) {
                             return Container(
                               decoration: BoxDecoration(
                                 color: deck.color.withOpacity(0.2),
@@ -1583,10 +1602,24 @@ class _SearchScreenState extends State<SearchScreen>
                           deck.imageUrl != null && deck.imageUrl!.isNotEmpty
                               ? ClipRRect(
                                 borderRadius: BorderRadius.circular(15),
-                                child: Image.network(
-                                  deck.imageUrl!,
+                                child: CachedNetworkImage(
+                                  imageUrl: deck.imageUrl!,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
+                                  memCacheWidth: 158,
+                                  memCacheHeight: 210,
+                                  maxWidthDiskCache: 600,
+                                  maxHeightDiskCache: 800,
+                                  placeholder: (context, url) => Container(
+                                    color: deck.color.withOpacity(0.15),
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        color: deck.color.withOpacity(0.5),
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  ),
+                                  fadeInDuration: const Duration(milliseconds: 300),
+                                  errorWidget: (context, url, error) {
                                     return Center(
                                       child: Icon(
                                         deck.icon,

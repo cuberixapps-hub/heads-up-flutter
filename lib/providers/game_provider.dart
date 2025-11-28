@@ -55,6 +55,12 @@ class GameProvider extends ChangeNotifier {
   bool get vibrationEnabled => _settings['vibrationEnabled'] ?? true;
   bool get kidFriendlyMode => _settings['kidFriendlyMode'] ?? false;
   bool get showWordsAfterPass => _settings['showWordsAfterPass'] ?? true;
+  
+  // Statistics getters for UI
+  int get gamesWon => _statistics['gamesWon'] ?? 0;
+  int get currentWinStreak => _statistics['currentWinStreak'] ?? 0;
+  int get teamGamesPlayed => _statistics['teamGamesPlayed'] ?? 0;
+  double get averageAccuracy => _statistics['averageAccuracy'] ?? 0.0;
 
   // Video recording getter
   VideoRecordingResult? get lastVideoRecording => _lastVideoRecording;

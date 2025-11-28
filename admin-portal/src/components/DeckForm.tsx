@@ -403,6 +403,106 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
                 </div>
             </div>
 
+            {/* Enhanced Deck Summary Card - Shows all key data at a glance */}
+            {deck && (
+                <div className="deck-summary-banner">
+                    <div className="summary-header">
+                        <div className="summary-icon-preview">
+                            {selectedIcon && React.createElement(selectedIcon.icon, { size: 48 })}
+                        </div>
+                        <div className="summary-title">
+                            <h2>{deck.name}</h2>
+                            <div className="summary-badges">
+                                {deck.isPremium && <span className="badge badge-premium">👑 Premium</span>}
+                                {deck.isActive !== false ? (
+                                    <span className="badge badge-active">✅ Active</span>
+                                ) : (
+                                    <span className="badge badge-inactive">❌ Inactive</span>
+                                )}
+                                <span className="badge badge-country">
+                                    {countryOptions.find(c => c.value === deck.country)?.label || '🌍 Universal'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="summary-stats-grid">
+                        <div className="stat-box">
+                            <div className="stat-icon">🃏</div>
+                            <div className="stat-content">
+                                <span className="stat-value">{deck.cards.length}</span>
+                                <span className="stat-label">Total Cards</span>
+                            </div>
+                        </div>
+                        <div className="stat-box">
+                            <div className="stat-icon">📊</div>
+                            <div className="stat-content">
+                                <span className="stat-value">{deck.priority || 0}</span>
+                                <span className="stat-label">Priority</span>
+                            </div>
+                        </div>
+                        <div className="stat-box">
+                            <div className="stat-icon">🏷️</div>
+                            <div className="stat-content">
+                                <span className="stat-value">{deck.tags?.length || 0}</span>
+                                <span className="stat-label">Tags</span>
+                            </div>
+                        </div>
+                        <div className="stat-box">
+                            <div className="stat-icon">📅</div>
+                            <div className="stat-content">
+                                <span className="stat-value">
+                                    {deck.createdAt ? new Date(deck.createdAt.seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'N/A'}
+                                </span>
+                                <span className="stat-label">Created</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {deck.description && (
+                        <div className="summary-description">
+                            <p>{deck.description}</p>
+                        </div>
+                    )}
+
+                    {deck.tags && deck.tags.length > 0 && (
+                        <div className="summary-tags">
+                            <span className="tags-label">Tags:</span>
+                            {deck.tags.map((tag, idx) => (
+                                <span key={idx} className="tag-chip">{tag}</span>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="summary-footer">
+                        <div className="summary-detail">
+                            <span className="detail-label">Deck ID:</span>
+                            <code className="detail-value">{deck.id}</code>
+                        </div>
+                        {deck.updatedAt && (
+                            <div className="summary-detail">
+                                <span className="detail-label">Last Updated:</span>
+                                <span className="detail-value">
+                                    {new Date(deck.updatedAt.seconds * 1000).toLocaleString('en-US', {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        year: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                    })}
+                                </span>
+                            </div>
+                        )}
+                        {deck.imageUrl && (
+                            <div className="summary-detail">
+                                <span className="detail-label">Has Image:</span>
+                                <span className="detail-value">✅ Yes</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             <form onSubmit={handleSubmit} className="deck-form">
                 <div className="form-section">
                     <h3 className="section-title">

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../l10n/app_localizations.dart';
 import '../../services/haptic_service.dart';
 import '../../services/streak_service.dart' show StreakMilestone;
-import '../../utils/responsive.dart';
 
 class StreakWidget extends StatefulWidget {
   final int currentStreak;
@@ -226,7 +226,7 @@ class _StreakWidgetState extends State<StreakWidget> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'DAY',
+                                        AppLocalizations.of(context)!.day,
                                         style: GoogleFonts.poppins(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w600,
@@ -236,7 +236,7 @@ class _StreakWidgetState extends State<StreakWidget> {
                                         ),
                                       ),
                                       Text(
-                                        'STREAK',
+                                        AppLocalizations.of(context)!.streak,
                                         style: GoogleFonts.poppins(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w600,
@@ -342,8 +342,9 @@ class _StreakWidgetState extends State<StreakWidget> {
   }
 
   String _getStreakMessage() {
+    final l10n = AppLocalizations.of(context)!;
     if (widget.currentStreak == 0) {
-      return 'Start your streak today!';
+      return l10n.startYourStreakToday;
     } else if (!widget.hasPlayedToday) {
       return 'Play today to keep your streak!';
     } else if (widget.currentStreak < 3) {
@@ -357,7 +358,28 @@ class _StreakWidgetState extends State<StreakWidget> {
     }
   }
 
+  String _getLocalizedMilestoneName(String milestoneName) {
+    final l10n = AppLocalizations.of(context)!;
+    switch (milestoneName) {
+      case 'Getting Started':
+        return l10n.gettingStarted;
+      case 'Week Warrior':
+        return l10n.weekWarrior;
+      case 'Consistent Player':
+        return l10n.consistentPlayer;
+      case 'Monthly Master':
+        return l10n.monthlyMaster;
+      case 'Dedicated Gamer':
+        return l10n.dedicatedGamer;
+      case 'Century Club':
+        return l10n.centuryClub;
+      default:
+        return milestoneName;
+    }
+  }
+
   Widget _buildWeeklyProgress() {
+    final l10n = AppLocalizations.of(context)!;
     final days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     // DateTime.weekday returns 1 for Monday, 7 for Sunday
     // We want to display Monday first, so we adjust
@@ -368,7 +390,7 @@ class _StreakWidgetState extends State<StreakWidget> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'This Week',
+          l10n.thisWeek,
           style: GoogleFonts.poppins(
             fontSize: 14,
             fontWeight: FontWeight.w600,
@@ -489,6 +511,7 @@ class _StreakWidgetState extends State<StreakWidget> {
   }
 
   Widget _buildNextMilestone() {
+    final l10n = AppLocalizations.of(context)!;
     final progress = widget.currentStreak / widget.nextMilestone!.days;
 
     return Container(
@@ -510,7 +533,7 @@ class _StreakWidgetState extends State<StreakWidget> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Next: ${widget.nextMilestone!.name}',
+                      '${l10n.next}: ${_getLocalizedMilestoneName(widget.nextMilestone!.name)}',
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -519,7 +542,7 @@ class _StreakWidgetState extends State<StreakWidget> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${widget.nextMilestone!.days - widget.currentStreak} days to go',
+                      l10n.daysToGo(widget.nextMilestone!.days - widget.currentStreak),
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         color: Colors.white.withOpacity(0.5),
