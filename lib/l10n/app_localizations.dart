@@ -146,6 +146,12 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get settings;
 
+  /// No description provided for @customizeYourExperience.
+  ///
+  /// In en, this message translates to:
+  /// **'Customize your experience'**
+  String get customizeYourExperience;
+
   /// No description provided for @search.
   ///
   /// In en, this message translates to:

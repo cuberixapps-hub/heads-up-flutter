@@ -18,6 +18,9 @@ class AppLocalizationsHi extends AppLocalizations {
   String get settings => 'सेटिंग्स';
 
   @override
+  String get customizeYourExperience => 'Customize your experience';
+
+  @override
   String get search => 'खोजें';
 
   @override

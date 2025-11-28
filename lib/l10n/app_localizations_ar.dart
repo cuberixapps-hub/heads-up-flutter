@@ -18,6 +18,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get settings => 'الإعدادات';
 
   @override
+  String get customizeYourExperience => 'Customize your experience';
+
+  @override
   String get search => 'بحث';
 
   @override

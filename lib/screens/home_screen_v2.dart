@@ -942,6 +942,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             // Quick stats banner
                             _buildStatsSection(),
 
+                            SizedBox(height: 16.s),
+
+                            // Settings quick access
+                            _buildSettingsCard(),
+
                             SizedBox(height: 24.s),
 
                             // Custom decks with better presentation
@@ -3281,6 +3286,105 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             .fadeIn(delay: 500.ms, duration: 700.ms)
             .slideY(begin: 0.2, end: 0, delay: 500.ms, duration: 700.ms);
       },
+    );
+  }
+
+  Widget _buildSettingsCard() {
+    return GestureDetector(
+      onTap: () {
+        _hapticService.lightImpact();
+        _audioService.playClick();
+        context.push('/settings');
+      },
+      child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding: EdgeInsets.symmetric(horizontal: 16.s, vertical: 14.s),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1C1E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.08),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                // Settings icon with premium glow
+                Container(
+                  padding: EdgeInsets.all(10.s),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withOpacity(0.12),
+                        Colors.white.withOpacity(0.06),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.tune_rounded,
+                    color: Colors.white.withOpacity(0.9),
+                    size: 20.s,
+                  ),
+                ),
+                SizedBox(width: 14.s),
+                // Text content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        AppLocalizations.of(context)!.settings,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15.s,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      SizedBox(height: 2.s),
+                      Text(
+                        AppLocalizations.of(context)!.customizeYourExperience,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.5),
+                          fontSize: 12.s,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Chevron arrow
+                Container(
+                  padding: EdgeInsets.all(8.s),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Colors.white.withOpacity(0.5),
+                    size: 14.s,
+                  ),
+                ),
+              ],
+            ),
+          )
+          .animate()
+          .fadeIn(delay: 550.ms, duration: 600.ms)
+          .slideY(
+            begin: 0.15,
+            end: 0,
+            delay: 550.ms,
+            duration: 600.ms,
+            curve: Curves.easeOutCubic,
+          ),
     );
   }
 
