@@ -7,7 +7,7 @@ import { generateRandomTrendingTopic, generateUniversalTopic, type AIGeneratedTo
 import { generateResearchedTopics, generateUniversalResearchedTopic, type ResearchedTopic } from './aiTopicResearchService';
 import type { DifficultyLevel } from '../types/ai';
 import { validateTopic, quickValidateTopic, getQualityRating } from './topicValidationService';
-import { extractPrimaryColor, getRandomVibrantColor } from './colorExtractionService';
+import { selectSmartColor, type SmartColor } from './smartColorService';
 
 export interface AutomationStats {
   totalDecksCreated: number;
@@ -191,36 +191,32 @@ export const generateAutomaticDeck = async (
     // Always include UNIVERSAL plus the selected countries
     const countryCodes = ['UNIVERSAL', ...countries.map(c => c.code)];
     
-    // Step 4: Generate image (optional, continue on failure) with country context
+    // 🎨 STEP: Select a smart, varied color FIRST based on the topic
+    onProgress?.(`🎨 Selecting smart color for "${topic.name}"...`);
+    const selectedColor: SmartColor = selectSmartColor(topic.name);
+    onProgress?.(`✅ Color selected: ${selectedColor.name} (${selectedColor.hex})`);
+    
+    // Step 4: Generate image (optional, continue on failure) with country context AND selected color
     let imageUrl: string | undefined;
-    let extractedColorValue: number | undefined;
     try {
-      onProgress?.('Generating deck image...');
-      // Pass country context to image generation for relevant visuals
+      onProgress?.(`🎨 Generating deck image with ${selectedColor.name} color scheme...`);
+      // Pass country context and selected color to image generation
       const topicWithContext = countryContext ? `${topic.name} (${countryContext})` : topic.name;
-      imageUrl = await generateDeckImage(topicWithContext);
-      
-      // Extract dominant color from the generated image
-      if (imageUrl) {
-        try {
-          onProgress?.('🎨 Extracting dominant color from image...');
-          const primaryColor = await extractPrimaryColor(imageUrl);
-          extractedColorValue = primaryColor.colorValue;
-          onProgress?.(`✅ Color extracted: ${primaryColor.name} (${primaryColor.hex})`);
-        } catch (colorError) {
-          console.warn('Color extraction failed, using fallback:', colorError);
-          const fallbackColor = getRandomVibrantColor();
-          extractedColorValue = fallbackColor.colorValue;
-          onProgress?.(`⚠️ Using fallback color: ${fallbackColor.name}`);
+      imageUrl = await generateDeckImage(topicWithContext, 'retro pulp', {
+        targetColor: {
+          hex: selectedColor.hex,
+          name: selectedColor.name,
+          promptDescription: selectedColor.promptDescription
         }
-      }
+      });
+      onProgress?.(`✅ Image generated with ${selectedColor.name} colors`);
     } catch (imageError) {
       console.warn('Image generation failed, continuing without image:', imageError);
       onProgress?.('Image generation failed, continuing without image...');
     }
     
-    // Use extracted color from image, or fall back to AI suggestion, or default purple
-    const finalColorValue = extractedColorValue || deckContent.colorSuggestion || 0xFF9C27B0;
+    // Use the pre-selected smart color (guaranteed variety!)
+    const finalColorValue = selectedColor.colorValue;
     
     // Step 5: Save to Firestore with multiple countries
     onProgress?.('Saving deck to database...');
@@ -231,7 +227,9 @@ export const generateAutomaticDeck = async (
       iconCodePoint: deckContent.iconSuggestion?.codePoint || 0xf005,
       iconFontFamily: deckContent.iconSuggestion?.fontFamily || 'FontAwesomeIcons',
       colorValue: finalColorValue,
-      colorExtractedFromImage: !!extractedColorValue, // Flag to indicate color was extracted from image
+      colorName: selectedColor.name, // Track which color was used
+      colorHex: selectedColor.hex,
+      smartColorSelected: true, // Flag to indicate smart color coordination
       imageUrl: imageUrl || null,
       isPremium: topic.isPremium || false,
       countries: countryCodes, // Array of country codes
@@ -492,7 +490,12 @@ export const generateResearchedDeck = async (
     
     let primaryDeckContent;
     let imageUrl: string | undefined;
-    let extractedColorValue: number | undefined;
+    
+    // 🎨 STEP 1: Select a smart, varied color FIRST based on the topic
+    onProgress?.(`🎨 Selecting smart color for "${researchedTopic.name}"...`);
+    const selectedColor: SmartColor = selectSmartColor(researchedTopic.name);
+    onProgress?.(`   ✅ Color selected: ${selectedColor.name} (${selectedColor.hex})`);
+    onProgress?.(`   📝 Image will use: ${selectedColor.promptDescription}`);
     
     for (const difficulty of difficulties) {
       try {
@@ -507,26 +510,20 @@ export const generateResearchedDeck = async (
         if (difficulty === 'easy') {
           primaryDeckContent = deckContent;
           
+          // 🎨 STEP 2: Generate image WITH the selected color
           try {
-            onProgress?.(`   🎨 Generating deck image...`);
+            onProgress?.(`   🎨 Generating deck image with ${selectedColor.name} color scheme...`);
             const topicWithContext = countryContext ? `${researchedTopic.name} (${countryContext})` : researchedTopic.name;
-            imageUrl = await generateDeckImage(topicWithContext);
-            onProgress?.(`   ✅ Image generated`);
             
-            // Extract dominant color from the generated image
-            if (imageUrl) {
-              try {
-                onProgress?.(`   🎨 Extracting dominant color from image...`);
-                const primaryColor = await extractPrimaryColor(imageUrl);
-                extractedColorValue = primaryColor.colorValue;
-                onProgress?.(`   ✅ Color extracted: ${primaryColor.name} (${primaryColor.hex})`);
-              } catch (colorError) {
-                console.warn('Color extraction failed, using fallback:', colorError);
-                const fallbackColor = getRandomVibrantColor();
-                extractedColorValue = fallbackColor.colorValue;
-                onProgress?.(`   ⚠️ Using fallback color: ${fallbackColor.name}`);
+            // Pass the selected color to the image generator
+            imageUrl = await generateDeckImage(topicWithContext, 'retro pulp', {
+              targetColor: {
+                hex: selectedColor.hex,
+                name: selectedColor.name,
+                promptDescription: selectedColor.promptDescription
               }
-            }
+            });
+            onProgress?.(`   ✅ Image generated with ${selectedColor.name} colors`);
           } catch (imageError) {
             console.warn('Image generation failed:', imageError);
             onProgress?.(`   ⚠️ Image generation failed, continuing...`);
@@ -551,8 +548,8 @@ export const generateResearchedDeck = async (
       throw new Error('Failed to generate deck content');
     }
     
-    // Use extracted color from image, or fall back to AI suggestion, or default purple
-    const finalColorValue = extractedColorValue || primaryDeckContent.colorSuggestion || 0xFF9C27B0;
+    // 🎨 STEP 3: Use the pre-selected smart color (guaranteed variety!)
+    const finalColorValue = selectedColor.colorValue;
     
     // Create enhanced description with research
     const enhancedDescription = `${primaryDeckContent.description}\n\n🔥 ${researchedTopic.trendingReason}\n\n💡 ${researchedTopic.whyItWorks}`;
@@ -572,7 +569,9 @@ export const generateResearchedDeck = async (
       iconCodePoint: primaryDeckContent.iconSuggestion?.codePoint || 0xf005,
       iconFontFamily: primaryDeckContent.iconSuggestion?.fontFamily || 'FontAwesomeIcons',
       colorValue: finalColorValue,
-      colorExtractedFromImage: !!extractedColorValue, // Flag to indicate color was extracted from image
+      colorName: selectedColor.name, // Track which color was used
+      colorHex: selectedColor.hex,
+      smartColorSelected: true, // Flag to indicate smart color coordination
       imageUrl: imageUrl || null,
       isPremium: researchedTopic.isPremium || false,
       countries: countryCodes,
@@ -841,7 +840,12 @@ export const generateMultiDifficultyDecks = async (
     
     let primaryDeckContent;
     let imageUrl: string | undefined;
-    let extractedColorValue: number | undefined;
+    
+    // 🎨 STEP 1: Select a smart, varied color FIRST based on the topic
+    onProgress?.(`🎨 Selecting smart color for "${topic.name}"...`);
+    const selectedColor: SmartColor = selectSmartColor(topic.name);
+    onProgress?.(`   ✅ Color selected: ${selectedColor.name} (${selectedColor.hex})`);
+    onProgress?.(`   📝 Image will use: ${selectedColor.promptDescription}`);
     
     for (const difficulty of difficulties) {
       try {
@@ -859,27 +863,20 @@ export const generateMultiDifficultyDecks = async (
         if (difficulty === 'easy') {
           primaryDeckContent = deckContent;
           
-          // Generate image once with country context
+          // 🎨 STEP 2: Generate image WITH the selected color
           try {
-            onProgress?.(`   🎨 Generating deck image...`);
+            onProgress?.(`   🎨 Generating deck image with ${selectedColor.name} color scheme...`);
             const topicWithContext = countryContext ? `${topic.name} (${countryContext})` : topic.name;
-            imageUrl = await generateDeckImage(topicWithContext);
-            onProgress?.(`   ✅ Image generated`);
             
-            // Extract dominant color from the generated image
-            if (imageUrl) {
-              try {
-                onProgress?.(`   🎨 Extracting dominant color from image...`);
-                const primaryColor = await extractPrimaryColor(imageUrl);
-                extractedColorValue = primaryColor.colorValue;
-                onProgress?.(`   ✅ Color extracted: ${primaryColor.name} (${primaryColor.hex})`);
-              } catch (colorError) {
-                console.warn('Color extraction failed, using fallback:', colorError);
-                const fallbackColor = getRandomVibrantColor();
-                extractedColorValue = fallbackColor.colorValue;
-                onProgress?.(`   ⚠️ Using fallback color: ${fallbackColor.name}`);
+            // Pass the selected color to the image generator
+            imageUrl = await generateDeckImage(topicWithContext, 'retro pulp', {
+              targetColor: {
+                hex: selectedColor.hex,
+                name: selectedColor.name,
+                promptDescription: selectedColor.promptDescription
               }
-            }
+            });
+            onProgress?.(`   ✅ Image generated with ${selectedColor.name} colors`);
           } catch (imageError) {
             console.warn('Image generation failed, continuing without image:', imageError);
             onProgress?.(`   ⚠️ Image generation failed, continuing...`);
@@ -906,8 +903,8 @@ export const generateMultiDifficultyDecks = async (
       throw new Error('Failed to generate deck content');
     }
     
-    // Use extracted color from image, or fall back to AI suggestion, or default purple
-    const finalColorValue = extractedColorValue || primaryDeckContent.colorSuggestion || 0xFF9C27B0;
+    // 🎨 STEP 3: Use the pre-selected smart color (guaranteed variety!)
+    const finalColorValue = selectedColor.colorValue;
     
     // Save ONE deck to Firestore with all difficulty modes
     onProgress?.(`\n💾 Saving deck with 3 difficulty modes...`);
@@ -924,7 +921,9 @@ export const generateMultiDifficultyDecks = async (
       iconCodePoint: primaryDeckContent.iconSuggestion?.codePoint || 0xf005,
       iconFontFamily: primaryDeckContent.iconSuggestion?.fontFamily || 'FontAwesomeIcons',
       colorValue: finalColorValue,
-      colorExtractedFromImage: !!extractedColorValue, // Flag to indicate color was extracted from image
+      colorName: selectedColor.name, // Track which color was used
+      colorHex: selectedColor.hex,
+      smartColorSelected: true, // Flag to indicate smart color coordination
       imageUrl: imageUrl || null,
       isPremium: topic.isPremium || false,
       countries: countryCodes,

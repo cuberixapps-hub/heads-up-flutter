@@ -374,17 +374,25 @@ const detectSceneCategory = (topic: string): string => {
  * Generate a creative image prompt using ChatGPT with retro pulp poster style
  * Enhanced with visual drama and cinematic effects
  * @param topic The deck topic/theme
+ * @param targetColor Optional pre-selected color to match the deck's color scheme
  * @returns Promise<string> The generated prompt for DALL-E
  */
-const generateImagePrompt = async (topic: string): Promise<string> => {
+const generateImagePrompt = async (topic: string, targetColor?: { hex: string; name: string; promptDescription: string }): Promise<string> => {
   try {
     const openai = getOpenAIClient();
     
-    // Detect brand-associated colors for this topic (legal - no logos)
-    const brandColors = detectBrandColors(topic);
-    const colorHint = brandColors 
-      ? `Use this color palette: ${brandColors}` 
-      : 'Choose an appropriate 2-3 color palette from the options';
+    // Use the pre-selected target color if provided, otherwise detect brand colors
+    let colorHint: string;
+    if (targetColor) {
+      // PRIORITY: Use the exact color selected for this deck
+      colorHint = `🎨 MANDATORY COLOR SCHEME: Use ${targetColor.promptDescription} as the DOMINANT colors. The image MUST prominently feature ${targetColor.name} (${targetColor.hex}) as the primary color. This is critical for visual consistency with the deck.`;
+    } else {
+      // Fallback to brand color detection
+      const brandColors = detectBrandColors(topic);
+      colorHint = brandColors 
+        ? `Use this color palette: ${brandColors}` 
+        : 'Choose an appropriate 2-3 color palette from the options';
+    }
     
     // Detect scene category for contextual templates
     const sceneCategory = detectSceneCategory(topic);
@@ -614,6 +622,12 @@ export interface ImageGenerationOptions {
   size?: '1024x1024' | '1024x1536' | '1536x1024' | 'auto';
   /** Number of images to generate (1-10) */
   n?: number;
+  /** Target color palette for the image (hex color and description) */
+  targetColor?: {
+    hex: string;
+    name: string;
+    promptDescription: string;
+  };
 }
 
 // Legacy alias for backward compatibility
@@ -623,7 +637,7 @@ export type DallE3Options = ImageGenerationOptions;
  * Generate a deck cover image using gpt-image-1 (ChatGPT's image model)
  * @param topic The deck topic/theme
  * @param _stylePreference Optional style modifier (kept for backward compatibility, not used - retro pulp style is always applied)
- * @param options Optional image generation options
+ * @param options Optional image generation options (includes targetColor for coordinated color scheme)
  * @returns Promise<string> The Firebase Storage URL of the generated image
  */
 export const generateDeckImage = async (
@@ -636,7 +650,7 @@ export const generateDeckImage = async (
     const openai = getOpenAIClient();
     
     // Default options for gpt-image-1
-    const defaultOptions: Required<ImageGenerationOptions> = {
+    const defaultOptions: Required<Omit<ImageGenerationOptions, 'targetColor'>> = {
       quality: 'medium', // Changed from 'standard' to 'medium' (gpt-image-1 supported value)
       size: '1024x1536', // Changed from '1024x1792' to '1024x1536' (gpt-image-1 supported portrait size)
       n: 1,
@@ -644,8 +658,8 @@ export const generateDeckImage = async (
     
     const finalOptions = { ...defaultOptions, ...options };
     
-    // Step 1: Generate creative prompt using ChatGPT
-    const prompt = await generateImagePrompt(topic);
+    // Step 1: Generate creative prompt using ChatGPT (with target color if provided)
+    const prompt = await generateImagePrompt(topic, options?.targetColor);
     
     console.log('=== GPT-IMAGE-1 IMAGE GENERATION PROMPT ===');
     console.log(prompt);
