@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
+import '../l10n/app_localizations.dart';
 import '../models/deck.dart';
 import '../providers/deck_provider.dart';
 import '../services/haptic_service.dart';
@@ -88,13 +89,14 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
   }
 
   Future<void> _saveDeck() async {
+    final l10n = AppLocalizations.of(context)!;
     if (!_formKey.currentState!.validate()) return;
     if (_cards.isEmpty) {
-      _showSnackBar('Please add at least 5 cards to your deck', isError: true);
+      _showSnackBar(l10n.pleaseAddCards(5), isError: true);
       return;
     }
     if (_cards.length < 5) {
-      _showSnackBar('A deck needs at least 5 cards to play', isError: true);
+      _showSnackBar(l10n.deckNeedsCards(5), isError: true);
       return;
     }
 
@@ -131,13 +133,13 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
       _hapticService.success();
       _showSnackBar(
         widget.existingDeck != null
-            ? 'Deck updated successfully!'
-            : 'Deck created successfully!',
+            ? l10n.deckUpdatedSuccessfully
+            : l10n.customDeckCreatedSuccessfully,
       );
       Navigator.pop(context, true);
     } else {
       _hapticService.error();
-      _showSnackBar('Failed to save deck. Please try again.', isError: true);
+      _showSnackBar(l10n.failedToSaveDeck, isError: true);
     }
   }
 
@@ -162,8 +164,9 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
   }
 
   Future<void> _generateAISuggestions() async {
+    final l10n = AppLocalizations.of(context)!;
     if (_nameController.text.trim().isEmpty) {
-      _showSnackBar('Please enter a deck name first', isError: true);
+      _showSnackBar(l10n.enterDeckNameFirst, isError: true);
       return;
     }
 
@@ -244,6 +247,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
 
   // Premium Discard Dialog Widget
   Widget _buildPremiumDiscardDialog() {
+    final l10n = AppLocalizations.of(context)!;
     return Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,
@@ -302,7 +306,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
 
                       // Title
                       Text(
-                            'Discard Changes?',
+                            l10n.discardChanges,
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 24,
@@ -324,7 +328,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
 
                       // Description
                       Text(
-                            'You have unsaved changes. Are you sure you want to leave?',
+                            l10n.unsavedChangesMessage,
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 15,
@@ -352,7 +356,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                     children: [
                       // Discard Button
                       _buildDialogButton(
-                        label: 'Discard',
+                        label: l10n.discard,
                         isPrimary: false,
                         onTap: () async {
                           await _hapticService.lightImpact();
@@ -365,7 +369,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
 
                       // Cancel Button
                       _buildDialogButton(
-                        label: 'Cancel',
+                        label: l10n.cancel,
                         isPrimary: true,
                         onTap: () async {
                           await _hapticService.lightImpact();
@@ -499,6 +503,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
   }
 
   Widget _buildElegantHeader() {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
@@ -513,7 +518,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                      widget.existingDeck != null ? 'Edit Deck' : 'Create Deck',
+                      widget.existingDeck != null ? l10n.editDeck : l10n.createDeck,
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
@@ -530,8 +535,8 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
 
                 Text(
                       widget.existingDeck != null
-                          ? 'Refine and perfect'
-                          : 'Craft something unique',
+                          ? l10n.refineAndPerfect
+                          : l10n.craftSomethingUnique,
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.white.withOpacity(0.5),
@@ -599,6 +604,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
 
   // Legacy methods - kept temporarily for reference
   Widget _buildPremiumCardsSection() {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.04),
@@ -627,7 +633,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                            'Cards (${_cards.length})',
+                            '${l10n.cards} (${_cards.length})',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
@@ -680,8 +686,8 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                                 const SizedBox(width: 4),
                                 Text(
                                   _cards.length >= 5
-                                      ? 'Ready'
-                                      : '${5 - _cards.length} more',
+                                      ? l10n.ready
+                                      : l10n.moreNeeded(5 - _cards.length),
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
@@ -733,7 +739,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                                     height: 1.4,
                                   ),
                                   decoration: InputDecoration(
-                                    hintText: 'Add a card...',
+                                    hintText: l10n.addACard,
                                     hintStyle: TextStyle(
                                       color: Colors.white.withOpacity(0.35),
                                       fontWeight: FontWeight.w400,
@@ -940,6 +946,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
 
   // AI Suggestion Button Widget - Refined
   Widget _buildAISuggestionButton() {
+    final l10n = AppLocalizations.of(context)!;
     return GestureDetector(
       onTap: () async {
         await _hapticService.mediumImpact();
@@ -1000,7 +1007,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                       ),
                 const SizedBox(width: 9),
                 Text(
-                  _isLoadingAI ? 'Generating...' : 'AI Suggestions',
+                  _isLoadingAI ? l10n.generating : l10n.aiSuggestions,
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.95),
                     fontSize: 14,
@@ -1021,6 +1028,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
   }
 
   Widget _buildAISuggestionsWidget() {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1044,9 +1052,9 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                 color: Color(0xFF6366F1),
               ),
               const SizedBox(width: 8),
-              const Text(
-                'AI Suggestions',
-                style: TextStyle(
+              Text(
+                l10n.aiSuggestions,
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: Colors.black87,
@@ -1055,7 +1063,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
               const Spacer(),
               TextButton(
                 onPressed: _addAllAISuggestions,
-                child: const Text('Add All'),
+                child: Text(l10n.addAll),
               ),
             ],
           ),
@@ -1161,6 +1169,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
   }
 
   Widget _buildUltraPremiumSaveButton() {
+    final l10n = AppLocalizations.of(context)!;
     return GestureDetector(
       onTap:
           _isLoading
@@ -1230,9 +1239,9 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                         curve: Curves.easeOutBack,
                       ),
                   const SizedBox(width: 6),
-                  const Text(
-                        'Save',
-                        style: TextStyle(
+                  Text(
+                        l10n.save,
+                        style: const TextStyle(
                           color: Color(0xFF0A0A0A),
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -1254,6 +1263,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
   }
 
   Widget _buildPremiumInfoSection() {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.05),
@@ -1289,7 +1299,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                         ),
                     const SizedBox(width: 12),
                     Text(
-                          'Deck Information',
+                          l10n.deckInformation,
                           style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w700,
@@ -1317,12 +1327,12 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                     // Deck Name Field
                     _buildPremiumTextField(
                           controller: _nameController,
-                          label: 'Deck Name',
-                          placeholder: 'Enter a unique name',
+                          label: l10n.deckName,
+                          placeholder: l10n.enterUniqueName,
                           icon: Icons.edit_note_rounded,
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return 'Please enter a deck name';
+                              return l10n.pleaseEnterDeckName;
                             }
                             return null;
                           },
@@ -1340,8 +1350,8 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                     // Description Field
                     _buildPremiumTextField(
                           controller: _descriptionController,
-                          label: 'Description',
-                          placeholder: 'Tell us about your deck (optional)',
+                          label: l10n.description,
+                          placeholder: l10n.tellUsAboutYourDeck,
                           icon: Icons.article_outlined,
                           maxLines: 3,
                           isOptional: true,
@@ -1365,6 +1375,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
   }
 
   Widget _buildPremiumCustomizationSection() {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.04),
@@ -1378,7 +1389,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
                 child: Text(
-                      'Customization',
+                      l10n.customization,
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -1551,6 +1562,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
     int maxLines = 1,
     bool isOptional = false,
   }) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1581,7 +1593,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    'Optional',
+                    l10n.optional,
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
@@ -1712,6 +1724,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
   }
 
   Widget _buildElegantSaveButton() {
+    final l10n = AppLocalizations.of(context)!;
     final bool isReady =
         _nameController.text.trim().isNotEmpty &&
         _cards.length >= 5 &&
@@ -1760,7 +1773,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
               ),
             const SizedBox(width: 8),
             Text(
-              _isLoading ? 'Saving...' : 'Save',
+              _isLoading ? l10n.saving : l10n.save,
               style: TextStyle(
                 color:
                     isReady
@@ -1783,6 +1796,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
 
   // Refined section builders
   Widget _buildRefinedInfoSection() {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.03),
@@ -1813,7 +1827,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
               ),
               const SizedBox(width: 10),
               Text(
-                'Deck Information',
+                l10n.deckInformation,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -1829,12 +1843,12 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
           // Name field
           _buildElegantTextField(
             controller: _nameController,
-            label: 'Deck Name',
-            placeholder: 'Enter a unique name',
+            label: l10n.deckName,
+            placeholder: l10n.enterUniqueName,
             icon: Icons.edit_rounded,
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
-                return 'Please enter a deck name';
+                return l10n.pleaseEnterDeckName;
               }
               return null;
             },
@@ -1845,8 +1859,8 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
           // Description field
           _buildElegantTextField(
             controller: _descriptionController,
-            label: 'Description',
-            placeholder: 'Tell us about your deck',
+            label: l10n.description,
+            placeholder: l10n.tellUsAboutYourDeck,
             icon: Icons.description_outlined,
             maxLines: 2,
             isOptional: true,
@@ -1865,6 +1879,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
     int maxLines = 1,
     bool isOptional = false,
   }) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1883,7 +1898,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
             if (isOptional) ...[
               const SizedBox(width: 6),
               Text(
-                'Optional',
+                l10n.optional,
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w400,
@@ -1958,6 +1973,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
   }
 
   Widget _buildElegantCustomizationSection() {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.03),
@@ -1969,7 +1985,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Customization',
+            l10n.customization,
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -2022,7 +2038,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                             .fadeIn(),
                         const SizedBox(height: 6),
                         Text(
-                          'Icon',
+                          l10n.icon,
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.white.withOpacity(0.5),
@@ -2078,7 +2094,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                             Positioned(
                               bottom: 10,
                               child: Text(
-                                'Color',
+                                l10n.color,
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: Colors.white.withOpacity(0.8),
@@ -2105,6 +2121,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
   }
 
   Widget _buildRefinedCardsSection() {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.03),
@@ -2126,7 +2143,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  'Cards',
+                  l10n.cards,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -2162,7 +2179,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                 const Spacer(),
                 if (_cards.length < 5)
                   Text(
-                    '${5 - _cards.length} more needed',
+                    l10n.moreNeeded(5 - _cards.length),
                     style: TextStyle(
                       fontSize: 11,
                       color: Colors.white.withOpacity(0.4),
@@ -2194,7 +2211,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                         color: Colors.white.withOpacity(0.9),
                       ),
                       decoration: InputDecoration(
-                        hintText: 'Add a card...',
+                        hintText: l10n.addACard,
                         hintStyle: TextStyle(
                           color: Colors.white.withOpacity(0.3),
                         ),
@@ -2315,6 +2332,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
   }
 
   Widget _buildElegantAISuggestionButton() {
+    final l10n = AppLocalizations.of(context)!;
     return GestureDetector(
       onTap: _generateAISuggestions,
       child: Container(
@@ -2363,7 +2381,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
                   ),
             const SizedBox(width: 8),
             Text(
-              _isLoadingAI ? 'Generating...' : 'AI Suggestions',
+              _isLoadingAI ? l10n.generating : l10n.aiSuggestions,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 14,

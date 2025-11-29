@@ -1531,6 +1531,150 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Romance'**
   String get romance;
+
+  /// No description provided for @craftSomethingUnique.
+  ///
+  /// In en, this message translates to:
+  /// **'Craft something unique'**
+  String get craftSomethingUnique;
+
+  /// No description provided for @refineAndPerfect.
+  ///
+  /// In en, this message translates to:
+  /// **'Refine and perfect'**
+  String get refineAndPerfect;
+
+  /// No description provided for @deckInformation.
+  ///
+  /// In en, this message translates to:
+  /// **'Deck Information'**
+  String get deckInformation;
+
+  /// No description provided for @description.
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get description;
+
+  /// No description provided for @enterUniqueName.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a unique name'**
+  String get enterUniqueName;
+
+  /// No description provided for @tellUsAboutYourDeck.
+  ///
+  /// In en, this message translates to:
+  /// **'Tell us about your deck'**
+  String get tellUsAboutYourDeck;
+
+  /// No description provided for @optional.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional'**
+  String get optional;
+
+  /// No description provided for @customization.
+  ///
+  /// In en, this message translates to:
+  /// **'Customization'**
+  String get customization;
+
+  /// No description provided for @icon.
+  ///
+  /// In en, this message translates to:
+  /// **'Icon'**
+  String get icon;
+
+  /// No description provided for @color.
+  ///
+  /// In en, this message translates to:
+  /// **'Color'**
+  String get color;
+
+  /// No description provided for @moreNeeded.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} more needed'**
+  String moreNeeded(int count);
+
+  /// No description provided for @addACard.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a card...'**
+  String get addACard;
+
+  /// No description provided for @aiSuggestions.
+  ///
+  /// In en, this message translates to:
+  /// **'AI Suggestions'**
+  String get aiSuggestions;
+
+  /// No description provided for @generating.
+  ///
+  /// In en, this message translates to:
+  /// **'Generating...'**
+  String get generating;
+
+  /// No description provided for @discardChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard Changes?'**
+  String get discardChanges;
+
+  /// No description provided for @unsavedChangesMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'You have unsaved changes. Are you sure you want to leave?'**
+  String get unsavedChangesMessage;
+
+  /// No description provided for @discard.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get discard;
+
+  /// No description provided for @pleaseAddCards.
+  ///
+  /// In en, this message translates to:
+  /// **'Please add at least {count} cards to your deck'**
+  String pleaseAddCards(int count);
+
+  /// No description provided for @deckNeedsCards.
+  ///
+  /// In en, this message translates to:
+  /// **'A deck needs at least {count} cards to play'**
+  String deckNeedsCards(int count);
+
+  /// No description provided for @failedToSaveDeck.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save deck. Please try again.'**
+  String get failedToSaveDeck;
+
+  /// No description provided for @enterDeckNameFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a deck name first'**
+  String get enterDeckNameFirst;
+
+  /// No description provided for @ready.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get ready;
+
+  /// No description provided for @saving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving...'**
+  String get saving;
+
+  /// No description provided for @pleaseEnterDeckName.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a deck name'**
+  String get pleaseEnterDeckName;
 }
 
 class _AppLocalizationsDelegate

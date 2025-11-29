@@ -741,4 +741,83 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get romance => 'Romance';
+
+  @override
+  String get craftSomethingUnique => 'Craft something unique';
+
+  @override
+  String get refineAndPerfect => 'Refine and perfect';
+
+  @override
+  String get deckInformation => 'Deck Information';
+
+  @override
+  String get description => 'Description';
+
+  @override
+  String get enterUniqueName => 'Enter a unique name';
+
+  @override
+  String get tellUsAboutYourDeck => 'Tell us about your deck';
+
+  @override
+  String get optional => 'Optional';
+
+  @override
+  String get customization => 'Customization';
+
+  @override
+  String get icon => 'Icon';
+
+  @override
+  String get color => 'Color';
+
+  @override
+  String moreNeeded(int count) {
+    return '$count more needed';
+  }
+
+  @override
+  String get addACard => 'Add a card...';
+
+  @override
+  String get aiSuggestions => 'AI Suggestions';
+
+  @override
+  String get generating => 'Generating...';
+
+  @override
+  String get discardChanges => 'Discard Changes?';
+
+  @override
+  String get unsavedChangesMessage =>
+      'You have unsaved changes. Are you sure you want to leave?';
+
+  @override
+  String get discard => 'Discard';
+
+  @override
+  String pleaseAddCards(int count) {
+    return 'Please add at least $count cards to your deck';
+  }
+
+  @override
+  String deckNeedsCards(int count) {
+    return 'A deck needs at least $count cards to play';
+  }
+
+  @override
+  String get failedToSaveDeck => 'Failed to save deck. Please try again.';
+
+  @override
+  String get enterDeckNameFirst => 'Please enter a deck name first';
+
+  @override
+  String get ready => 'Ready';
+
+  @override
+  String get saving => 'Saving...';
+
+  @override
+  String get pleaseEnterDeckName => 'Please enter a deck name';
 }

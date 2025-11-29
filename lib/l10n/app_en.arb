@@ -293,5 +293,50 @@
   "music": "Music",
   "gaming": "Gaming",
   "world": "World",
-  "romance": "Romance"
+  "romance": "Romance",
+  "craftSomethingUnique": "Craft something unique",
+  "refineAndPerfect": "Refine and perfect",
+  "deckInformation": "Deck Information",
+  "description": "Description",
+  "enterUniqueName": "Enter a unique name",
+  "tellUsAboutYourDeck": "Tell us about your deck",
+  "optional": "Optional",
+  "customization": "Customization",
+  "icon": "Icon",
+  "color": "Color",
+  "moreNeeded": "{count} more needed",
+  "@moreNeeded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "addACard": "Add a card...",
+  "aiSuggestions": "AI Suggestions",
+  "generating": "Generating...",
+  "discardChanges": "Discard Changes?",
+  "unsavedChangesMessage": "You have unsaved changes. Are you sure you want to leave?",
+  "discard": "Discard",
+  "pleaseAddCards": "Please add at least {count} cards to your deck",
+  "@pleaseAddCards": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deckNeedsCards": "A deck needs at least {count} cards to play",
+  "@deckNeedsCards": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "failedToSaveDeck": "Failed to save deck. Please try again.",
+  "enterDeckNameFirst": "Please enter a deck name first",
+  "ready": "Ready",
+  "saving": "Saving...",
+  "pleaseEnterDeckName": "Please enter a deck name"
 }
