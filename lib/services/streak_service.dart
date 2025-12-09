@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'notification_service.dart';
 
 class StreakService {
   static const String _playHistoryKey = 'play_history';
@@ -85,6 +86,12 @@ class StreakService {
       await prefs.setInt(_currentStreakKey, currentStreak);
       
       debugPrint('✅ Play recorded - Streak: $currentStreak');
+      
+      // Update notification scheduling
+      if (NotificationService.isInitialized) {
+        await NotificationService().onGamePlayed();
+        debugPrint('🔔 Notification schedule updated after play');
+      }
     } catch (e) {
       debugPrint('Error recording play: $e');
     }

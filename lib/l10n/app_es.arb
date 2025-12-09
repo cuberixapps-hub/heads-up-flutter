@@ -203,6 +203,7 @@
   "languageSettings": "Configuración de Idioma",
   "welcomeBack": "Bienvenido de nuevo",
   "newBadge": "NUEVO",
+  "updatedBadge": "ACTUALIZADO",
   "day": "DÍA",
   "startYourStreakToday": "¡Comienza tu racha hoy!",
   "gamesWon": "Juegos Ganados",
@@ -233,5 +234,14 @@
   "music": "Música",
   "gaming": "Videojuegos",
   "world": "Mundo",
-  "romance": "Romance"
+  "romance": "Romance",
+  "noInternetTitle": "Sin Conexión a Internet",
+  "noInternetDescription": "Por favor verifica tu conexión a internet e intenta de nuevo. Esta aplicación requiere una conexión a internet activa para funcionar.",
+  "tryAgainButton": "Intentar de Nuevo",
+  "checkingConnection": "Verificando...",
+  "tipsToReconnect": "Consejos para reconectar:",
+  "tipEnableWifi": "Verifica si el WiFi está activado",
+  "tipTryMobileData": "Intenta cambiar a datos móviles",
+  "tipMoveCloser": "Acércate a tu router",
+  "tipRestartDevice": "Reinicia tu dispositivo"
 }

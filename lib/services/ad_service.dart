@@ -57,6 +57,9 @@ class AdService {
   bool _isInterstitialAdReady = false;
   bool _isRewardedAdReady = false;
 
+  /// Check if rewarded ad is ready to be shown
+  bool get isRewardedAdReady => _isRewardedAdReady && _rewardedAd != null;
+
   // Frequency control for interstitial ads
   DateTime? _lastInterstitialTime;
   int _gamesPlayedSinceLastAd = 0;

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/cache_entry.dart';
@@ -17,9 +18,15 @@ class CacheService {
   static const String _decksCacheKey = 'cached_decks_';
   static const String _leaderboardCacheKey = 'cached_leaderboard_';
   static const String _cacheMetadataKey = 'cache_metadata';
+  static const String _lastFetchTimestampKey = 'last_decks_fetch_';
   
-  // Default TTL values
-  static const Duration decksTTL = Duration(hours: 6);
+  // TTL values based on build mode
+  // Production: 24 hours (to reduce Firebase costs)
+  // Debug/Profile: 0 (always fetch fresh data)
+  static Duration get decksTTL => kReleaseMode 
+      ? const Duration(hours: 24) 
+      : Duration.zero;
+  
   static const Duration leaderboardTTL = Duration(minutes: 30);
   static const Duration gameHistoryTTL = Duration(minutes: 15);
   static const Duration statisticsTTL = Duration(hours: 1);
@@ -27,6 +34,81 @@ class CacheService {
   // Cache size limits
   static const int maxCacheEntries = 50;
   static const int maxCacheSizeMB = 10;
+  
+  /// Check if we should fetch fresh data from Firebase
+  /// - In debug/profile mode: Always returns true
+  /// - In production mode: Returns true only if cache is expired (24 hours)
+  bool get shouldFetchFreshData {
+    // In debug/profile mode, always fetch fresh data for testing
+    if (!kReleaseMode) {
+      debugPrint('🔧 Debug mode: Will always fetch fresh data from Firebase');
+      return true;
+    }
+    return false; // In production, rely on cache TTL
+  }
+  
+  /// Check if decks cache for a specific country needs refresh
+  /// Returns true if:
+  /// - In debug/profile mode (always fresh)
+  /// - Cache is expired in production mode
+  /// - No cache exists
+  Future<bool> shouldRefreshDecks(String countryCode) async {
+    if (!_initialized) await initialize();
+    
+    // In debug/profile mode, always refresh
+    if (!kReleaseMode) {
+      debugPrint('🔧 Debug/Profile mode: Forcing fresh fetch for $countryCode');
+      return true;
+    }
+    
+    // In production, check if cache is expired
+    final lastFetchTime = await getLastFetchTimestamp(countryCode);
+    if (lastFetchTime == null) {
+      debugPrint('📭 No previous fetch timestamp for $countryCode - will fetch');
+      return true;
+    }
+    
+    final timeSinceLastFetch = DateTime.now().difference(lastFetchTime);
+    final isExpired = timeSinceLastFetch >= decksTTL;
+    
+    if (isExpired) {
+      debugPrint('⏰ Cache expired for $countryCode (${timeSinceLastFetch.inHours}h old) - will fetch');
+    } else {
+      debugPrint('✅ Cache valid for $countryCode (${timeSinceLastFetch.inHours}h old, TTL: ${decksTTL.inHours}h)');
+    }
+    
+    return isExpired;
+  }
+  
+  /// Get last fetch timestamp for a country
+  Future<DateTime?> getLastFetchTimestamp(String countryCode) async {
+    if (!_initialized) await initialize();
+    
+    try {
+      final timestampStr = _prefs.getString('$_lastFetchTimestampKey$countryCode');
+      if (timestampStr != null) {
+        return DateTime.parse(timestampStr);
+      }
+    } catch (e) {
+      debugPrint('Error getting last fetch timestamp: $e');
+    }
+    return null;
+  }
+  
+  /// Record fetch timestamp for a country
+  Future<void> recordFetchTimestamp(String countryCode) async {
+    if (!_initialized) await initialize();
+    
+    try {
+      await _prefs.setString(
+        '$_lastFetchTimestampKey$countryCode',
+        DateTime.now().toIso8601String(),
+      );
+      debugPrint('📝 Recorded fetch timestamp for $countryCode');
+    } catch (e) {
+      debugPrint('Error recording fetch timestamp: $e');
+    }
+  }
   
   // Initialize the cache service
   Future<void> initialize() async {
@@ -78,6 +160,9 @@ class CacheService {
   }
   
   // Get cached decks by country
+  // Note: This returns cached data regardless of expiry status.
+  // The shouldRefreshDecks() method controls whether to fetch fresh data.
+  // This ensures cached data is always available as fallback.
   Future<List<Deck>?> getCachedDecksByCountry(String countryCode) async {
     if (!_initialized) await initialize();
     
@@ -99,27 +184,22 @@ class CacheService {
         dataFromJson: (data) => (data['decks'] as List<dynamic>),
       );
       
-      if (cacheEntry.isExpired) {
-        debugPrint('⏰ Cache expired for decks: $countryCode');
-        await _prefs.remove(key);
-        await FirebaseService().logEvent('cache_expired', parameters: {
-          'cache_type': 'decks',
-          'country': countryCode,
-        });
-        return null;
-      }
-      
       final decks = cacheEntry.data
           .map((map) => _mapToDeck(map as Map<String, dynamic>))
           .toList();
+      
+      // Check if cache is expired for logging purposes only
+      // (we still return the data, shouldRefreshDecks() handles refresh logic)
+      final isExpired = cacheEntry.isExpired;
       
       await FirebaseService().logEvent('cache_hit', parameters: {
         'cache_type': 'decks',
         'country': countryCode,
         'items_count': decks.length,
+        'was_expired': isExpired,
       });
       
-      debugPrint('✅ Cache hit: ${decks.length} decks for $countryCode');
+      debugPrint('✅ Cache hit: ${decks.length} decks for $countryCode${isExpired ? ' (stale)' : ''}');
       return decks;
     } catch (e) {
       debugPrint('Error getting cached decks: $e');
@@ -392,14 +472,25 @@ class CacheService {
       'cards': deck.cards,
       'createdAt': deck.createdAt.toIso8601String(),
       'updatedAt': deck.updatedAt?.toIso8601String(),
-      'country': deck.country,
+      'country': deck.country, // Legacy field for backward compatibility
+      'countries': deck.countries.isNotEmpty ? deck.countries : deck.effectiveCountries,
       'tags': deck.tags,
       'priority': deck.priority,
       'isActive': deck.isActive,
+      'playCount': deck.playCount,
     };
   }
   
   Deck _mapToDeck(Map<String, dynamic> map) {
+    // Parse countries array (with backward compatibility for legacy single country field)
+    List<String> parsedCountries = [];
+    if (map['countries'] != null) {
+      parsedCountries = List<String>.from(map['countries'] as List);
+    } else if (map['country'] != null) {
+      // Backward compatibility: convert single country to array
+      parsedCountries = [map['country'] as String];
+    }
+
     return Deck(
       id: map['id'],
       name: map['name'],
@@ -419,9 +510,11 @@ class CacheService {
           ? DateTime.parse(map['updatedAt']) 
           : null,
       country: map['country'],
+      countries: parsedCountries,
       tags: List<String>.from(map['tags'] ?? []),
       priority: map['priority'] ?? 0,
       isActive: map['isActive'] ?? true,
+      playCount: map['playCount'] ?? 0,
     );
   }
 }

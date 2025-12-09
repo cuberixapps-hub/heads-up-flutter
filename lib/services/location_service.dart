@@ -1,7 +1,22 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocationService {
+  // Singleton instance
+  static final LocationService _instance = LocationService._internal();
+  factory LocationService() => _instance;
+  LocationService._internal();
+  
+  // SharedPreferences keys
+  static const String _manualCountryOverrideKey = 'manual_country_override';
+  static const String _detectedCountryKey = 'detected_country';
+  
+  // Cached values
+  String? _cachedDetectedCountry;
+  String? _cachedManualOverride;
+  bool _initialized = false;
+  
   static const Map<String, String> _countryCodeMapping = {
     // Direct mappings
     'US': 'US',
@@ -36,6 +51,69 @@ class LocationService {
     'HK': 'CN', // Hong Kong -> Chinese content
     'PT': 'BR', // Portugal -> Brazilian Portuguese content
   };
+
+  /// Initialize the location service
+  Future<void> initialize() async {
+    if (_initialized) return;
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _cachedManualOverride = prefs.getString(_manualCountryOverrideKey);
+      _cachedDetectedCountry = prefs.getString(_detectedCountryKey);
+      _initialized = true;
+      debugPrint('LocationService: Initialized (override: $_cachedManualOverride, detected: $_cachedDetectedCountry)');
+    } catch (e) {
+      debugPrint('LocationService: Error initializing: $e');
+    }
+  }
+
+  /// Get the user's preferred country (manual override takes precedence)
+  Future<String> getUserPreferredCountry() async {
+    await initialize();
+    
+    // Check for manual override first
+    if (_cachedManualOverride != null && _cachedManualOverride!.isNotEmpty) {
+      debugPrint('LocationService: Using manual override: $_cachedManualOverride');
+      return _cachedManualOverride!;
+    }
+    
+    // Fall back to auto-detected country
+    return await detectUserCountry();
+  }
+
+  /// Set manual country override
+  Future<bool> setManualCountryOverride(String? countryCode) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      if (countryCode == null || countryCode.isEmpty) {
+        // Clear the override
+        await prefs.remove(_manualCountryOverrideKey);
+        _cachedManualOverride = null;
+        debugPrint('LocationService: Cleared manual country override');
+      } else {
+        // Set the override
+        await prefs.setString(_manualCountryOverrideKey, countryCode.toUpperCase());
+        _cachedManualOverride = countryCode.toUpperCase();
+        debugPrint('LocationService: Set manual country override to: $countryCode');
+      }
+      
+      return true;
+    } catch (e) {
+      debugPrint('LocationService: Error setting manual override: $e');
+      return false;
+    }
+  }
+
+  /// Get the current manual override (null if auto-detecting)
+  String? getManualCountryOverride() {
+    return _cachedManualOverride;
+  }
+
+  /// Check if using manual override
+  bool isUsingManualOverride() {
+    return _cachedManualOverride != null && _cachedManualOverride!.isNotEmpty;
+  }
 
   /// Detect user's country from device locale
   static Future<String> detectUserCountry() async {
@@ -75,54 +153,84 @@ class LocationService {
   /// Get the display name for a country code
   static String getCountryDisplayName(String countryCode) {
     const Map<String, String> displayNames = {
-      'UNIVERSAL': 'Universal',
-      'IN': 'India',
-      'JP': 'Japan',
-      'KR': 'South Korea',
-      'BR': 'Brazil',
-      'CN': 'China',
-      'US': 'United States',
-      'GB': 'United Kingdom',
-      'MX': 'Latin America',
-      'TRENDING': 'Trending',
+      'UNIVERSAL': 'Universal (All Regions)',
+      'IN': 'India 🇮🇳',
+      'JP': 'Japan 🇯🇵',
+      'KR': 'South Korea 🇰🇷',
+      'BR': 'Brazil 🇧🇷',
+      'CN': 'China 🇨🇳',
+      'US': 'United States 🇺🇸',
+      'GB': 'United Kingdom 🇬🇧',
+      'MX': 'Latin America 🌎',
+      'CA': 'Canada 🇨🇦',
+      'AU': 'Australia 🇦🇺',
+      'FR': 'France 🇫🇷',
+      'DE': 'Germany 🇩🇪',
+      'ES': 'Spain 🇪🇸',
+      'IT': 'Italy 🇮🇹',
+      'TRENDING': 'Trending 🔥',
     };
     
     return displayNames[countryCode] ?? countryCode;
+  }
+  
+  /// Get country emoji flag
+  static String getCountryFlag(String countryCode) {
+    const Map<String, String> flags = {
+      'UNIVERSAL': '🌍',
+      'IN': '🇮🇳',
+      'JP': '🇯🇵',
+      'KR': '🇰🇷',
+      'BR': '🇧🇷',
+      'CN': '🇨🇳',
+      'US': '🇺🇸',
+      'GB': '🇬🇧',
+      'MX': '🇲🇽',
+      'CA': '🇨🇦',
+      'AU': '🇦🇺',
+      'FR': '🇫🇷',
+      'DE': '🇩🇪',
+      'ES': '🇪🇸',
+      'IT': '🇮🇹',
+      'TRENDING': '🔥',
+    };
+    
+    return flags[countryCode] ?? '🌐';
   }
 
   /// Check if a country code is valid
   static bool isValidCountryCode(String? countryCode) {
     if (countryCode == null) return false;
     
-    const validCodes = {
-      'UNIVERSAL',
-      'IN',
-      'JP',
-      'KR',
-      'BR',
-      'CN',
-      'US',
-      'GB',
-      'MX',
-      'TRENDING',
-    };
-    
-    return validCodes.contains(countryCode.toUpperCase());
+    return getSupportedCountryCodes().contains(countryCode.toUpperCase());
   }
 
-  /// Get all supported country codes
+  /// Get all supported country codes for user selection
   static List<String> getSupportedCountryCodes() {
     return [
-      'UNIVERSAL',
+      'US',
+      'GB',
       'IN',
       'JP',
       'KR',
       'BR',
       'CN',
-      'US',
-      'GB',
       'MX',
-      'TRENDING',
+      'CA',
+      'AU',
+      'FR',
+      'DE',
+      'ES',
+      'IT',
     ];
+  }
+  
+  /// Get all country options with display names for UI
+  static List<Map<String, String>> getCountryOptions() {
+    return getSupportedCountryCodes().map((code) => {
+      'code': code,
+      'name': getCountryDisplayName(code),
+      'flag': getCountryFlag(code),
+    }).toList();
   }
 }

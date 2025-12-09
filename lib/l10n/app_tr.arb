@@ -184,5 +184,14 @@
   "lastSync": "Last sync",
   "featured": "Featured",
   "featuredDecks": "Featured Decks",
-  "featuredDeck": "Featured Deck"
+  "featuredDeck": "Featured Deck",
+  "noInternetTitle": "İnternet Bağlantısı Yok",
+  "noInternetDescription": "Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin. Bu uygulama çalışmak için aktif bir internet bağlantısı gerektirir.",
+  "tryAgainButton": "Tekrar Dene",
+  "checkingConnection": "Kontrol ediliyor...",
+  "tipsToReconnect": "Yeniden bağlanma ipuçları:",
+  "tipEnableWifi": "WiFi'nin etkin olup olmadığını kontrol edin",
+  "tipTryMobileData": "Mobil veriye geçmeyi deneyin",
+  "tipMoveCloser": "Yönlendiricinize yaklaşın",
+  "tipRestartDevice": "Cihazınızı yeniden başlatın"
 }

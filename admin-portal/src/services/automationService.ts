@@ -7,7 +7,8 @@ import { generateRandomTrendingTopic, generateUniversalTopic, type AIGeneratedTo
 import { generateResearchedTopics, generateUniversalResearchedTopic, type ResearchedTopic } from './aiTopicResearchService';
 import type { DifficultyLevel } from '../types/ai';
 import { validateTopic, quickValidateTopic, getQualityRating } from './topicValidationService';
-import { selectSmartColor, type SmartColor } from './smartColorService';
+import { selectSmartColor } from './smartColorService';
+import { selectRandomDeckColor, type ColorResult, type ColorForImageGeneration } from './colorExtractionService';
 
 export interface AutomationStats {
   totalDecksCreated: number;
@@ -24,7 +25,46 @@ export interface AutomationConfig {
   preferredRegions?: string[];
   skipCountries?: string[];
   countriesPerDeck?: number; // Number of additional countries (UNIVERSAL is always included)
+  universalRatio?: number; // Percentage of decks that should be universal (0-100), default 70
 }
+
+// Track recent topic types to ensure proper distribution
+let recentTopicTypes: ('universal' | 'regional')[] = [];
+const TOPIC_HISTORY_SIZE = 10;
+
+/**
+ * Determine if the next topic should be universal or regional
+ * Targets 70% universal, 30% regional distribution
+ */
+export const shouldGenerateUniversal = (config?: AutomationConfig): boolean => {
+  const targetRatio = config?.universalRatio ?? 70; // Default 70% universal
+  
+  // If we have enough history, check current distribution
+  if (recentTopicTypes.length >= TOPIC_HISTORY_SIZE) {
+    const universalCount = recentTopicTypes.filter(t => t === 'universal').length;
+    const currentRatio = (universalCount / recentTopicTypes.length) * 100;
+    
+    // Adjust to balance toward target ratio
+    if (currentRatio < targetRatio - 10) {
+      return true; // Need more universal
+    } else if (currentRatio > targetRatio + 10) {
+      return false; // Need more regional
+    }
+  }
+  
+  // Random selection weighted by target ratio
+  return Math.random() * 100 < targetRatio;
+};
+
+/**
+ * Record the type of topic generated for distribution tracking
+ */
+const recordTopicType = (type: 'universal' | 'regional') => {
+  recentTopicTypes.push(type);
+  if (recentTopicTypes.length > TOPIC_HISTORY_SIZE) {
+    recentTopicTypes.shift();
+  }
+};
 
 /**
  * Get the current distribution of decks across countries
@@ -156,20 +196,33 @@ export const generateAutomaticDeck = async (
     }
     
     // Step 2: Generate trending topic if not provided
+    // 🎯 70% UNIVERSAL / 30% REGIONAL logic for Gen Z appeal
     if (!topic) {
-      onProgress?.('🔥 Generating trending topic with AI...');
+      const generateUniversal = shouldGenerateUniversal(config);
+      
+      onProgress?.('🔥 Generating FIRE topic with AI...');
+      onProgress?.(`   📊 Distribution: ${generateUniversal ? '🌍 UNIVERSAL (70%)' : '🌏 REGIONAL (30%)'}`);
       
       // Use the first selected country to generate a trending topic
-      // If it's UNIVERSAL, generate a universal topic
       const primaryCountry = countries.find(c => c.code !== 'UNIVERSAL') || countries[0];
       
-      if (primaryCountry.code === 'UNIVERSAL') {
+      if (generateUniversal) {
+        // 70% of the time: Generate UNIVERSAL topic
         topic = await generateUniversalTopic();
+        recordTopicType('universal');
+        onProgress?.(`✨ Generated universal Gen Z topic: "${topic.name}"`);
+        onProgress?.(`   🔥 Trending because: ${topic.trendingReason}`);
+      } else if (primaryCountry.code === 'UNIVERSAL') {
+        // Fallback to universal if no regional country
+        topic = await generateUniversalTopic();
+        recordTopicType('universal');
         onProgress?.(`✨ Generated universal topic: "${topic.name}"`);
       } else {
+        // 30% of the time: Generate REGIONAL topic
         topic = await generateRandomTrendingTopic(primaryCountry);
-        onProgress?.(`✨ Generated trending topic for ${primaryCountry.flag} ${primaryCountry.name}: "${topic.name}"`);
-        onProgress?.(`   Trending because: ${topic.trendingReason}`);
+        recordTopicType('regional');
+        onProgress?.(`✨ Generated regional topic for ${primaryCountry.flag} ${primaryCountry.name}: "${topic.name}"`);
+        onProgress?.(`   🔥 Trending because: ${topic.trendingReason}`);
       }
     }
     
@@ -191,32 +244,34 @@ export const generateAutomaticDeck = async (
     // Always include UNIVERSAL plus the selected countries
     const countryCodes = ['UNIVERSAL', ...countries.map(c => c.code)];
     
-    // 🎨 STEP: Select a smart, varied color FIRST based on the topic
-    onProgress?.(`🎨 Selecting smart color for "${topic.name}"...`);
-    const selectedColor: SmartColor = selectSmartColor(topic.name);
-    onProgress?.(`✅ Color selected: ${selectedColor.name} (${selectedColor.hex})`);
-    
-    // Step 4: Generate image (optional, continue on failure) with country context AND selected color
+    // 🎨 NEW FLOW: Select color FIRST, then generate image with that color theme
     let imageUrl: string | undefined;
+    
+    // Step 1: Select random color from our curated palette
+    const selectedColorData: ColorForImageGeneration = selectRandomDeckColor();
+    const selectedColor: ColorResult = selectedColorData.color;
+    
+    onProgress?.(`🎨 Selected deck color: ${selectedColor.name} (${selectedColor.hex})`);
+    onProgress?.(`🖼️ Generating image with ${selectedColor.name} theme...`);
+    
+    const topicWithContext = countryContext ? `${topic.name} (${countryContext})` : topic.name;
+    
     try {
-      onProgress?.(`🎨 Generating deck image with ${selectedColor.name} color scheme...`);
-      // Pass country context and selected color to image generation
-      const topicWithContext = countryContext ? `${topic.name} (${countryContext})` : topic.name;
+      // Step 2: Generate image WITH the selected color theme
       imageUrl = await generateDeckImage(topicWithContext, 'retro pulp', {
         targetColor: {
           hex: selectedColor.hex,
           name: selectedColor.name,
-          promptDescription: selectedColor.promptDescription
+          promptDescription: selectedColorData.promptDescription
         }
       });
-      onProgress?.(`✅ Image generated with ${selectedColor.name} colors`);
+      onProgress?.(`✅ Image generated with ${selectedColor.name} theme!`);
     } catch (imageError) {
-      console.warn('Image generation failed, continuing without image:', imageError);
-      onProgress?.('Image generation failed, continuing without image...');
+      console.warn('Image generation failed:', imageError);
+      onProgress?.('⚠️ Image generation failed, deck will use color without custom image');
     }
     
-    // Use the pre-selected smart color (guaranteed variety!)
-    const finalColorValue = selectedColor.colorValue;
+    onProgress?.(`🎨 Deck theme: ${selectedColor.name} (${selectedColor.hex})`);
     
     // Step 5: Save to Firestore with multiple countries
     onProgress?.('Saving deck to database...');
@@ -226,10 +281,9 @@ export const generateAutomaticDeck = async (
       cards: deckContent.cards,
       iconCodePoint: deckContent.iconSuggestion?.codePoint || 0xf005,
       iconFontFamily: deckContent.iconSuggestion?.fontFamily || 'FontAwesomeIcons',
-      colorValue: finalColorValue,
-      colorName: selectedColor.name, // Track which color was used
+      colorValue: selectedColor.colorValue, // Pre-selected color
+      colorName: selectedColor.name,
       colorHex: selectedColor.hex,
-      smartColorSelected: true, // Flag to indicate smart color coordination
       imageUrl: imageUrl || null,
       isPremium: topic.isPremium || false,
       countries: countryCodes, // Array of country codes
@@ -428,19 +482,30 @@ export const generateResearchedDeck = async (
     onProgress?.(`📍 Selected countries: ${countryNames}`);
     
     // Step 2: Generate RESEARCHED topic with proper reasoning
+    // 🎯 70% UNIVERSAL / 30% REGIONAL logic for Gen Z appeal
+    const generateUniversal = shouldGenerateUniversal(config);
+    
     onProgress?.('\n🔬 GENERATING RESEARCH-BASED TOPIC...');
+    onProgress?.(`   📊 Distribution: ${generateUniversal ? '🌍 UNIVERSAL (70% target)' : '🌏 REGIONAL (30% target)'}`);
     onProgress?.('   Analyzing trends, cultural relevance, and audience appeal...');
     
     let researchedTopic: ResearchedTopic;
     const primaryCountry = countries.find(c => c.code !== 'UNIVERSAL') || countries[0];
     
-    if (primaryCountry.code === 'UNIVERSAL') {
-      onProgress?.('   🌍 Researching GLOBAL trends...');
-      researchedTopic = await generateUniversalResearchedTopic(targetAudience);
+    if (generateUniversal) {
+      // 70% of the time: Generate UNIVERSAL topic for global Gen Z appeal
+      onProgress?.('   🌍 Researching GLOBAL Gen Z trends...');
+      onProgress?.('   🔥 Looking for topics that work in Tokyo, Lagos, London, São Paulo...');
+      researchedTopic = await generateUniversalResearchedTopic(targetAudience || 'teens');
+      recordTopicType('universal');
+      onProgress?.(`   ✨ Generated universal topic: "${researchedTopic.name}"`);
     } else {
-      onProgress?.(`   ${primaryCountry.flag} Researching trends in ${primaryCountry.name}...`);
-      const topics = await generateResearchedTopics(primaryCountry, 1, targetAudience);
+      // 30% of the time: Generate REGIONAL topic with country-specific appeal
+      onProgress?.(`   ${primaryCountry.flag} Researching regional Gen Z trends in ${primaryCountry.name}...`);
+      const topics = await generateResearchedTopics(primaryCountry, 1, targetAudience || 'teens');
       researchedTopic = topics[0];
+      recordTopicType('regional');
+      onProgress?.(`   ✨ Generated regional topic for ${primaryCountry.name}: "${researchedTopic.name}"`);
     }
     
     // Display the research findings
@@ -491,11 +556,31 @@ export const generateResearchedDeck = async (
     let primaryDeckContent;
     let imageUrl: string | undefined;
     
-    // 🎨 STEP 1: Select a smart, varied color FIRST based on the topic
-    onProgress?.(`🎨 Selecting smart color for "${researchedTopic.name}"...`);
-    const selectedColor: SmartColor = selectSmartColor(researchedTopic.name);
-    onProgress?.(`   ✅ Color selected: ${selectedColor.name} (${selectedColor.hex})`);
-    onProgress?.(`   📝 Image will use: ${selectedColor.promptDescription}`);
+    // 🎨 NEW FLOW: Select color FIRST, then generate image with that theme
+    const selectedColorDataRes: ColorForImageGeneration = selectRandomDeckColor();
+    const selectedColorRes: ColorResult = selectedColorDataRes.color;
+    
+    onProgress?.(`🎨 Selected deck color: ${selectedColorRes.name} (${selectedColorRes.hex})`);
+    onProgress?.(`🖼️ Generating image with ${selectedColorRes.name} theme for "${researchedTopic.name}"...`);
+    
+    const topicWithContext = countryContext ? `${researchedTopic.name} (${countryContext})` : researchedTopic.name;
+    
+    try {
+      // Generate image WITH the selected color theme
+      imageUrl = await generateDeckImage(topicWithContext, 'retro pulp', {
+        targetColor: {
+          hex: selectedColorRes.hex,
+          name: selectedColorRes.name,
+          promptDescription: selectedColorDataRes.promptDescription
+        }
+      });
+      onProgress?.(`   ✅ Image generated with ${selectedColorRes.name} theme!`);
+    } catch (imageError) {
+      console.warn('Image generation failed:', imageError);
+      onProgress?.(`   ⚠️ Image generation failed, deck will use color without custom image`);
+    }
+    
+    onProgress?.(`\n🎨 Deck theme: ${selectedColorRes.name} (${selectedColorRes.hex})\n`);
     
     for (const difficulty of difficulties) {
       try {
@@ -509,25 +594,6 @@ export const generateResearchedDeck = async (
         
         if (difficulty === 'easy') {
           primaryDeckContent = deckContent;
-          
-          // 🎨 STEP 2: Generate image WITH the selected color
-          try {
-            onProgress?.(`   🎨 Generating deck image with ${selectedColor.name} color scheme...`);
-            const topicWithContext = countryContext ? `${researchedTopic.name} (${countryContext})` : researchedTopic.name;
-            
-            // Pass the selected color to the image generator
-            imageUrl = await generateDeckImage(topicWithContext, 'retro pulp', {
-              targetColor: {
-                hex: selectedColor.hex,
-                name: selectedColor.name,
-                promptDescription: selectedColor.promptDescription
-              }
-            });
-            onProgress?.(`   ✅ Image generated with ${selectedColor.name} colors`);
-          } catch (imageError) {
-            console.warn('Image generation failed:', imageError);
-            onProgress?.(`   ⚠️ Image generation failed, continuing...`);
-          }
         }
         
         if (difficulty !== 'hard') {
@@ -548,9 +614,6 @@ export const generateResearchedDeck = async (
       throw new Error('Failed to generate deck content');
     }
     
-    // 🎨 STEP 3: Use the pre-selected smart color (guaranteed variety!)
-    const finalColorValue = selectedColor.colorValue;
-    
     // Create enhanced description with research
     const enhancedDescription = `${primaryDeckContent.description}\n\n🔥 ${researchedTopic.trendingReason}\n\n💡 ${researchedTopic.whyItWorks}`;
     
@@ -568,10 +631,9 @@ export const generateResearchedDeck = async (
       hasDifficultyModes: true,
       iconCodePoint: primaryDeckContent.iconSuggestion?.codePoint || 0xf005,
       iconFontFamily: primaryDeckContent.iconSuggestion?.fontFamily || 'FontAwesomeIcons',
-      colorValue: finalColorValue,
-      colorName: selectedColor.name, // Track which color was used
-      colorHex: selectedColor.hex,
-      smartColorSelected: true, // Flag to indicate smart color coordination
+      colorValue: selectedColorRes.colorValue, // Pre-selected color
+      colorName: selectedColorRes.name,
+      colorHex: selectedColorRes.hex,
       imageUrl: imageUrl || null,
       isPremium: researchedTopic.isPremium || false,
       countries: countryCodes,
@@ -734,8 +796,12 @@ export const generateMultiDifficultyDecks = async (
     }
     
     // Step 2: Generate trending topic if not provided
+    // 🎯 70% UNIVERSAL / 30% REGIONAL logic for Gen Z appeal
     if (!topic) {
-      onProgress?.('🔥 Generating AMAZING trending topic with AI...');
+      const generateUniversal = shouldGenerateUniversal(config);
+      
+      onProgress?.('🔥 Generating FIRE trending topic with AI...');
+      onProgress?.(`   📊 Distribution: ${generateUniversal ? '🌍 UNIVERSAL (70% target)' : '🌏 REGIONAL (30% target)'}`);
       
       const primaryCountry = countries.find(c => c.code !== 'UNIVERSAL') || countries[0];
       
@@ -747,15 +813,23 @@ export const generateMultiDifficultyDecks = async (
         try {
           onProgress?.(`   Attempt ${attempt}/${maxAttempts}: Generating topic candidates...`);
           
-          // Generate 3 topics to choose from
+          // Generate topics based on 70/30 distribution
           let candidateTopics: AIGeneratedTopic[];
           
-          if (primaryCountry.code === 'UNIVERSAL') {
-            // For universal, generate one topic at a time
+          if (generateUniversal) {
+            // 70% of the time: Generate UNIVERSAL topic for global Gen Z appeal
+            onProgress?.('   🌍 Generating universal Gen Z topic...');
             candidateTopics = [await generateUniversalTopic()];
+            recordTopicType('universal');
+          } else if (primaryCountry.code === 'UNIVERSAL') {
+            // Fallback to universal if no regional country selected
+            candidateTopics = [await generateUniversalTopic()];
+            recordTopicType('universal');
           } else {
-            // Generate multiple topics for the country
+            // 30% of the time: Generate REGIONAL topic with country-specific appeal
+            onProgress?.(`   ${primaryCountry.flag} Generating regional topic for ${primaryCountry.name}...`);
             candidateTopics = await generateTrendingTopics(primaryCountry, 3);
+            recordTopicType('regional');
           }
           
           onProgress?.(`   Generated ${candidateTopics.length} topic candidates, validating...`);
@@ -841,11 +915,31 @@ export const generateMultiDifficultyDecks = async (
     let primaryDeckContent;
     let imageUrl: string | undefined;
     
-    // 🎨 STEP 1: Select a smart, varied color FIRST based on the topic
-    onProgress?.(`🎨 Selecting smart color for "${topic.name}"...`);
-    const selectedColor: SmartColor = selectSmartColor(topic.name);
-    onProgress?.(`   ✅ Color selected: ${selectedColor.name} (${selectedColor.hex})`);
-    onProgress?.(`   📝 Image will use: ${selectedColor.promptDescription}`);
+    // 🎨 NEW FLOW: Select color FIRST, then generate image with that theme
+    const selectedColorDataMulti: ColorForImageGeneration = selectRandomDeckColor();
+    const selectedColorMulti: ColorResult = selectedColorDataMulti.color;
+    
+    onProgress?.(`🎨 Selected deck color: ${selectedColorMulti.name} (${selectedColorMulti.hex})`);
+    onProgress?.(`🖼️ Generating image with ${selectedColorMulti.name} theme for "${topic.name}"...`);
+    
+    const topicWithContextMulti = countryContext ? `${topic.name} (${countryContext})` : topic.name;
+    
+    try {
+      // Generate image WITH the selected color theme
+      imageUrl = await generateDeckImage(topicWithContextMulti, 'retro pulp', {
+        targetColor: {
+          hex: selectedColorMulti.hex,
+          name: selectedColorMulti.name,
+          promptDescription: selectedColorDataMulti.promptDescription
+        }
+      });
+      onProgress?.(`   ✅ Image generated with ${selectedColorMulti.name} theme!`);
+    } catch (imageError) {
+      console.warn('Image generation failed:', imageError);
+      onProgress?.(`   ⚠️ Image generation failed, deck will use color without custom image`);
+    }
+    
+    onProgress?.(`\n🎨 Deck theme: ${selectedColorMulti.name} (${selectedColorMulti.hex})\n`);
     
     for (const difficulty of difficulties) {
       try {
@@ -862,25 +956,6 @@ export const generateMultiDifficultyDecks = async (
         // Use the first (easy) version for primary deck metadata
         if (difficulty === 'easy') {
           primaryDeckContent = deckContent;
-          
-          // 🎨 STEP 2: Generate image WITH the selected color
-          try {
-            onProgress?.(`   🎨 Generating deck image with ${selectedColor.name} color scheme...`);
-            const topicWithContext = countryContext ? `${topic.name} (${countryContext})` : topic.name;
-            
-            // Pass the selected color to the image generator
-            imageUrl = await generateDeckImage(topicWithContext, 'retro pulp', {
-              targetColor: {
-                hex: selectedColor.hex,
-                name: selectedColor.name,
-                promptDescription: selectedColor.promptDescription
-              }
-            });
-            onProgress?.(`   ✅ Image generated with ${selectedColor.name} colors`);
-          } catch (imageError) {
-            console.warn('Image generation failed, continuing without image:', imageError);
-            onProgress?.(`   ⚠️ Image generation failed, continuing...`);
-          }
         }
         
         // Small delay between difficulty generations
@@ -903,9 +978,6 @@ export const generateMultiDifficultyDecks = async (
       throw new Error('Failed to generate deck content');
     }
     
-    // 🎨 STEP 3: Use the pre-selected smart color (guaranteed variety!)
-    const finalColorValue = selectedColor.colorValue;
-    
     // Save ONE deck to Firestore with all difficulty modes
     onProgress?.(`\n💾 Saving deck with 3 difficulty modes...`);
     const deckData = {
@@ -920,10 +992,9 @@ export const generateMultiDifficultyDecks = async (
       hasDifficultyModes: true, // Flag to indicate this deck has multiple modes
       iconCodePoint: primaryDeckContent.iconSuggestion?.codePoint || 0xf005,
       iconFontFamily: primaryDeckContent.iconSuggestion?.fontFamily || 'FontAwesomeIcons',
-      colorValue: finalColorValue,
-      colorName: selectedColor.name, // Track which color was used
-      colorHex: selectedColor.hex,
-      smartColorSelected: true, // Flag to indicate smart color coordination
+      colorValue: selectedColorMulti.colorValue, // Pre-selected color
+      colorName: selectedColorMulti.name,
+      colorHex: selectedColorMulti.hex,
       imageUrl: imageUrl || null,
       isPremium: topic.isPremium || false,
       countries: countryCodes,

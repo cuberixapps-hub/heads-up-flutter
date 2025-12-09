@@ -11,7 +11,7 @@ import {
   type AutomationStats,
   type AutomationConfig
 } from '../services/automationService';
-import { getCountryByCode } from '../data/countries';
+import { getCountryByCode, COUNTRIES, type Country } from '../data/countries';
 import { isTopicGenerationAvailable } from '../services/aiTopicService';
 import '../styles/AutomatedDeckGenerator.css';
 
@@ -57,12 +57,23 @@ export const AutomatedDeckGenerator: React.FC = () => {
     enabled: false,
     delayBetweenGenerations: 10000, // 10 seconds
     maxConcurrentGenerations: 1,
-    countriesPerDeck: 3 // Default to 3 countries per deck
+    countriesPerDeck: 3, // Default to 3 countries per deck
+    universalRatio: 70 // 70% universal, 30% regional (for Gen Z global appeal)
   });
   const [useResearchMode, setUseResearchMode] = useState(true); // NEW: Toggle for research mode
-  const [targetAudience, setTargetAudience] = useState<'teens' | 'adults' | 'families' | undefined>(undefined); // NEW: Target audience
+  const [targetAudiences, setTargetAudiences] = useState<Set<'teens' | 'adults' | 'families'>>( new Set(['teens']) ); // Default to teens (Gen Z) - now supports multiple
+  const [selectedCountries, setSelectedCountries] = useState<Set<string>>(new Set()); // Selected countries for deck generation
   const [countryDistribution, setCountryDistribution] = useState<{ [key: string]: number }>({});
   const [validationError, setValidationError] = useState<string | null>(null);
+  
+  // Available countries for selection
+  const SELECTABLE_COUNTRIES = [
+    { code: 'IN', name: 'India', flag: '🇮🇳' },
+    { code: 'US', name: 'USA', flag: '🇺🇸' },
+    { code: 'CA', name: 'Canada', flag: '🇨🇦' },
+    { code: 'AU', name: 'Australia', flag: '🇦🇺' },
+    { code: 'GB', name: 'United Kingdom', flag: '🇬🇧' },
+  ];
   
   const automationRef = useRef<boolean>(false);
   const logCounterRef = useRef<number>(0);
@@ -101,17 +112,48 @@ export const AutomatedDeckGenerator: React.FC = () => {
     setLogs(prev => [log, ...prev].slice(0, 100)); // Keep last 100 logs
   }, []);
 
+  // Helper function to pick a random audience from selected ones
+  const getRandomTargetAudience = (): 'teens' | 'adults' | 'families' | undefined => {
+    const audienceArray = Array.from(targetAudiences);
+    if (audienceArray.length === 0) return undefined;
+    return audienceArray[Math.floor(Math.random() * audienceArray.length)];
+  };
+
+  // Helper function to get Country objects from selected country codes
+  const getSelectedCountryObjects = (): Country[] | undefined => {
+    if (selectedCountries.size === 0) return undefined; // Let it auto-select
+    
+    const countries: Country[] = [];
+    selectedCountries.forEach(code => {
+      const country = COUNTRIES.find(c => c.code === code);
+      if (country) countries.push(country);
+    });
+    return countries.length > 0 ? countries : undefined;
+  };
+
   const runAutomationCycle = async () => {
     if (!automationRef.current) return;
 
     try {
       if (useResearchMode) {
         // NEW: Research-based generation with proper reasoning
-        addLog('🔬 Starting RESEARCHED deck generation with proper reasoning...', 'info');
+        // Pick a random audience from the selected ones for variety
+        const selectedAudience = getRandomTargetAudience();
+        const audienceLabel = selectedAudience === 'teens' ? '🔥 Gen Z' : 
+                              selectedAudience === 'adults' ? '👔 Millennials' : 
+                              selectedAudience === 'families' ? '👨‍👩‍👧‍👦 Families' : '🌍 Universal';
+        
+        // Get selected countries (if any)
+        const countriesToUse = getSelectedCountryObjects();
+        const countryLabel = countriesToUse 
+          ? countriesToUse.map(c => c.flag).join(' ')
+          : '🌍 Auto-select';
+        
+        addLog(`🔬 Starting RESEARCHED deck generation for ${audienceLabel} | Countries: ${countryLabel}...`, 'info');
         
         const result = await generateResearchedDeck(
-          undefined, // Let it auto-select countries
-          targetAudience, // Pass target audience
+          countriesToUse, // Pass selected countries or undefined for auto-select
+          selectedAudience, // Pass randomly selected audience from user's choices
           (progressMessage) => {
             setCurrentGeneration(progressMessage);
             addLog(progressMessage, 'info');
@@ -363,23 +405,149 @@ export const AutomatedDeckGenerator: React.FC = () => {
           </div>
           
           {useResearchMode && (
-            <div className="setting-item setting-featured">
-              <label className="setting-label-premium">
-                <Users size={20} />
-                <span>Target Audience:</span>
-              </label>
-              <select
-                value={targetAudience || 'universal'}
-                onChange={(e) => setTargetAudience(e.target.value === 'universal' ? undefined : e.target.value as 'teens' | 'adults' | 'families')}
-                disabled={isRunning}
-                className="audience-select"
-              >
-                <option value="universal">Universal (All Ages)</option>
-                <option value="teens">🎮 Teens (13-19) - Social Media, Gaming, Viral Trends</option>
-                <option value="adults">👔 Adults (25-45) - Nostalgia, Mainstream Entertainment</option>
-                <option value="families">👨‍👩‍👧‍👦 Families - Kid-friendly, Wholesome, Multi-generational</option>
-              </select>
-            </div>
+            <>
+              <div className="setting-item setting-featured">
+                <label className="setting-label-premium">
+                  <Users size={20} />
+                  <span>Target Audiences (select multiple):</span>
+                </label>
+                <div className="audience-checkboxes">
+                  <label className={`audience-checkbox ${targetAudiences.has('teens') ? 'selected' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={targetAudiences.has('teens')}
+                      onChange={(e) => {
+                        const newSet = new Set(targetAudiences);
+                        if (e.target.checked) {
+                          newSet.add('teens');
+                        } else {
+                          newSet.delete('teens');
+                        }
+                        // Ensure at least one is selected
+                        if (newSet.size > 0) setTargetAudiences(newSet);
+                      }}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-icon">🔥</span>
+                    <span className="checkbox-label">Gen Z (16-28)</span>
+                    <span className="checkbox-desc">Gaming, K-pop, Anime, Memes</span>
+                  </label>
+                  
+                  <label className={`audience-checkbox ${targetAudiences.has('adults') ? 'selected' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={targetAudiences.has('adults')}
+                      onChange={(e) => {
+                        const newSet = new Set(targetAudiences);
+                        if (e.target.checked) {
+                          newSet.add('adults');
+                        } else {
+                          newSet.delete('adults');
+                        }
+                        if (newSet.size > 0) setTargetAudiences(newSet);
+                      }}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-icon">👔</span>
+                    <span className="checkbox-label">Millennials (25-40)</span>
+                    <span className="checkbox-desc">Nostalgia, Streaming, Pop Culture</span>
+                  </label>
+                  
+                  <label className={`audience-checkbox ${targetAudiences.has('families') ? 'selected' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={targetAudiences.has('families')}
+                      onChange={(e) => {
+                        const newSet = new Set(targetAudiences);
+                        if (e.target.checked) {
+                          newSet.add('families');
+                        } else {
+                          newSet.delete('families');
+                        }
+                        if (newSet.size > 0) setTargetAudiences(newSet);
+                      }}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-icon">👨‍👩‍👧‍👦</span>
+                    <span className="checkbox-label">Families</span>
+                    <span className="checkbox-desc">Kid-friendly, Disney, Wholesome</span>
+                  </label>
+                </div>
+                <span className="setting-hint">
+                  Select multiple audiences - each generation cycle will randomly pick one from your selection
+                </span>
+              </div>
+              
+              <div className="setting-item setting-featured">
+                <label className="setting-label-premium">
+                  <Globe size={20} />
+                  <span>Target Countries (optional):</span>
+                </label>
+                <div className="country-checkboxes">
+                  {SELECTABLE_COUNTRIES.map(country => (
+                    <label 
+                      key={country.code}
+                      className={`country-checkbox ${selectedCountries.has(country.code) ? 'selected' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedCountries.has(country.code)}
+                        onChange={(e) => {
+                          const newSet = new Set(selectedCountries);
+                          if (e.target.checked) {
+                            newSet.add(country.code);
+                          } else {
+                            newSet.delete(country.code);
+                          }
+                          setSelectedCountries(newSet);
+                        }}
+                        disabled={isRunning}
+                      />
+                      <span className="country-flag-icon">{country.flag}</span>
+                      <span className="country-name-label">{country.name}</span>
+                    </label>
+                  ))}
+                </div>
+                <span className="setting-hint">
+                  {selectedCountries.size === 0 
+                    ? '🌍 No countries selected - will auto-select based on distribution balance'
+                    : `✅ Selected ${selectedCountries.size} ${selectedCountries.size === 1 ? 'country' : 'countries'} - decks will be generated for these countries only`
+                  }
+                </span>
+              </div>
+              
+              <div className="setting-item setting-featured">
+                <label className="setting-label-premium">
+                  <Globe size={20} />
+                  <span>Topic Distribution:</span>
+                </label>
+                <div className="ratio-control">
+                  <div className="ratio-slider">
+                    <span className="ratio-label">🌍 Universal</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={config.universalRatio || 70}
+                      onChange={(e) => setConfig({
+                        ...config,
+                        universalRatio: parseInt(e.target.value)
+                      })}
+                      disabled={isRunning}
+                      className="slider"
+                    />
+                    <span className="ratio-label">🌏 Regional</span>
+                  </div>
+                  <div className="ratio-display">
+                    <span className="ratio-value universal">{config.universalRatio || 70}% Universal</span>
+                    <span className="ratio-value regional">{100 - (config.universalRatio || 70)}% Regional</span>
+                  </div>
+                  <span className="setting-hint">
+                    Universal topics work globally (viral trends, K-pop, anime). Regional topics are country-specific.
+                  </span>
+                </div>
+              </div>
+            </>
           )}
           
           <div className="setting-item">

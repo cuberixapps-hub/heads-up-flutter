@@ -19,6 +19,7 @@ import '../models/daily_deck.dart';
 import 'gameplay_screen.dart';
 import 'deck_details_screen.dart';
 import 'search_screen.dart';
+import 'paywall_screen.dart';
 import '../widgets/home_screen/featured_deck_widget.dart';
 import '../widgets/home_screen/streak_widget.dart';
 import '../widgets/home_screen/daily_deck_widget.dart';
@@ -306,6 +307,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       _tutorialStep = 0;
     });
     _showTutorialOverlay();
+    // Scroll to the first target (featured deck) for better UX
+    _scrollToTutorialTarget(0);
   }
 
   void _nextTutorialStep() {
@@ -314,9 +317,78 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         _tutorialStep++;
       });
       _updateTutorialOverlay();
+      // Scroll to the next target element for better UX
+      _scrollToTutorialTarget(_tutorialStep);
     } else {
       _completeTutorial();
     }
+  }
+
+  /// Scrolls to make the current tutorial target visible
+  void _scrollToTutorialTarget(int stepIndex) {
+    GlobalKey? targetKey;
+    
+    switch (stepIndex) {
+      case 0:
+        targetKey = _featuredDeckKey;
+        break;
+      case 1:
+        targetKey = _categoryChipsKey;
+        break;
+      case 2:
+        targetKey = _dailyChallengeKey;
+        break;
+      case 3:
+        targetKey = _continuePlayingKey;
+        break;
+    }
+    
+    if (targetKey == null) return;
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      
+      final renderObject = targetKey!.currentContext?.findRenderObject();
+      if (renderObject != null && renderObject is RenderBox) {
+        final targetPosition = renderObject.localToGlobal(Offset.zero);
+        final screenHeight = MediaQuery.of(context).size.height;
+        final targetHeight = renderObject.size.height;
+        
+        // Calculate the ideal scroll position to center the target
+        // with some offset for the tutorial overlay at the bottom
+        final targetCenterY = targetPosition.dy + (targetHeight / 2);
+        final idealViewportCenterY = screenHeight * 0.35; // Slightly above center
+        
+        // Calculate how much we need to scroll
+        final scrollDelta = targetCenterY - idealViewportCenterY;
+        final newScrollOffset = _scrollController.offset + scrollDelta;
+        
+        // Clamp to valid scroll range
+        final clampedOffset = newScrollOffset.clamp(
+          0.0,
+          _scrollController.position.maxScrollExtent,
+        );
+        
+        // Only scroll if the target is not already well-visible
+        if ((targetPosition.dy < 100 || targetPosition.dy > screenHeight * 0.5)) {
+          _scrollController.animateTo(
+            clampedOffset,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOutCubic,
+          ).then((_) {
+            // Update the overlay after scrolling to refresh spotlight position
+            if (mounted && _showTutorial) {
+              _updateTutorialOverlay();
+            }
+          });
+        } else {
+          // Even if we don't scroll, update the overlay to ensure spotlight is correct
+          if (mounted && _showTutorial) {
+            _updateTutorialOverlay();
+          }
+        }
+      }
+    });
   }
 
   void _skipTutorial() {
@@ -384,6 +456,136 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   void _playDeck(Deck deck) async {
+    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+    
+    // Check if user has premium or if this is a free deck
+    final hasPremium = deckProvider.unlockedDecks.any((d) => d.isPremium);
+    
+    // Show paywall for non-premium users
+    if (!hasPremium) {
+      _showPaywall(deck);
+      return;
+    }
+    
+    // User has premium - start game directly
+    _startGameWithDeck(deck);
+  }
+  
+  void _showPaywall(Deck deck) {
+    _hapticService.lightImpact();
+    
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => PaywallScreen(
+          selectedDeck: deck,
+          onWatchAd: () {
+            Navigator.pop(context);
+            // Simulate ad watched - in production, integrate actual ad SDK
+            _onAdWatched(deck);
+          },
+          onPurchasePremium: () {
+            Navigator.pop(context);
+            // Show premium purchase dialog
+            _showPremiumPurchaseDialog(deck);
+          },
+          onClose: () {
+            Navigator.pop(context);
+          },
+        ),
+        transitionDuration: const Duration(milliseconds: 500),
+        reverseTransitionDuration: const Duration(milliseconds: 400),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const curve = Curves.easeInOutCubic;
+          
+          final fadeAnimation = Tween<double>(
+            begin: 0.0,
+            end: 1.0,
+          ).chain(CurveTween(curve: curve)).animate(animation);
+          
+          final scaleAnimation = Tween<double>(
+            begin: 0.92,
+            end: 1.0,
+          ).chain(CurveTween(curve: Curves.easeOutCubic)).animate(animation);
+          
+          return FadeTransition(
+            opacity: fadeAnimation,
+            child: ScaleTransition(
+              scale: scaleAnimation,
+              child: child,
+            ),
+          );
+        },
+      ),
+    );
+  }
+  
+  void _onAdWatched(Deck deck) async {
+    // Show loading indicator briefly
+    _hapticService.mediumImpact();
+    
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle_rounded, color: Colors.white),
+            const SizedBox(width: 12),
+            Text(
+              'Ad completed! Starting game...',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF4CAF50),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    
+    // Small delay for UX, then start game
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (mounted) {
+      _startGameWithDeck(deck);
+    }
+  }
+  
+  void _showPremiumPurchaseDialog(Deck deck) {
+    // For now, show a coming soon message
+    // In production, integrate with StoreKit/Play Billing
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.workspace_premium_rounded, color: Colors.black),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Premium purchase coming soon! For now, watch an ad to play.',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFFFFD700),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+    
+    // Show paywall again for user to watch ad
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        _showPaywall(deck);
+      }
+    });
+  }
+  
+  void _startGameWithDeck(Deck deck) async {
     final gameProvider = Provider.of<GameProvider>(context, listen: false);
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
 
@@ -860,7 +1062,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             ],
 
                             // Continue playing section with larger cards
-                            if (_recentDecks.isNotEmpty) ...[
+                            // Always show during tutorial for highlighting, otherwise only when there are recent decks
+                            if (_recentDecks.isNotEmpty || _showTutorial) ...[
                               _buildContinueWatchingSection(),
                               SizedBox(height: 24.s),
                             ],
@@ -1342,6 +1545,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     final categories = _getDynamicCategories(context);
 
     return Container(
+      key: _categoryChipsKey,
       height: 52.s,
       margin: EdgeInsets.symmetric(vertical: 8.s),
       child: Align(
@@ -2103,7 +2307,61 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   Widget _buildContinueWatchingSection() {
-    if (_recentDecks.isEmpty) return const SizedBox();
+    // Show placeholder during tutorial when no recent decks
+    if (_recentDecks.isEmpty) {
+      return Column(
+        key: _continuePlayingKey,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.s, vertical: 8.s),
+            child: Text(
+              AppLocalizations.of(context)!.continuePlayingTitle,
+              style: GoogleFonts.poppins(
+                fontSize: 20.sp,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+          SizedBox(height: 8.s),
+          // Placeholder card for tutorial
+          Container(
+            height: 140.s,
+            margin: EdgeInsets.symmetric(horizontal: 16.s),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12.s),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.1),
+                width: 1,
+              ),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.play_circle_outline_rounded,
+                    size: 40.s,
+                    color: Colors.white.withOpacity(0.3),
+                  ),
+                  SizedBox(height: 8.s),
+                  Text(
+                    'Play a game to see it here',
+                    style: GoogleFonts.inter(
+                      fontSize: 13.sp,
+                      color: Colors.white.withOpacity(0.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     return Column(
       key: _continuePlayingKey,
@@ -2805,6 +3063,22 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                       duration: 300.ms,
                                       curve: Curves.easeOutBack,
                                     ),
+                              ),
+
+                            // NEW / UPDATED status badge (only show if not premium)
+                            if (!isPremium && deck.statusTag != null)
+                              Positioned(
+                                top: 8.s,
+                                left: 8.s,
+                                child: _buildStatusBadge(deck.statusTag!, index),
+                              ),
+                            
+                            // NEW / UPDATED status badge for premium decks (positioned below premium badge)
+                            if (isPremium && deck.statusTag != null)
+                              Positioned(
+                                top: 36.s,
+                                left: 8.s,
+                                child: _buildStatusBadge(deck.statusTag!, index),
                               ),
                           ],
                         ),
@@ -3772,6 +4046,76 @@ class _HomeScreenV2State extends State<HomeScreenV2>
           delay: 100.ms,
           duration: 800.ms,
           curve: Curves.easeOutCubic,
+        );
+  }
+
+  /// Build NEW or UPDATED status badge for deck cards
+  Widget _buildStatusBadge(String status, int index) {
+    final l10n = AppLocalizations.of(context)!;
+    final isNew = status == 'new';
+    
+    // Colors for NEW (green) and UPDATED (blue)
+    final gradientColors = isNew
+        ? [const Color(0xFF00C853), const Color(0xFF00E676)]  // Vibrant green
+        : [const Color(0xFF2196F3), const Color(0xFF42A5F5)]; // Vibrant blue
+    
+    final badgeText = isNew ? l10n.newBadge : l10n.updatedBadge;
+    final badgeIcon = isNew ? Icons.fiber_new_rounded : Icons.update_rounded;
+
+    return Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: 7.s,
+            vertical: 3.s,
+          ),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: gradientColors,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: gradientColors[0].withOpacity(0.4),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                badgeIcon,
+                size: 10,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                badgeText,
+                style: GoogleFonts.poppins(
+                  fontSize: 8.sp,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        )
+        .animate()
+        .fadeIn(delay: (250 + index * 50).ms, duration: 400.ms)
+        .scale(
+          begin: const Offset(0.7, 0.7),
+          end: const Offset(1, 1),
+          delay: (250 + index * 50).ms,
+          duration: 400.ms,
+          curve: Curves.easeOutBack,
+        )
+        .shimmer(
+          delay: (800 + index * 100).ms,
+          duration: 1500.ms,
+          color: Colors.white.withOpacity(0.3),
         );
   }
 

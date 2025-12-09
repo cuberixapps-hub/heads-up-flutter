@@ -46,8 +46,14 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   // Animations
   late AnimationController _countdownController;
+  late AnimationController _countdownPulseController;
+  late AnimationController _countdownRingController;
+  late AnimationController _countdownBlurController;
   late AnimationController _cardFlipController;
+  late AnimationController _cardExitController;
+  late AnimationController _cardEnterController;
   late AnimationController _feedbackController;
+  late AnimationController _feedbackBurstController;
   late AnimationController _timerPulseController;
   late AnimationController _backgroundAnimController;
   late AnimationController _glowController;
@@ -85,9 +91,11 @@ class _GameplayScreenState extends State<GameplayScreen>
   Timer? _countdownTimer;
 
   // Feedback state
-  String _feedbackText = '';
   Color _feedbackColor = Colors.transparent;
-  IconData? _feedbackIcon;
+
+  // Card action animation state
+  bool _isCorrectAction = false;
+  bool _isPassAction = false;
 
   // Tutorial hints
   bool _showTutorialHints = false;
@@ -189,7 +197,22 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   void _initializeAnimations() {
     _countdownController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 900),
+      vsync: this,
+    );
+
+    _countdownPulseController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    _countdownRingController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    _countdownBlurController = AnimationController(
+      duration: const Duration(milliseconds: 300),
       vsync: this,
     );
 
@@ -198,8 +221,23 @@ class _GameplayScreenState extends State<GameplayScreen>
       vsync: this,
     );
 
+    _cardExitController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+
+    _cardEnterController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+
     _feedbackController = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _feedbackBurstController = AnimationController(
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
 
@@ -220,24 +258,41 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _startCountdown() {
-    // Play sound for initial "3"
+    // Play sound for initial "3" and trigger all animations
     _audioService.playCountdown();
-    _hapticService.lightImpact();
+    _hapticService.mediumImpact();
+
+    // Start all countdown animations simultaneously
+    _countdownController.forward(from: 0);
+    _countdownPulseController.forward(from: 0);
+    _countdownRingController.forward(from: 0);
+    _countdownBlurController.forward(from: 0).then((_) {
+      _countdownBlurController.reverse();
+    });
 
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_countdownValue > 1) {
         setState(() {
           _countdownValue--;
         });
+        // Reset and restart all animations for each number
         _countdownController.forward(from: 0);
+        _countdownPulseController.forward(from: 0);
+        _countdownRingController.forward(from: 0);
+        _countdownBlurController.forward(from: 0).then((_) {
+          _countdownBlurController.reverse();
+        });
         _audioService.playCountdown();
-        _hapticService.lightImpact();
+        _hapticService.mediumImpact();
       } else {
         timer.cancel();
+        // Final dramatic exit animation
+        _countdownBlurController.forward().then((_) {
         setState(() {
           _isCountingDown = false;
         });
         _startGame();
+        });
       }
     });
   }
@@ -484,16 +539,27 @@ class _GameplayScreenState extends State<GameplayScreen>
       );
     }
 
-    // Show feedback
+    // Set action state for premium animation
+    setState(() {
+      _isCorrectAction = true;
+      _isPassAction = false;
+    });
+
+    // Show feedback with burst animation
     _showFeedback('CORRECT!', AppTheme.successColor, Icons.check_circle);
+    _feedbackBurstController.forward(from: 0);
 
     // Play effects
     _audioService.playCorrect();
-    _hapticService.lightImpact(); // Light haptic for correct [[memory:7008710]]
+    _hapticService.lightImpact();
 
-    // Animate card flip
-    _cardFlipController.forward().then((_) {
-      _cardFlipController.reverse();
+    // Premium card exit animation
+    _cardExitController.forward(from: 0).then((_) {
+      setState(() {
+        _isCorrectAction = false;
+      });
+      _cardExitController.reset();
+      _cardEnterController.forward(from: 0);
       _prepareNextCard();
     });
 
@@ -524,16 +590,27 @@ class _GameplayScreenState extends State<GameplayScreen>
       );
     }
 
+    // Set action state for premium animation
+    setState(() {
+      _isPassAction = true;
+      _isCorrectAction = false;
+    });
+
     // Show feedback
     _showFeedback('PASS', AppTheme.warningColor, Icons.skip_next);
+    _feedbackBurstController.forward(from: 0);
 
     // Play effects
     _audioService.playPass();
-    _hapticService.selection(); // Very light haptic for pass [[memory:7008710]]
+    _hapticService.selection();
 
-    // Animate card flip
-    _cardFlipController.forward().then((_) {
-      _cardFlipController.reverse();
+    // Premium card exit animation
+    _cardExitController.forward(from: 0).then((_) {
+      setState(() {
+        _isPassAction = false;
+      });
+      _cardExitController.reset();
+      _cardEnterController.forward(from: 0);
       _prepareNextCard();
     });
 
@@ -545,13 +622,10 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   void _showFeedback(String text, Color color, IconData icon) {
     setState(() {
-      _feedbackText = text;
       _feedbackColor = color;
-      _feedbackIcon = icon;
     });
 
-    _feedbackController.forward().then((_) {
-      // Immediately reverse without delay for snappier feel
+    _feedbackController.forward(from: 0).then((_) {
       _feedbackController.reverse();
     });
   }
@@ -1129,8 +1203,14 @@ class _GameplayScreenState extends State<GameplayScreen>
     }
 
     _countdownController.dispose();
+    _countdownPulseController.dispose();
+    _countdownRingController.dispose();
+    _countdownBlurController.dispose();
     _cardFlipController.dispose();
+    _cardExitController.dispose();
+    _cardEnterController.dispose();
     _feedbackController.dispose();
+    _feedbackBurstController.dispose();
     _timerPulseController.dispose();
     _backgroundAnimController.dispose();
     _glowController.dispose();
@@ -1307,68 +1387,766 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   Widget _buildCountdown() {
-    return Center(
-      child: AnimatedBuilder(
-        animation: _countdownController,
-        builder: (context, child) {
-          final scale = 1.0 + (_countdownController.value * 0.5);
-          final opacity = 1.0 - (_countdownController.value * 0.3);
+    final screenSize = MediaQuery.of(context).size;
+    final isLandscape = screenSize.width > screenSize.height;
+    // Use the smaller dimension to ensure it fits in landscape
+    final minDimension = isLandscape ? screenSize.height : screenSize.width;
+    // Scale factor for landscape mode
+    final scaleFactor = isLandscape ? (minDimension / 400).clamp(0.6, 1.0) : 1.0;
 
-          return Transform.scale(
-            scale: scale,
-            child: Opacity(
-              opacity: opacity,
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        _countdownController,
+        _countdownPulseController,
+        _countdownRingController,
+        _countdownBlurController,
+      ]),
+        builder: (context, child) {
+        // Premium easing curves for Netflix-like feel
+        final elasticValue = Curves.elasticOut.transform(
+          _countdownController.value.clamp(0.0, 1.0),
+        );
+        final pulseValue = Curves.easeOutCubic.transform(
+          _countdownPulseController.value.clamp(0.0, 1.0),
+        );
+        final ringValue = Curves.easeOutQuart.transform(
+          _countdownRingController.value.clamp(0.0, 1.0),
+        );
+        final blurValue = _countdownBlurController.value;
+
+        // Dynamic scale with dramatic entrance
+        final numberScale = 0.3 + (elasticValue * 0.7);
+        final numberOpacity = (1.0 - (pulseValue * 0.15)).clamp(0.0, 1.0);
+
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Main countdown animation container
+              SizedBox(
+                width: 350 * scaleFactor,
+                height: 350 * scaleFactor,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Outermost expanding ring with fade
+                    _buildExpandingRing(
+                      ringValue,
+                      size: 350 * scaleFactor,
+                      startSize: 120 * scaleFactor,
+                      opacity: 0.15,
+                      strokeWidth: 1,
+                    ),
+
+                    // Second expanding ring
+                    _buildExpandingRing(
+                      ringValue,
+                      size: 300 * scaleFactor,
+                      startSize: 100 * scaleFactor,
+                      opacity: 0.25,
+                      strokeWidth: 1.5,
+                      delay: 0.1,
+                    ),
+
+                    // Third expanding ring
+                    _buildExpandingRing(
+                      ringValue,
+                      size: 250 * scaleFactor,
+                      startSize: 80 * scaleFactor,
+                      opacity: 0.35,
+                      strokeWidth: 2,
+                      delay: 0.2,
+                    ),
+
+                    // Pulsing glow effect behind number
+                    Transform.scale(
+                      scale: 1.0 + (pulseValue * 0.3),
               child: Container(
-                width: 180,
-                height: 180,
+                        width: 200 * scaleFactor,
+                        height: 200 * scaleFactor,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.15),
+                          gradient: RadialGradient(
+                            colors: [
+                              widget.deck.color.withOpacity(0.4 * (1 - pulseValue)),
+                              widget.deck.color.withOpacity(0.2 * (1 - pulseValue)),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.0, 0.5, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Inner glowing circle
+                    Container(
+                      width: 160 * scaleFactor,
+                      height: 160 * scaleFactor,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            Colors.white.withOpacity(0.2),
+                            Colors.white.withOpacity(0.1),
+                            Colors.white.withOpacity(0.05),
+                          ],
+                          stops: const [0.0, 0.6, 1.0],
+                        ),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
-                    width: 3,
+                          color: Colors.white.withOpacity(0.4 + (pulseValue * 0.2)),
+                          width: 2,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 30,
+                            color: Colors.white.withOpacity(0.3),
+                            blurRadius: 30 + (pulseValue * 20),
+                            spreadRadius: 5,
+                          ),
+                          BoxShadow(
+                            color: widget.deck.color.withOpacity(0.4),
+                            blurRadius: 60,
                       spreadRadius: 10,
                     ),
                   ],
                 ),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _countdownValue.toString(),
-                        style: const TextStyle(
+                    ),
+
+                    // Animated progress arc
+                    SizedBox(
+                      width: 180 * scaleFactor,
+                      height: 180 * scaleFactor,
+                      child: CustomPaint(
+                        painter: _CountdownArcPainter(
+                          progress: 1.0 - ringValue,
                           color: Colors.white,
-                          fontSize: 72,
-                          fontWeight: FontWeight.w900,
-                          height: 1,
+                          strokeWidth: 3,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                    ),
+
+                    // Main number with dramatic animation
+                    Transform.scale(
+                      scale: numberScale,
+                      child: ImageFiltered(
+                        imageFilter: ImageFilter.blur(
+                          sigmaX: blurValue * 8,
+                          sigmaY: blurValue * 8,
+                        ),
+                        child: Opacity(
+                          opacity: numberOpacity * (1 - blurValue),
+                          child: Stack(
+                            alignment: Alignment.center,
+                    children: [
+                              // Shadow layer
                       Text(
-                        'GET READY',
+                        _countdownValue.toString(),
+                                style: TextStyle(
+                                  color: widget.deck.color.withOpacity(0.5),
+                                  fontSize: 120 * scaleFactor,
+                                  fontWeight: FontWeight.w900,
+                                  height: 1,
+                                  letterSpacing: -4,
+                                ),
+                              ),
+                              // Main text with gradient
+                              ShaderMask(
+                                shaderCallback: (bounds) => LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.white,
+                                    Colors.white.withOpacity(0.9),
+                                    Colors.white.withOpacity(0.7),
+                                  ],
+                                  stops: const [0.0, 0.5, 1.0],
+                                ).createShader(bounds),
+                                child: Text(
+                                  _countdownValue.toString(),
+                                  style: TextStyle(
+                          color: Colors.white,
+                                    fontSize: 120 * scaleFactor,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                                    letterSpacing: -4,
+                                    shadows: const [
+                                      Shadow(
+                                        color: Colors.black26,
+                                        blurRadius: 20,
+                                        offset: Offset(0, 10),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Particle effects (scaled for landscape)
+                    ..._buildParticlesScaled(pulseValue, scaleFactor),
+                  ],
+                ),
+              ),
+
+              // Spacing between number and GET READY
+              SizedBox(height: 16 * scaleFactor),
+
+              // Forehead instruction with animated icon - compact for landscape
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 400),
+                opacity: elasticValue > 0.6 ? 1.0 : 0.0,
+                child: Transform.translate(
+                  offset: Offset(0, 25 * (1 - elasticValue)),
+                  child: _buildForeheadHint(pulseValue, scaleFactor),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Compact, elegant forehead placement hint for landscape mode
+  Widget _buildForeheadHint(double pulseValue, double scaleFactor) {
+    // Subtle floating animation for the phone icon
+    final floatOffset = math.sin(pulseValue * math.pi * 2) * 2;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: 16 * scaleFactor,
+        vertical: 10 * scaleFactor,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.12),
+            Colors.white.withOpacity(0.06),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(40),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.15),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Animated phone + head icon
+          SizedBox(
+            width: 28 * scaleFactor,
+            height: 28 * scaleFactor,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Head silhouette
+                Container(
+                  width: 20 * scaleFactor,
+                  height: 20 * scaleFactor,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.4),
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+                // Phone on forehead with float animation
+                Positioned(
+                  top: (1 + floatOffset) * scaleFactor,
+                  child: Transform.rotate(
+                    angle: math.pi / 2,
+                    child: Container(
+                      width: 14 * scaleFactor,
+                      height: 7 * scaleFactor,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.white.withOpacity(0.4),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: 10 * scaleFactor),
+          // Text instruction
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+                      Text(
+                'Place on forehead',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
-                          fontSize: 14,
+                  fontSize: 12 * scaleFactor,
                           fontWeight: FontWeight.w600,
-                          letterSpacing: 2,
+                  letterSpacing: 0.3,
+                  height: 1.2,
+                ),
+              ),
+              SizedBox(height: 1 * scaleFactor),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.stay_current_landscape_rounded,
+                    color: Colors.white.withOpacity(0.5),
+                    size: 10 * scaleFactor,
+                  ),
+                  SizedBox(width: 3 * scaleFactor),
+                  Text(
+                    'Landscape',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.5),
+                      fontSize: 9 * scaleFactor,
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: 0.2,
                         ),
+                      ),
+                    ],
+                  ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Premium animated card with Netflix-style exit/enter animations
+  /// Animations match phone tilt direction for intuitive UX:
+  /// - Correct (tilt down) → Card sweeps DOWN
+  /// - Pass (tilt up) → Card sweeps UP
+  Widget _buildAnimatedCard(String currentCard) {
+    final exitProgress = Curves.easeInBack.transform(
+      _cardExitController.value.clamp(0.0, 1.0),
+    );
+    final enterProgress = Curves.easeOutBack.transform(
+      _cardEnterController.value.clamp(0.0, 1.0),
+    );
+
+    // Calculate transforms based on action type
+    double translateY = 0;
+    double rotation = 0;
+    double scale = 1.0;
+    double opacity = 1.0;
+
+    if (_isCorrectAction && _cardExitController.isAnimating) {
+      // Correct: Card sweeps DOWNWARD (matching phone tilt down gesture)
+      translateY = 500 * exitProgress; // Positive = down
+      rotation = -0.12 * exitProgress; // Slight tilt as it falls
+      scale = 1.0 + (0.08 * exitProgress) - (0.25 * exitProgress * exitProgress);
+      opacity = 1.0 - (exitProgress * 0.9);
+    } else if (_isPassAction && _cardExitController.isAnimating) {
+      // Pass: Card sweeps UPWARD (matching phone tilt up gesture)
+      translateY = -450 * exitProgress; // Negative = up
+      rotation = 0.1 * exitProgress; // Slight tilt as it rises
+      scale = 1.0 - (0.12 * exitProgress);
+      opacity = 1.0 - exitProgress;
+    }
+
+    // Enter animation for new card - comes from opposite direction
+    if (_cardEnterController.isAnimating && !_isCorrectAction && !_isPassAction) {
+      final enterY = -50 * (1 - enterProgress); // Subtle slide in from above
+      scale = 0.85 + (0.15 * enterProgress);
+      opacity = enterProgress;
+      
+      return Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.identity()
+          ..setEntry(3, 2, 0.001)
+          ..translate(0.0, enterY)
+          ..scale(scale),
+        child: Opacity(
+          opacity: opacity.clamp(0.0, 1.0),
+          child: _buildCardFront(currentCard),
+        ),
+      );
+    }
+
+    return Transform(
+      alignment: Alignment.center,
+      transform: Matrix4.identity()
+        ..setEntry(3, 2, 0.001)
+        ..translate(0.0, translateY)
+        ..rotateZ(rotation)
+        ..scale(scale),
+      child: Opacity(
+        opacity: opacity.clamp(0.0, 1.0),
+        child: _buildCardFront(currentCard),
+      ),
+    );
+  }
+
+  /// Premium feedback burst with particles and glow
+  /// Direction matches the card exit animation:
+  /// - Correct: Burst emanates downward (green)
+  /// - Pass: Burst emanates upward (orange)
+  Widget _buildPremiumFeedbackBurst() {
+    return AnimatedBuilder(
+      animation: _feedbackBurstController,
+      builder: (context, child) {
+        final progress = _feedbackBurstController.value;
+        if (progress == 0) return const SizedBox.shrink();
+
+        final color = _isCorrectAction ? AppTheme.successColor : AppTheme.warningColor;
+        final burstScale = Curves.easeOutQuart.transform(progress);
+        final fadeOut = 1.0 - Curves.easeInQuart.transform(progress);
+        
+        // Direction multiplier: positive for down (correct), negative for up (pass)
+        final directionY = _isCorrectAction ? 1.0 : -1.0;
+        
+        // Icon follows card direction
+        final iconOffsetY = directionY * 150 * Curves.easeOutQuart.transform(progress);
+        
+        // Full screen flash opacity - quick flash in, slower fade out
+        double flashOpacity;
+        if (progress < 0.1) {
+          // Quick flash in (0 to peak in first 10%)
+          flashOpacity = Curves.easeOut.transform(progress / 0.1);
+        } else {
+          // Slower fade out
+          flashOpacity = 1.0 - Curves.easeInQuad.transform((progress - 0.1) / 0.9);
+        }
+
+        return Stack(
+          children: [
+            // FULL SCREEN solid color flash overlay - covers everything
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  color: color.withOpacity(0.5 * flashOpacity),
+                ),
+              ),
+            ),
+            
+            // Bright white flash layer for extra impact
+            if (progress < 0.2)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
+                    color: Colors.white.withOpacity(
+                      0.25 * (1 - (progress / 0.2)),
+                    ),
+                  ),
+                ),
+              ),
+
+            // Expanding ring that follows direction
+            Center(
+              child: Transform.translate(
+                offset: Offset(0, iconOffsetY * 0.3),
+                child: Transform.scale(
+                  scale: 0.5 + (burstScale * 2.0),
+                  child: Container(
+                    width: 180,
+                    height: 180,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: color.withOpacity(0.5 * fadeOut),
+                        width: 3 * (1 - progress),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Second ring
+            Center(
+              child: Transform.translate(
+                offset: Offset(0, iconOffsetY * 0.2),
+                child: Transform.scale(
+                  scale: 0.3 + (burstScale * 1.5),
+                  child: Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.35 * fadeOut),
+                        width: 2 * (1 - progress),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Directional particle burst
+            ..._buildDirectionalBurstParticles(progress, color, directionY),
+
+            // Central icon that moves in the direction of the card
+            Center(
+              child: Transform.translate(
+                offset: Offset(0, iconOffsetY),
+                child: Transform.scale(
+                  scale: progress < 0.25
+                      ? Curves.elasticOut.transform((progress / 0.25).clamp(0.0, 1.0))
+                      : 1.0 - ((progress - 0.25) / 0.75 * 0.4),
+                  child: Opacity(
+                    opacity: fadeOut,
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: color,
+                        boxShadow: [
+                          BoxShadow(
+                            color: color.withOpacity(0.6),
+                            blurRadius: 25,
+                            spreadRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        _isCorrectAction 
+                            ? Icons.keyboard_arrow_down_rounded 
+                            : Icons.keyboard_arrow_up_rounded,
+                        color: Colors.white,
+                        size: 55,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Text label follows direction
+            Center(
+              child: Transform.translate(
+                offset: Offset(0, iconOffsetY + (directionY * 70)),
+                child: Opacity(
+                  opacity: progress < 0.15
+                      ? (progress / 0.15).clamp(0.0, 1.0)
+                      : 1.0 - ((progress - 0.4) / 0.6).clamp(0.0, 1.0),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(25),
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withOpacity(0.4),
+                          blurRadius: 15,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      _isCorrectAction ? 'CORRECT!' : 'PASS',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Generate directional burst particles for feedback animation
+  /// Particles flow in the direction of the card movement
+  List<Widget> _buildDirectionalBurstParticles(double progress, Color color, double directionY) {
+    final particles = <Widget>[];
+    final particleCount = _isCorrectAction ? 12 : 8;
+    final fadeOut = 1.0 - Curves.easeInQuad.transform(progress);
+    
+    // Main directional particles - spread in a cone shape
+    for (int i = 0; i < particleCount; i++) {
+      // Angle spread: particles mostly go in the direction but with some spread
+      final spreadAngle = (i / particleCount - 0.5) * math.pi * 0.8; // Cone spread
+      final baseAngle = directionY > 0 ? math.pi / 2 : -math.pi / 2; // Down or Up
+      final angle = baseAngle + spreadAngle;
+      
+      final distance = 60 + (progress * 200);
+      final sizeVariation = 1.0 + (math.sin(i * 1.5) * 0.4);
+      final speedVariation = 0.8 + (math.cos(i * 2.0) * 0.4);
+
+      particles.add(
+        Center(
+          child: Transform.translate(
+            offset: Offset(
+              math.cos(angle) * distance * speedVariation,
+              math.sin(angle) * distance * speedVariation,
+            ),
+            child: Transform.rotate(
+              angle: progress * math.pi,
+              child: Opacity(
+                opacity: (fadeOut * 0.9).clamp(0.0, 1.0),
+                child: Container(
+                  width: (7 * sizeVariation) * (1 - progress * 0.4),
+                  height: (7 * sizeVariation) * (1 - progress * 0.4),
+                  decoration: BoxDecoration(
+                    color: i % 2 == 0 ? color : Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: (i % 2 == 0 ? color : Colors.white).withOpacity(0.5),
+                        blurRadius: 6,
+                        spreadRadius: 1,
                       ),
                     ],
                   ),
                 ),
               ),
             ),
-          );
-        },
+          ),
       ),
     );
   }
+
+    // Trail particles that follow the main direction
+    for (int i = 0; i < 6; i++) {
+      final trailProgress = (progress - (i * 0.05)).clamp(0.0, 1.0);
+      if (trailProgress <= 0) continue;
+      
+      final trailDistance = 40 + (trailProgress * 120);
+      final xOffset = (i - 2.5) * 25; // Spread horizontally
+      
+      particles.add(
+        Center(
+          child: Transform.translate(
+            offset: Offset(xOffset, directionY * trailDistance),
+            child: Opacity(
+              opacity: ((1 - trailProgress) * 0.6).clamp(0.0, 1.0),
+              child: Container(
+                width: 5 * (1 - trailProgress * 0.5),
+                height: 12 * (1 - trailProgress * 0.3),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.4),
+                      blurRadius: 8,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Extra celebration elements for correct action
+    if (_isCorrectAction) {
+      // Checkmark sparkles
+      for (int i = 0; i < 6; i++) {
+        final sparkleAngle = (i / 6) * math.pi + (math.pi / 2); // Bottom half
+        final sparkleDistance = 100 + (progress * 150);
+        final sparkleDelay = i * 0.08;
+        final sparkleProgress = (progress - sparkleDelay).clamp(0.0, 1.0);
+        
+        if (sparkleProgress > 0) {
+          particles.add(
+            Center(
+              child: Transform.translate(
+                offset: Offset(
+                  math.cos(sparkleAngle) * sparkleDistance * sparkleProgress,
+                  math.sin(sparkleAngle) * sparkleDistance * sparkleProgress,
+                ),
+                child: Opacity(
+                  opacity: ((1 - sparkleProgress) * 0.7).clamp(0.0, 1.0),
+                  child: Icon(
+                    Icons.auto_awesome,
+                    color: Colors.amber,
+                    size: 18 * (1 - sparkleProgress * 0.4),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+      }
+    }
+
+    return particles;
+  }
+
+  List<Widget> _buildParticlesScaled(double progress, double scale) {
+    final particles = <Widget>[];
+    const particleCount = 8;
+
+    for (int i = 0; i < particleCount; i++) {
+      final angle = (i / particleCount) * 2 * math.pi;
+      final distance = (100 + (progress * 80)) * scale;
+      final particleOpacity = (1 - progress) * 0.6;
+      final particleSize = (4 + (math.sin(progress * math.pi) * 3)) * scale;
+
+      particles.add(
+        Transform.translate(
+          offset: Offset(
+            math.cos(angle + (progress * 0.5)) * distance,
+            math.sin(angle + (progress * 0.5)) * distance,
+          ),
+          child: Container(
+            width: particleSize,
+            height: particleSize,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(particleOpacity),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.white.withOpacity(particleOpacity * 0.5),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return particles;
+  }
+
+  Widget _buildExpandingRing(
+    double progress, {
+    required double size,
+    required double startSize,
+    required double opacity,
+    required double strokeWidth,
+    double delay = 0.0,
+  }) {
+    final adjustedProgress = ((progress - delay) / (1 - delay)).clamp(0.0, 1.0);
+    final currentSize = startSize + ((size - startSize) * adjustedProgress);
+    final currentOpacity = opacity * (1 - adjustedProgress);
+
+    return Container(
+      width: currentSize,
+      height: currentSize,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withOpacity(currentOpacity),
+          width: strokeWidth,
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildGameplay() {
     final gameProvider = context.watch<GameProvider>();
@@ -1411,46 +2189,26 @@ class _GameplayScreenState extends State<GameplayScreen>
             ),
           ),
 
-        // Card area
+        // Card area with premium animations
         Expanded(
           child: Stack(
             children: [
-              // Main card with animation
+              // Main card with premium exit/enter animations
               Center(
                 child: AnimatedBuilder(
-                  animation: _cardFlipController,
+                  animation: Listenable.merge([
+                    _cardExitController,
+                    _cardEnterController,
+                  ]),
                   builder: (context, child) {
-                    final angle = _cardFlipController.value * math.pi;
-
-                    // Choose rotation axis based on orientation
-                    Matrix4 getTransform(double rotationAngle) {
-                      final matrix = Matrix4.identity()..setEntry(3, 2, 0.001);
-                      if (_isLandscapeMode) {
-                        // In landscape, rotate around X-axis (up/down)
-                        matrix.rotateX(rotationAngle);
-                      } else {
-                        // In portrait, rotate around Y-axis (left/right)
-                        matrix.rotateY(rotationAngle);
-                      }
-                      return matrix;
-                    }
-
-                    if (angle >= math.pi / 2) {
-                      return Transform(
-                        alignment: Alignment.center,
-                        transform: getTransform(math.pi),
-                        child: _buildCardBack(),
-                      );
-                    } else {
-                      return Transform(
-                        alignment: Alignment.center,
-                        transform: getTransform(angle),
-                        child: _buildCardFront(currentCard),
-                      );
-                    }
+                    return _buildAnimatedCard(currentCard);
                   },
                 ),
               ),
+
+              // Premium feedback burst overlay
+              if (_isCorrectAction || _isPassAction)
+                _buildPremiumFeedbackBurst(),
 
               // Manual control buttons
               if (_useManualControls && !_isCountingDown)
@@ -1487,7 +2245,8 @@ class _GameplayScreenState extends State<GameplayScreen>
                   final remainingTime =
                       gameProvider.currentSession?.remainingTime.inSeconds ??
                       60;
-                  final isLowTime = remainingTime <= 10;
+                  final isUnlimited = gameProvider.isUnlimitedMode;
+                  final isLowTime = !isUnlimited && remainingTime <= 10;
 
                   return Transform.scale(
                     scale: isLowTime ? scale : 1.0,
@@ -1521,13 +2280,15 @@ class _GameplayScreenState extends State<GameplayScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.timer_outlined,
+                            isUnlimited 
+                                ? Icons.all_inclusive_rounded 
+                                : Icons.timer_outlined,
                             color: Colors.white,
                             size: 20,
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '${remainingTime}s',
+                            isUnlimited ? '∞' : '${remainingTime}s',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -1751,78 +2512,6 @@ class _GameplayScreenState extends State<GameplayScreen>
     );
   }
 
-  Widget _buildCardBack() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      height: 320,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [
-          BoxShadow(
-            color: widget.deck.color.withOpacity(0.4),
-            blurRadius: 40,
-            offset: const Offset(0, 20),
-            spreadRadius: -5,
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(32),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [widget.deck.color, widget.deck.color.withOpacity(0.8)],
-            ),
-          ),
-          child: Stack(
-            children: [
-              // Pattern overlay
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _CardPatternPainter(
-                    color: Colors.white.withOpacity(0.1),
-                  ),
-                ),
-              ),
-              // Content
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        widget.deck.icon,
-                        size: 56,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Next Card',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildModernControlButtons() {
     return Positioned(
       bottom: 40,
@@ -2005,6 +2694,8 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   Widget _buildFeedbackOverlay() {
+    // The premium feedback is now handled by _buildPremiumFeedbackBurst
+    // This overlay is kept for additional ambient effects
     return AnimatedBuilder(
       animation: _feedbackController,
       builder: (context, child) {
@@ -2012,46 +2703,27 @@ class _GameplayScreenState extends State<GameplayScreen>
           return const SizedBox.shrink();
         }
 
-        // Simple fade animation only
-        final opacity = _feedbackController.value;
+        // Premium curve for smooth fade
+        final progress = _feedbackController.value;
+        final opacity = progress < 0.5
+            ? Curves.easeOut.transform(progress * 2)
+            : Curves.easeIn.transform(1.0 - (progress - 0.5) * 2);
 
         return Positioned.fill(
           child: IgnorePointer(
-            child: Center(
-              child: Opacity(
-                opacity: opacity,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 20,
-                  ),
                   decoration: BoxDecoration(
-                    color: _feedbackColor,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _feedbackColor.withOpacity(0.3),
-                        blurRadius: 20,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_feedbackIcon != null)
-                        Icon(_feedbackIcon, size: 28, color: Colors.white),
-                      if (_feedbackIcon != null) const SizedBox(width: 12),
-                      Text(
-                        _feedbackText,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
+                gradient: LinearGradient(
+                  begin: _feedbackColor == AppTheme.successColor
+                      ? Alignment.topCenter
+                      : Alignment.centerRight,
+                  end: _feedbackColor == AppTheme.successColor
+                      ? Alignment.bottomCenter
+                      : Alignment.centerLeft,
+                  colors: [
+                    _feedbackColor.withOpacity(0.15 * opacity),
+                    Colors.transparent,
+                  ],
                 ),
               ),
             ),
@@ -2060,6 +2732,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       },
     );
   }
+
 }
 
 // Custom painter for modern background
@@ -2191,45 +2864,91 @@ class _ElegantBackgroundPainter extends CustomPainter {
   }
 }
 
-// Custom painter for card pattern
-class _CardPatternPainter extends CustomPainter {
+// Custom painter for countdown arc animation
+class _CountdownArcPainter extends CustomPainter {
+  final double progress;
   final Color color;
+  final double strokeWidth;
 
-  _CardPatternPainter({required this.color});
+  _CountdownArcPainter({
+    required this.progress,
+    required this.color,
+    required this.strokeWidth,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint =
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - strokeWidth) / 2;
+
+    // Background arc (subtle)
+    final backgroundPaint =
         Paint()
-          ..color = color
+          ..color = color.withOpacity(0.1)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1;
+          ..strokeWidth = strokeWidth
+          ..strokeCap = StrokeCap.round;
 
-    // Draw geometric pattern
-    const spacing = 30.0;
-    for (double x = 0; x < size.width; x += spacing) {
-      for (double y = 0; y < size.height; y += spacing) {
-        canvas.drawCircle(Offset(x, y), 2, paint);
+    canvas.drawCircle(center, radius, backgroundPaint);
 
-        if (x + spacing < size.width) {
-          canvas.drawLine(
-            Offset(x, y),
-            Offset(x + spacing, y),
-            paint..color = color.withOpacity(0.5),
-          );
-        }
+    // Progress arc with gradient effect
+    final rect = Rect.fromCircle(center: center, radius: radius);
 
-        if (y + spacing < size.height) {
-          canvas.drawLine(
-            Offset(x, y),
-            Offset(x, y + spacing),
-            paint..color = color.withOpacity(0.5),
-          );
-        }
-      }
+    // Create gradient shader for the arc
+    final gradientPaint =
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth
+          ..strokeCap = StrokeCap.round
+          ..shader = SweepGradient(
+            startAngle: -math.pi / 2,
+            endAngle: 3 * math.pi / 2,
+            colors: [
+              color.withOpacity(0.9),
+              color.withOpacity(0.7),
+              color.withOpacity(0.5),
+              color.withOpacity(0.3),
+            ],
+            stops: const [0.0, 0.3, 0.6, 1.0],
+            transform: GradientRotation(-math.pi / 2),
+          ).createShader(rect);
+
+    // Draw progress arc
+    canvas.drawArc(
+      rect,
+      -math.pi / 2, // Start from top
+      2 * math.pi * progress, // Sweep based on progress
+      false,
+      gradientPaint,
+    );
+
+    // Draw glow effect at the arc end point
+    if (progress > 0) {
+      final endAngle = -math.pi / 2 + (2 * math.pi * progress);
+      final endPoint = Offset(
+        center.dx + radius * math.cos(endAngle),
+        center.dy + radius * math.sin(endAngle),
+      );
+
+      final glowPaint =
+          Paint()
+            ..color = color.withOpacity(0.6)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+
+      canvas.drawCircle(endPoint, strokeWidth * 1.5, glowPaint);
+
+      // Bright center point
+      final dotPaint =
+          Paint()
+            ..color = color
+            ..style = PaintingStyle.fill;
+
+      canvas.drawCircle(endPoint, strokeWidth / 2, dotPaint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(_CountdownArcPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
 }

@@ -171,7 +171,7 @@ export const TOPIC_CATEGORIES: TopicCategory[] = [
       { name: 'Talk Show Legends', category: 'celebrities', tags: ['celebrities', 'tv', 'talk-shows'] },
       { name: 'Celebrity Chefs', category: 'celebrities', tags: ['celebrities', 'chefs', 'food'] },
       { name: 'Sports Personalities', category: 'celebrities', tags: ['celebrities', 'sports', 'athletes'] },
-      { name: 'TikTok Stars', category: 'celebrities', tags: ['celebrities', 'tiktok', 'social-media'] },
+      { name: 'Social Media Stars', category: 'celebrities', tags: ['celebrities', 'influencers', 'social-media'] },
       { name: 'Award Show Moments', category: 'celebrities', tags: ['celebrities', 'awards', 'entertainment'] },
     ]
   },

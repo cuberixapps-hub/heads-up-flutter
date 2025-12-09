@@ -184,5 +184,14 @@
   "lastSync": "Last sync",
   "featured": "Featured",
   "featuredDecks": "Featured Decks",
-  "featuredDeck": "Featured Deck"
+  "featuredDeck": "Featured Deck",
+  "noInternetTitle": "Không Có Kết Nối Internet",
+  "noInternetDescription": "Vui lòng kiểm tra kết nối internet của bạn và thử lại. Ứng dụng này yêu cầu kết nối internet hoạt động để hoạt động.",
+  "tryAgainButton": "Thử Lại",
+  "checkingConnection": "Đang kiểm tra...",
+  "tipsToReconnect": "Mẹo để kết nối lại:",
+  "tipEnableWifi": "Kiểm tra xem WiFi đã được bật chưa",
+  "tipTryMobileData": "Thử chuyển sang dữ liệu di động",
+  "tipMoveCloser": "Di chuyển đến gần bộ định tuyến hơn",
+  "tipRestartDevice": "Khởi động lại thiết bị của bạn"
 }

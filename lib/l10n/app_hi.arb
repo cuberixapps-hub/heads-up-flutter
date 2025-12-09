@@ -203,6 +203,7 @@
   "languageSettings": "भाषा सेटिंग्स",
   "welcomeBack": "वापसी पर स्वागत है",
   "newBadge": "नया",
+  "updatedBadge": "अपडेट",
   "day": "दिन",
   "startYourStreakToday": "आज अपनी स्ट्रीक शुरू करें!",
   "gamesWon": "जीते गए गेम",
@@ -232,5 +233,14 @@
   "music": "संगीत",
   "gaming": "गेमिंग",
   "world": "दुनिया",
-  "romance": "रोमांस"
+  "romance": "रोमांस",
+  "noInternetTitle": "कोई इंटरनेट कनेक्शन नहीं",
+  "noInternetDescription": "कृपया अपना इंटरनेट कनेक्शन जांचें और पुनः प्रयास करें। इस ऐप को काम करने के लिए एक सक्रिय इंटरनेट कनेक्शन की आवश्यकता है।",
+  "tryAgainButton": "पुनः प्रयास करें",
+  "checkingConnection": "जाँच हो रही है...",
+  "tipsToReconnect": "पुनः कनेक्ट करने के सुझाव:",
+  "tipEnableWifi": "जांचें कि WiFi सक्षम है या नहीं",
+  "tipTryMobileData": "मोबाइल डेटा पर स्विच करने का प्रयास करें",
+  "tipMoveCloser": "अपने राउटर के करीब जाएं",
+  "tipRestartDevice": "अपना डिवाइस पुनः प्रारंभ करें"
 }

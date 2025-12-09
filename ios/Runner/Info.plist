@@ -258,5 +258,27 @@
 	<string>Save your reaction videos to your photo library</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Used to detect tilt gestures during gameplay.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+	<key>FirebaseMessagingAutoInitEnabled</key>
+	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.headsup.headsUpGame</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>headsup</string>
+			</array>
+		</dict>
+	</array>
+	<key>FlutterDeepLinkingEnabled</key>
+	<true/>
 </dict>
 </plist>

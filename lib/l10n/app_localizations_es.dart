@@ -648,6 +648,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get newBadge => 'NUEVO';
 
   @override
+  String get updatedBadge => 'ACTUALIZADO';
+
+  @override
   String get day => 'DÍA';
 
   @override
@@ -825,4 +828,126 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get pleaseEnterDeckName => 'Please enter a deck name';
+
+  @override
+  String get noInternetTitle => 'Sin Conexión a Internet';
+
+  @override
+  String get noInternetDescription =>
+      'Por favor verifica tu conexión a internet e intenta de nuevo. Esta aplicación requiere una conexión a internet activa para funcionar.';
+
+  @override
+  String get tryAgainButton => 'Intentar de Nuevo';
+
+  @override
+  String get checkingConnection => 'Verificando...';
+
+  @override
+  String get tipsToReconnect => 'Consejos para reconectar:';
+
+  @override
+  String get tipEnableWifi => 'Verifica si el WiFi está activado';
+
+  @override
+  String get tipTryMobileData => 'Intenta cambiar a datos móviles';
+
+  @override
+  String get tipMoveCloser => 'Acércate a tu router';
+
+  @override
+  String get tipRestartDevice => 'Reinicia tu dispositivo';
+
+  @override
+  String get updateRequired => 'Update Required';
+
+  @override
+  String get updateRequiredDescription =>
+      'Please update to the latest version to continue using the app. This update includes important improvements and bug fixes.';
+
+  @override
+  String get updateAvailable => 'Update Available';
+
+  @override
+  String get updateAvailableDescription =>
+      'A new version is available with exciting features and improvements!';
+
+  @override
+  String get updateNow => 'Update Now';
+
+  @override
+  String get later => 'Later';
+
+  @override
+  String get currentVersion => 'Current';
+
+  @override
+  String get requiredVersion => 'Required';
+
+  @override
+  String get enableNotifications => 'Enable Notifications';
+
+  @override
+  String get streakReminders => 'Streak Reminders';
+
+  @override
+  String get streakRemindersDesc => 'Get reminded to maintain your streak';
+
+  @override
+  String get newContentAlerts => 'New Content Alerts';
+
+  @override
+  String get newContentAlertsDesc => 'Be notified about new decks';
+
+  @override
+  String get challengeReminders => 'Challenge Reminders';
+
+  @override
+  String get challengeRemindersDesc => 'Reminders for daily challenges';
+
+  @override
+  String get reminderTime => 'Reminder Time';
+
+  @override
+  String get reminderTimeDesc => 'When to remind you to play';
+
+  @override
+  String get notificationPermissionDenied =>
+      'Notification permission denied. Enable it in device settings.';
+
+  @override
+  String get notificationsEnabled => 'Notifications enabled!';
+
+  @override
+  String get stayInTheLoop => 'Stay in the Loop!';
+
+  @override
+  String get notificationPermissionSubtitle => 'Never miss a moment of fun!';
+
+  @override
+  String get notificationPrivacyNote =>
+      'You can change this anytime in Settings';
+
+  @override
+  String get streakRemindersBenefit => 'Streak Reminders';
+
+  @override
+  String get streakRemindersBenefitDesc => 'Don\'t lose your winning streak';
+
+  @override
+  String get newDecksBenefit => 'New Decks';
+
+  @override
+  String get newDecksBenefitDesc => 'Be first to play new content';
+
+  @override
+  String get challengesBenefit => 'Daily Challenges';
+
+  @override
+  String get challengesBenefitDesc => 'Never miss a challenge';
+
+  @override
+  String get inviteFriends => 'Invite Friends';
+
+  @override
+  String get shareWithFriends => 'Share with Friends';
 }

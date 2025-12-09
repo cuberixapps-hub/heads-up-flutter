@@ -165,7 +165,7 @@ const TOPIC_COLOR_PREFERENCES: Record<string, string[]> = {
   'computer': ['blue', 'dark', 'special'],
   'phone': ['dark', 'blue', 'special', 'purple'],
   'social': ['blue', 'special', 'pink', 'purple'],
-  'tiktok': ['special', 'pink', 'dark'],
+  'viral': ['special', 'pink', 'dark'],
   'instagram': ['pink', 'purple', 'orange', 'special'],
   
   // Celebrities & People
@@ -286,4 +286,6 @@ export const getColorByName = (name: string): SmartColor | undefined => {
 };
 
 export { VIBRANT_PALETTE };
+
+
 

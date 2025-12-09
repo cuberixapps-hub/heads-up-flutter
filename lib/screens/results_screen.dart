@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:confetti/confetti.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../constants/app_theme.dart';
@@ -10,6 +9,7 @@ import '../providers/game_provider.dart';
 import '../services/haptic_service.dart';
 import '../services/audio_service.dart';
 import '../services/ad_service.dart';
+import '../services/share_service.dart';
 import '../widgets/banner_ad_widget.dart';
 import '../widgets/video_section.dart';
 import 'category_selection_screen.dart';
@@ -1786,26 +1786,13 @@ class _ResultsScreenState extends State<ResultsScreen>
   }
 
   void _shareResults(GameSession session) {
-    final totalCards = session.correctCount + session.passCount;
-    final accuracy =
-        totalCards > 0 ? (session.correctCount / totalCards * 100).round() : 0;
-    final points = session.correctCount * 10;
-
-    final message = '''
-🎮 Heads Up! Results
-
-📚 Category: ${session.deck.name}
-🏆 Score: $points points
-✅ Correct: ${session.correctCount}
-⏭️ Passed: ${session.passCount}
-🎯 Accuracy: $accuracy%
-⏱️ Time: ${session.roundDuration.inSeconds}s
-
-Play Heads Up! and beat my score!
-''';
-
-    Share.share(message);
     _hapticService.lightImpact();
+    // Use ShareService for deep link sharing
+    ShareService().shareGameResults(
+      session,
+      context,
+      deckName: session.deck.name,
+    );
   }
 
   Widget _buildDoubleScoreButton(GameSession session) {

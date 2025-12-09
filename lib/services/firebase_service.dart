@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,6 +7,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
 import '../firebase_options.dart';
+import 'version_service.dart';
 
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._internal();
@@ -188,6 +190,44 @@ class FirebaseService {
     }
   }
 
+  // Save FCM token to user profile
+  Future<void> saveFCMToken(String token) async {
+    if (currentUser != null) {
+      try {
+        await _firestore.collection('users').doc(currentUser!.uid).update({
+          'fcmToken': token,
+          'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+          'platform': _getPlatform(),
+        });
+        debugPrint('🔔 FCM token saved to Firestore');
+      } catch (e) {
+        debugPrint('Error saving FCM token: $e');
+        // Try to create the field if it doesn't exist
+        try {
+          await _firestore.collection('users').doc(currentUser!.uid).set({
+            'fcmToken': token,
+            'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+            'platform': _getPlatform(),
+          }, SetOptions(merge: true));
+        } catch (e2) {
+          debugPrint('Error creating FCM token field: $e2');
+        }
+      }
+    }
+  }
+
+  // Get platform string
+  String _getPlatform() {
+    try {
+      if (kIsWeb) return 'web';
+      if (Platform.isIOS) return 'ios';
+      if (Platform.isAndroid) return 'android';
+      return 'unknown';
+    } catch (e) {
+      return 'unknown';
+    }
+  }
+
   // Sign out
   Future<void> signOut() async {
     try {
@@ -270,6 +310,8 @@ class FirebaseService {
       // Set default values (CRITICAL: Default to false for safety)
       await _remoteConfig.setDefaults({
         _useProductionAdsKey: false, // Default to test ads
+        // Version service defaults
+        ...VersionService.getRemoteConfigDefaults(),
       });
 
       debugPrint(

@@ -1,5 +1,8 @@
 import 'deck.dart';
 
+// Re-export DeckDifficulty for convenience
+export 'deck.dart' show DeckDifficulty;
+
 enum GameResult { correct, pass, timeUp }
 
 class CardResult {
@@ -81,8 +84,9 @@ class GameSession {
     bool isTeamMode = false,
     List<String>? teamNames,
     int totalRounds = 1,
+    DeckDifficulty difficulty = DeckDifficulty.mixed,
   }) {
-    final shuffledCards = deck.getShuffledCards();
+    final shuffledCards = deck.getShuffledCards(null, difficulty);
     List<Team>? teams;
 
     if (isTeamMode && teamNames != null && teamNames.isNotEmpty) {

@@ -184,5 +184,14 @@
   "lastSync": "Last sync",
   "featured": "Featured",
   "featuredDecks": "Featured Decks",
-  "featuredDeck": "Featured Deck"
+  "featuredDeck": "Featured Deck",
+  "noInternetTitle": "Nessuna Connessione Internet",
+  "noInternetDescription": "Controlla la tua connessione Internet e riprova. Questa app richiede una connessione Internet attiva per funzionare.",
+  "tryAgainButton": "Riprova",
+  "checkingConnection": "Verifica...",
+  "tipsToReconnect": "Suggerimenti per riconnettersi:",
+  "tipEnableWifi": "Controlla se il WiFi è abilitato",
+  "tipTryMobileData": "Prova a passare ai dati mobili",
+  "tipMoveCloser": "Avvicinati al router",
+  "tipRestartDevice": "Riavvia il dispositivo"
 }

@@ -184,7 +184,16 @@
   "lastSync": "Dernière synchronisation",
   "featured": "Vedette",
   "featuredDecks": "Paquets Vedettes",
-  "featuredDeck": "Paquet Vedette"
+  "featuredDeck": "Paquet Vedette",
+  "noInternetTitle": "Pas de Connexion Internet",
+  "noInternetDescription": "Veuillez vérifier votre connexion Internet et réessayer. Cette application nécessite une connexion Internet active pour fonctionner.",
+  "tryAgainButton": "Réessayer",
+  "checkingConnection": "Vérification...",
+  "tipsToReconnect": "Conseils pour se reconnecter:",
+  "tipEnableWifi": "Vérifiez si le WiFi est activé",
+  "tipTryMobileData": "Essayez de passer aux données mobiles",
+  "tipMoveCloser": "Rapprochez-vous de votre routeur",
+  "tipRestartDevice": "Redémarrez votre appareil"
 }
 
 

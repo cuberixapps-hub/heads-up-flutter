@@ -1,5 +1,7 @@
 import Flutter
 import UIKit
+import FirebaseMessaging
+import firebase_messaging
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -7,6 +9,12 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // Register for remote notifications
+    if #available(iOS 10.0, *) {
+      UNUserNotificationCenter.current().delegate = self
+    }
+    application.registerForRemoteNotifications()
+    
     let controller : FlutterViewController = window?.rootViewController as! FlutterViewController
     
     // Video composer channel

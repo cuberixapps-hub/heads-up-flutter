@@ -30,6 +30,53 @@ class DeckTranslation {
   }
 }
 
+/// Difficulty levels for deck cards
+enum DeckDifficulty {
+  mixed,  // All difficulties combined
+  easy,
+  medium,
+  hard,
+}
+
+/// Cards organized by difficulty level
+class CardsByDifficulty {
+  final List<String> easy;
+  final List<String> medium;
+  final List<String> hard;
+
+  const CardsByDifficulty({
+    this.easy = const [],
+    this.medium = const [],
+    this.hard = const [],
+  });
+
+  factory CardsByDifficulty.fromMap(Map<String, dynamic> map) {
+    return CardsByDifficulty(
+      easy: map['easy'] != null ? List<String>.from(map['easy'] as List) : [],
+      medium: map['medium'] != null ? List<String>.from(map['medium'] as List) : [],
+      hard: map['hard'] != null ? List<String>.from(map['hard'] as List) : [],
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'easy': easy,
+      'medium': medium,
+      'hard': hard,
+    };
+  }
+
+  /// Get all cards combined
+  List<String> get all => [...easy, ...medium, ...hard];
+
+  /// Check if there are any cards
+  bool get isEmpty => easy.isEmpty && medium.isEmpty && hard.isEmpty;
+  bool get isNotEmpty => !isEmpty;
+
+  /// Get total card count
+  int get totalCount => easy.length + medium.length + hard.length;
+}
+
 class Deck {
   final String id;
   final String name;
@@ -42,11 +89,15 @@ class Deck {
   final List<String> cards;
   final DateTime createdAt;
   final DateTime? updatedAt;
-  final String? country; // 'UNIVERSAL', 'IN', 'JP', 'KR', 'BR', 'CN', 'US', 'GB', 'MX', 'TRENDING'
+  final String? country; // Legacy single country field for backward compatibility
+  final List<String> countries; // Multi-country support: ['UNIVERSAL', 'IN', 'US', etc.]
   final List<String> tags;
   final int priority; // Lower number = higher priority
   final bool isActive; // Enable/disable deck remotely
   final Map<String, DeckTranslation>? translations; // Language code -> Translation
+  final CardsByDifficulty? cardsByDifficulty; // Cards organized by difficulty
+  final bool hasDifficultyModes; // Flag indicating this deck supports difficulty modes
+  final int playCount; // Track popularity
 
   Deck({
     String? id,
@@ -61,12 +112,38 @@ class Deck {
     DateTime? createdAt,
     this.updatedAt,
     this.country,
+    this.countries = const [],
     this.tags = const [],
     this.priority = 0,
     this.isActive = true,
     this.translations,
+    this.cardsByDifficulty,
+    this.hasDifficultyModes = false,
+    this.playCount = 0,
   }) : id = id ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now();
+
+  /// Get the effective list of countries for this deck
+  /// Handles backward compatibility with legacy single country field
+  List<String> get effectiveCountries {
+    if (countries.isNotEmpty) {
+      return countries;
+    }
+    // Fallback to legacy single country field
+    if (country != null && country!.isNotEmpty) {
+      return [country!];
+    }
+    return ['UNIVERSAL']; // Default to universal if no country specified
+  }
+
+  /// Check if this deck is available in a specific country
+  bool isAvailableInCountry(String countryCode) {
+    final effective = effectiveCountries;
+    return effective.contains('UNIVERSAL') || effective.contains(countryCode);
+  }
+
+  /// Check if this deck is universal (available everywhere)
+  bool get isUniversal => effectiveCountries.contains('UNIVERSAL');
 
   factory Deck.fromMap(Map<String, dynamic> map) {
     // Parse translations if available
@@ -77,6 +154,23 @@ class Deck {
       translationsMap.forEach((key, value) {
         parsedTranslations![key] = DeckTranslation.fromMap(value as Map<String, dynamic>);
       });
+    }
+
+    // Parse cardsByDifficulty if available
+    CardsByDifficulty? parsedCardsByDifficulty;
+    if (map['cardsByDifficulty'] != null) {
+      parsedCardsByDifficulty = CardsByDifficulty.fromMap(
+        map['cardsByDifficulty'] as Map<String, dynamic>,
+      );
+    }
+
+    // Parse countries array (with backward compatibility for legacy single country field)
+    List<String> parsedCountries = [];
+    if (map['countries'] != null) {
+      parsedCountries = List<String>.from(map['countries'] as List);
+    } else if (map['country'] != null) {
+      // Backward compatibility: convert single country to array
+      parsedCountries = [map['country'] as String];
     }
 
     return Deck(
@@ -98,12 +192,16 @@ class Deck {
               ? DateTime.parse(map['updatedAt'] as String)
               : null,
       country: map['country'] as String?,
+      countries: parsedCountries,
       tags: map['tags'] != null 
           ? List<String>.from(map['tags'] as List)
           : [],
       priority: map['priority'] as int? ?? 0,
       isActive: map['isActive'] as bool? ?? true,
       translations: parsedTranslations,
+      cardsByDifficulty: parsedCardsByDifficulty,
+      hasDifficultyModes: map['hasDifficultyModes'] as bool? ?? false,
+      playCount: map['playCount'] as int? ?? 0,
     );
   }
 
@@ -128,11 +226,15 @@ class Deck {
       'cards': cards,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
-      'country': country,
+      'country': country, // Legacy field for backward compatibility
+      'countries': countries.isNotEmpty ? countries : effectiveCountries,
       'tags': tags,
       'priority': priority,
       'isActive': isActive,
       if (translations != null && translations!.isNotEmpty) 'translations': translationsMap,
+      if (cardsByDifficulty != null) 'cardsByDifficulty': cardsByDifficulty!.toMap(),
+      'hasDifficultyModes': hasDifficultyModes,
+      'playCount': playCount,
     };
   }
 
@@ -149,10 +251,14 @@ class Deck {
     DateTime? createdAt,
     DateTime? updatedAt,
     String? country,
+    List<String>? countries,
     List<String>? tags,
     int? priority,
     bool? isActive,
     Map<String, DeckTranslation>? translations,
+    CardsByDifficulty? cardsByDifficulty,
+    bool? hasDifficultyModes,
+    int? playCount,
   }) {
     return Deck(
       id: id ?? this.id,
@@ -167,10 +273,14 @@ class Deck {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       country: country ?? this.country,
+      countries: countries ?? this.countries,
       tags: tags ?? this.tags,
       priority: priority ?? this.priority,
       isActive: isActive ?? this.isActive,
       translations: translations ?? this.translations,
+      cardsByDifficulty: cardsByDifficulty ?? this.cardsByDifficulty,
+      hasDifficultyModes: hasDifficultyModes ?? this.hasDifficultyModes,
+      playCount: playCount ?? this.playCount,
     );
   }
 
@@ -222,9 +332,67 @@ class Deck {
     return cards;
   }
 
-  // Get shuffled cards for gameplay (localized)
-  List<String> getShuffledCards([String? locale]) {
-    final cardsToShuffle = locale != null ? getLocalizedCards(locale) : cards;
+  /// Get cards by difficulty level
+  /// Returns cards for the specified difficulty, or all cards if no difficulty modes
+  List<String> getCardsByDifficulty(DeckDifficulty difficulty, [String? locale]) {
+    // If no difficulty modes available, return all cards
+    if (!hasDifficultyModes || cardsByDifficulty == null || cardsByDifficulty!.isEmpty) {
+      return locale != null ? getLocalizedCards(locale) : cards;
+    }
+
+    switch (difficulty) {
+      case DeckDifficulty.easy:
+        return cardsByDifficulty!.easy.isNotEmpty 
+            ? cardsByDifficulty!.easy 
+            : cards;
+      case DeckDifficulty.medium:
+        return cardsByDifficulty!.medium.isNotEmpty 
+            ? cardsByDifficulty!.medium 
+            : cards;
+      case DeckDifficulty.hard:
+        return cardsByDifficulty!.hard.isNotEmpty 
+            ? cardsByDifficulty!.hard 
+            : cards;
+      case DeckDifficulty.mixed:
+        // Return all cards from all difficulties combined
+        final allCards = <String>[];
+        if (cardsByDifficulty!.easy.isNotEmpty) allCards.addAll(cardsByDifficulty!.easy);
+        if (cardsByDifficulty!.medium.isNotEmpty) allCards.addAll(cardsByDifficulty!.medium);
+        if (cardsByDifficulty!.hard.isNotEmpty) allCards.addAll(cardsByDifficulty!.hard);
+        return allCards.isNotEmpty ? allCards : cards;
+    }
+  }
+
+  /// Get card count by difficulty
+  int getCardCountByDifficulty(DeckDifficulty difficulty) {
+    if (!hasDifficultyModes || cardsByDifficulty == null) {
+      return cards.length;
+    }
+
+    switch (difficulty) {
+      case DeckDifficulty.easy:
+        return cardsByDifficulty!.easy.length;
+      case DeckDifficulty.medium:
+        return cardsByDifficulty!.medium.length;
+      case DeckDifficulty.hard:
+        return cardsByDifficulty!.hard.length;
+      case DeckDifficulty.mixed:
+        return cardsByDifficulty!.totalCount > 0 
+            ? cardsByDifficulty!.totalCount 
+            : cards.length;
+    }
+  }
+
+  // Get shuffled cards for gameplay (localized and with difficulty support)
+  List<String> getShuffledCards([String? locale, DeckDifficulty? difficulty]) {
+    List<String> cardsToShuffle;
+    
+    if (difficulty != null && hasDifficultyModes && cardsByDifficulty != null) {
+      cardsToShuffle = getCardsByDifficulty(difficulty, locale);
+    } else {
+      cardsToShuffle = locale != null ? getLocalizedCards(locale) : cards;
+    }
+    
     final shuffled = List<String>.from(cardsToShuffle);
     shuffled.shuffle();
     return shuffled;
@@ -232,6 +400,44 @@ class Deck {
 
   // Check if deck has enough cards for a game
   bool get hasEnoughCards => cards.length >= 5;
+
+  /// Configuration for NEW/UPDATED tags (in days)
+  static const int newDeckThresholdDays = 7;
+  static const int updatedDeckThresholdDays = 7;
+  static const int minHoursBetweenCreateAndUpdate = 1;
+
+  /// Check if this deck is newly created (within the last 7 days)
+  bool get isNew {
+    final now = DateTime.now();
+    final difference = now.difference(createdAt);
+    return difference.inDays < newDeckThresholdDays;
+  }
+
+  /// Check if this deck was recently updated (within the last 7 days)
+  /// Returns false if the deck is new (to avoid showing both tags)
+  /// Only shows UPDATED if updatedAt is at least 1 hour after createdAt
+  bool get isRecentlyUpdated {
+    if (updatedAt == null) return false;
+    
+    // Don't show UPDATED tag if deck is NEW
+    if (isNew) return false;
+    
+    // Check if updatedAt is significantly after createdAt (at least 1 hour)
+    final hoursBetweenCreateAndUpdate = updatedAt!.difference(createdAt).inHours;
+    if (hoursBetweenCreateAndUpdate < minHoursBetweenCreateAndUpdate) return false;
+    
+    final now = DateTime.now();
+    final difference = now.difference(updatedAt!);
+    return difference.inDays < updatedDeckThresholdDays;
+  }
+
+  /// Get the deck status for UI display
+  /// Returns: 'new', 'updated', or null
+  String? get statusTag {
+    if (isNew) return 'new';
+    if (isRecentlyUpdated) return 'updated';
+    return null;
+  }
 
   /// Check if translation is available for a given locale
   bool hasTranslation(String locale) {
@@ -249,6 +455,6 @@ class Deck {
 
   @override
   String toString() {
-    return 'Deck(id: $id, name: $name, cards: ${cards.length}, translations: ${translations?.keys.length ?? 0})';
+    return 'Deck(id: $id, name: $name, cards: ${cards.length}, countries: $effectiveCountries, translations: ${translations?.keys.length ?? 0}, hasDifficultyModes: $hasDifficultyModes)';
   }
 }

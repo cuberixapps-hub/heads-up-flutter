@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../models/deck.dart';
@@ -7,11 +8,13 @@ import '../services/location_service.dart';
 import '../services/cache_service.dart';
 import '../services/sync_config_service.dart';
 import '../services/listener_manager.dart';
+import '../services/recommendation_service.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class DeckProvider extends ChangeNotifier {
   final DeckFirebaseService _deckFirebaseService = DeckFirebaseService();
   final LocalStorageService _localStorageService = LocalStorageService();
+  final LocationService _locationService = LocationService();
   final CacheService _cacheService = CacheService();
   final SyncConfigService _syncConfigService = SyncConfigService();
   final ListenerManager _listenerManager = ListenerManager();
@@ -20,10 +23,12 @@ class DeckProvider extends ChangeNotifier {
   List<Deck> _customDecks = [];
   Set<String> _unlockedPremiumDeckIds = {};
   Set<String> _favoriteDeckIds = {};
+  List<String> _recentDeckIds = [];
   bool _isLoading = false;
   bool _isInitialized = false;
   String _userCountryCode = 'US'; // Default country
   String _errorMessage = '';
+  bool _isUsingManualCountry = false;
 
   // Streams
   StreamSubscription? _defaultDecksSubscription;
@@ -48,6 +53,38 @@ class DeckProvider extends ChangeNotifier {
   String get userCountryCode => _userCountryCode;
   String get errorMessage => _errorMessage;
   bool get hasError => _errorMessage.isNotEmpty;
+  bool get isUsingManualCountry => _isUsingManualCountry;
+  
+  /// Get decks sorted by recommendation score
+  List<Deck> get recommendedDecks {
+    return DeckRecommendationService.getDecksByCountryWithRecommendation(
+      allDecks: allDecks,
+      userCountry: _userCountryCode,
+      recentDeckIds: _recentDeckIds,
+      favoriteDeckIds: _favoriteDeckIds.toList(),
+    );
+  }
+  
+  /// Get top recommended decks for featured section
+  List<Deck> getTopRecommendedDecks({int limit = 10}) {
+    return DeckRecommendationService.getTopRecommendedDecks(
+      allDecks: allDecks,
+      userCountry: _userCountryCode,
+      recentDeckIds: _recentDeckIds,
+      favoriteDeckIds: _favoriteDeckIds.toList(),
+      limit: limit,
+    );
+  }
+  
+  /// Get decks grouped by recommendation category
+  Map<String, List<Deck>> getDecksGroupedByCategory() {
+    return DeckRecommendationService.getDecksGroupedByCategory(
+      allDecks: allDecks,
+      userCountry: _userCountryCode,
+      recentDeckIds: _recentDeckIds,
+      favoriteDeckIds: _favoriteDeckIds.toList(),
+    );
+  }
 
   DeckProvider() {
     _initializeDecks();
@@ -60,6 +97,7 @@ class DeckProvider extends ChangeNotifier {
 
     try {
       debugPrint('🎮 HEADS UP: Starting app initialization...');
+      debugPrint('📦 Build mode: ${kReleaseMode ? "RELEASE (production)" : "DEBUG/PROFILE"}');
       
       // Initialize sync config service
       await _syncConfigService.initialize();
@@ -71,10 +109,15 @@ class DeckProvider extends ChangeNotifier {
       // Initialize cache service
       await _cacheService.initialize();
       debugPrint('✅ Cache service initialized');
+      
+      // Initialize location service (for manual override support)
+      await _locationService.initialize();
+      debugPrint('✅ Location service initialized');
 
-      // Detect user's country automatically
-      _userCountryCode = await LocationService.detectUserCountry();
-      debugPrint('📍 Detected user country: $_userCountryCode');
+      // Get user's preferred country (respects manual override)
+      _userCountryCode = await _locationService.getUserPreferredCountry();
+      _isUsingManualCountry = _locationService.isUsingManualOverride();
+      debugPrint('📍 User country: $_userCountryCode (manual: $_isUsingManualCountry)');
       
       // Try to get cached decks immediately for better UX
       final cachedDecks = await _cacheService.getCachedDecksByCountry(_userCountryCode);
@@ -84,37 +127,82 @@ class DeckProvider extends ChangeNotifier {
         notifyListeners(); // Show cached data immediately
       }
 
-      // Fetch decks from Firebase filtered by country (will update cache)
-      try {
-        _defaultDecks = await _deckFirebaseService
-            .getDecksByCountry(_userCountryCode)
-          .timeout(
-              const Duration(seconds: 10),
-            onTimeout: () {
-                throw TimeoutException(
-                  'Connection timeout. Please check your internet connection.',
+      // SMART CACHING STRATEGY:
+      // - Debug/Profile mode: Always fetch fresh data from Firebase (for testing new decks)
+      // - Release/Production mode: Only fetch if cache is expired (24 hours) to reduce Firebase costs
+      final shouldRefresh = await _cacheService.shouldRefreshDecks(_userCountryCode);
+      
+      if (shouldRefresh) {
+        // Force fetch fresh decks from Firebase (bypasses cache check in the service)
+        try {
+          debugPrint('🔄 Fetching fresh decks from Firebase...');
+          _defaultDecks = await _deckFirebaseService
+              .refreshDecksByCountry(_userCountryCode)
+            .timeout(
+                const Duration(seconds: 10),
+              onTimeout: () {
+                  throw TimeoutException(
+                    'Connection timeout. Please check your internet connection.',
+                );
+                },
               );
-              },
-            );
 
-        debugPrint('✅ Loaded ${_defaultDecks.length} decks for country: $_userCountryCode');
+          debugPrint('✅ Loaded ${_defaultDecks.length} fresh decks for country: $_userCountryCode');
+          
+          // Record the fetch timestamp for next cache check
+          await _cacheService.recordFetchTimestamp(_userCountryCode);
 
-        // Set up real-time listeners only if enabled in sync settings
-        _setupRealtimeListeners();
+          _errorMessage = '';
+        } catch (e) {
+          // Handle Firebase/Network errors
+          debugPrint('❌ Error loading decks from Firebase: $e');
+          
+          // If we have cached data, use it and show a warning instead of error
+          if (_defaultDecks.isNotEmpty) {
+            debugPrint('⚠️ Using cached data due to network error');
+            _errorMessage = '';
+          } else {
+            _errorMessage = 'Unable to load decks. Please check your internet connection and try again.';
+            _isInitialized = false;
+          }
+        }
+      } else {
+        // Using cached data in production mode (cache is still valid)
+        debugPrint('💾 Using cached decks - no Firebase call needed (TTL: ${CacheService.decksTTL.inHours}h)');
+        
+        // Verify we have data (should be loaded from cache above)
+        if (_defaultDecks.isEmpty) {
+          // Cache was empty, need to fetch anyway
+          debugPrint('⚠️ Cache was empty despite being valid, fetching from Firebase...');
+          try {
+            _defaultDecks = await _deckFirebaseService
+                .getDecksByCountry(_userCountryCode)
+              .timeout(const Duration(seconds: 10));
+            await _cacheService.recordFetchTimestamp(_userCountryCode);
+            debugPrint('✅ Loaded ${_defaultDecks.length} decks from Firebase');
+          } catch (e) {
+            debugPrint('❌ Error loading decks: $e');
+            _errorMessage = 'Unable to load decks. Please check your internet connection and try again.';
+            _isInitialized = false;
+          }
+        } else {
+          debugPrint('💰 Saved a Firebase read! Using ${_defaultDecks.length} cached decks');
+        }
+      }
+      
+      // Set up real-time listeners only if enabled in sync settings
+      // (typically disabled in production to reduce costs)
+      _setupRealtimeListeners();
 
       // Load user-specific data
       await _loadUserData();
 
-      _isInitialized = true;
+      if (_defaultDecks.isNotEmpty) {
+        _isInitialized = true;
         _errorMessage = '';
-      debugPrint(
-          '🎉 APP READY: Heads Up game is fully loaded with country-specific decks!',
-      );
-      } catch (e) {
-        // Handle Firebase/Network errors
-        debugPrint('❌ Error loading decks: $e');
-        _errorMessage = 'Unable to load decks. Please check your internet connection and try again.';
-        _isInitialized = false;
+        debugPrint(
+            '🎉 APP READY: Heads Up game is fully loaded with country-specific decks!',
+        );
       }
     } catch (e) {
       debugPrint('❌ Error during initialization: $e');
@@ -169,6 +257,10 @@ class DeckProvider extends ChangeNotifier {
       // Load favorite decks from local storage
       _favoriteDeckIds =
           await _localStorageService.loadFavoriteDeckIds();
+      
+      // Load recent deck IDs for recommendations
+      _recentDeckIds = await _localStorageService.loadRecentDeckIds();
+      debugPrint('✅ Loaded ${_recentDeckIds.length} recent deck IDs');
 
       notifyListeners();
     } catch (e) {
@@ -384,13 +476,81 @@ class DeckProvider extends ChangeNotifier {
     }
   }
 
-  // Add to recent decks (stored locally)
+  // Add to recent decks (stored locally) and track play for recommendations
   Future<void> addToRecentDecks(String deckId) async {
     try {
       await _localStorageService.addToRecentDecks(deckId);
+      
+      // Update local recent deck IDs list
+      _recentDeckIds.remove(deckId);
+      _recentDeckIds.insert(0, deckId);
+      if (_recentDeckIds.length > 10) {
+        _recentDeckIds = _recentDeckIds.sublist(0, 10);
+      }
+      
+      // Increment play count in Firebase for popularity tracking
+      await _deckFirebaseService.incrementDeckPlayCount(deckId);
+      
+      notifyListeners();
     } catch (e) {
       debugPrint('Error adding to recent decks: $e');
     }
+  }
+  
+  /// Change user's country preference
+  Future<bool> setUserCountry(String? countryCode) async {
+    try {
+      final success = await _locationService.setManualCountryOverride(countryCode);
+      
+      if (success) {
+        final previousCountry = _userCountryCode;
+        
+        // Update the country code
+        _userCountryCode = await _locationService.getUserPreferredCountry();
+        _isUsingManualCountry = _locationService.isUsingManualOverride();
+        
+        debugPrint('📍 Country changed from $previousCountry to $_userCountryCode (manual: $_isUsingManualCountry)');
+        
+        // Clear cache for old country
+        await _cacheService.clearCache('cached_decks_$previousCountry');
+        
+        // Reload decks for new country
+        _isLoading = true;
+        notifyListeners();
+        
+        try {
+          _defaultDecks = await _deckFirebaseService.getDecksByCountry(_userCountryCode);
+          debugPrint('✅ Loaded ${_defaultDecks.length} decks for new country: $_userCountryCode');
+          
+          // Re-setup real-time listeners for new country
+          _setupRealtimeListeners();
+          
+          _errorMessage = '';
+        } catch (e) {
+          debugPrint('❌ Error loading decks for new country: $e');
+          _errorMessage = 'Failed to load decks for selected region';
+        }
+        
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      debugPrint('Error setting user country: $e');
+      return false;
+    }
+  }
+  
+  /// Reset to auto-detected country
+  Future<bool> resetToAutoDetectedCountry() async {
+    return await setUserCountry(null);
+  }
+  
+  /// Get the current manual country override (null if auto-detecting)
+  String? getManualCountryOverride() {
+    return _locationService.getManualCountryOverride();
   }
 
   // Add to favorites (stored locally)

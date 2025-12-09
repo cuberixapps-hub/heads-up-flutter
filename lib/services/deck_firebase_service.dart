@@ -4,6 +4,7 @@ import '../models/deck.dart';
 import '../utils/icon_mapper.dart';
 import 'firebase_service.dart';
 import 'cache_service.dart';
+import 'recommendation_service.dart';
 
 class DeckFirebaseService {
   final FirebaseService _firebaseService = FirebaseService();
@@ -56,7 +57,7 @@ class DeckFirebaseService {
     }
   }
 
-  // Get decks filtered by country
+  // Get decks filtered by country (supports multi-country decks)
   Future<List<Deck>> getDecksByCountry(String countryCode) async {
     try {
       // Try cache first
@@ -66,20 +67,49 @@ class DeckFirebaseService {
         return cachedDecks;
       }
       
+      // Get regional fallbacks for broader matching
+      final regionalFallbacks = DeckRecommendationService.getRegionalFallbacks(countryCode);
+      
+      // Build list of country codes to search for
+      final countriesToSearch = <String>{'UNIVERSAL', countryCode, ...regionalFallbacks}.toList();
+      
+      // Firestore arrayContainsAny supports up to 10 values
+      // If we have more, we'll need to do multiple queries
+      if (countriesToSearch.length > 10) {
+        countriesToSearch.removeRange(10, countriesToSearch.length);
+      }
+      
+      debugPrint('🔍 Searching for decks with countries: $countriesToSearch');
+      
       // Cache miss, fetch from Firestore
-      // Simplified query to avoid index requirement initially
+      // Use arrayContainsAny to match decks that have any of the countries in their countries array
       Query query = _defaultDecksRef
-          .where('country', whereIn: ['UNIVERSAL', countryCode]);
+          .where('countries', arrayContainsAny: countriesToSearch);
 
       final QuerySnapshot snapshot = await query.get();
 
-      final decks = snapshot.docs.map((doc) {
+      var decks = snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
         return _deckFromFirestore(data, doc.id);
-      }).where((deck) => deck.isActive).toList(); // Filter active decks client-side
+      }).where((deck) => deck.isActive).toList();
+
+      // If no results with new 'countries' field, try legacy 'country' field
+      if (decks.isEmpty) {
+        debugPrint('🔄 No results with countries array, trying legacy country field...');
+        Query legacyQuery = _defaultDecksRef
+            .where('country', whereIn: ['UNIVERSAL', countryCode]);
+        
+        final legacySnapshot = await legacyQuery.get();
+        decks = legacySnapshot.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return _deckFromFirestore(data, doc.id);
+        }).where((deck) => deck.isActive).toList();
+      }
 
       // Sort by priority (lower number = higher priority)
       decks.sort((a, b) => a.priority.compareTo(b.priority));
+      
+      debugPrint('✅ Found ${decks.length} decks for $countryCode');
       
       // Cache the results
       await _cacheService.cacheDecksByCountry(countryCode, decks);
@@ -91,6 +121,59 @@ class DeckFirebaseService {
         e,
         null,
         reason: 'Failed to get decks by country: $countryCode',
+      );
+      throw Exception('Failed to load decks. Please check your internet connection.');
+    }
+  }
+  
+  // Get decks filtered by multiple countries
+  Future<List<Deck>> getDecksByCountries(List<String> countryCodes) async {
+    try {
+      if (countryCodes.isEmpty) {
+        return getDefaultDecks();
+      }
+      
+      // Ensure UNIVERSAL is included
+      final countriesToSearch = <String>{'UNIVERSAL', ...countryCodes}.toList();
+      
+      // Firestore arrayContainsAny supports up to 10 values
+      if (countriesToSearch.length > 10) {
+        countriesToSearch.removeRange(10, countriesToSearch.length);
+      }
+      
+      debugPrint('🔍 Searching for decks with countries: $countriesToSearch');
+      
+      Query query = _defaultDecksRef
+          .where('countries', arrayContainsAny: countriesToSearch);
+
+      final QuerySnapshot snapshot = await query.get();
+
+      var decks = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return _deckFromFirestore(data, doc.id);
+      }).where((deck) => deck.isActive).toList();
+
+      // Fallback to legacy query if no results
+      if (decks.isEmpty) {
+        Query legacyQuery = _defaultDecksRef
+            .where('country', whereIn: countriesToSearch.take(10).toList());
+        
+        final legacySnapshot = await legacyQuery.get();
+        decks = legacySnapshot.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return _deckFromFirestore(data, doc.id);
+        }).where((deck) => deck.isActive).toList();
+      }
+
+      decks.sort((a, b) => a.priority.compareTo(b.priority));
+      
+      return decks;
+    } catch (e) {
+      debugPrint('Error getting decks by countries: $e');
+      await _firebaseService.crashlytics.recordError(
+        e,
+        null,
+        reason: 'Failed to get decks by countries: $countryCodes',
       );
       throw Exception('Failed to load decks. Please check your internet connection.');
     }
@@ -146,16 +229,27 @@ class DeckFirebaseService {
     });
   }
 
-  // Stream of decks filtered by country
+  // Stream of decks filtered by country (supports multi-country decks)
   Stream<List<Deck>> streamDecksByCountry(String countryCode) {
+    // Get regional fallbacks for broader matching
+    final regionalFallbacks = DeckRecommendationService.getRegionalFallbacks(countryCode);
+    
+    // Build list of country codes to search for
+    final countriesToSearch = <String>{'UNIVERSAL', countryCode, ...regionalFallbacks}.toList();
+    
+    // Firestore arrayContainsAny supports up to 10 values
+    if (countriesToSearch.length > 10) {
+      countriesToSearch.removeRange(10, countriesToSearch.length);
+    }
+    
     return _defaultDecksRef
-        .where('country', whereIn: ['UNIVERSAL', countryCode])
+        .where('countries', arrayContainsAny: countriesToSearch)
         .snapshots()
         .map((snapshot) {
       final decks = snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
         return _deckFromFirestore(data, doc.id);
-      }).where((deck) => deck.isActive).toList(); // Filter active decks client-side
+      }).where((deck) => deck.isActive).toList();
 
       // Sort by priority
       decks.sort((a, b) => a.priority.compareTo(b.priority));
@@ -408,6 +502,32 @@ class DeckFirebaseService {
     String id, {
     bool isCustom = false,
   }) {
+    // Parse cardsByDifficulty if available
+    CardsByDifficulty? cardsByDifficulty;
+    if (data['cardsByDifficulty'] != null) {
+      final difficultyData = data['cardsByDifficulty'] as Map<String, dynamic>;
+      cardsByDifficulty = CardsByDifficulty(
+        easy: difficultyData['easy'] != null 
+            ? List<String>.from(difficultyData['easy'] as List) 
+            : [],
+        medium: difficultyData['medium'] != null 
+            ? List<String>.from(difficultyData['medium'] as List) 
+            : [],
+        hard: difficultyData['hard'] != null 
+            ? List<String>.from(difficultyData['hard'] as List) 
+            : [],
+      );
+    }
+
+    // Parse countries array (with backward compatibility for legacy single country field)
+    List<String> parsedCountries = [];
+    if (data['countries'] != null) {
+      parsedCountries = List<String>.from(data['countries'] as List);
+    } else if (data['country'] != null) {
+      // Backward compatibility: convert single country to array
+      parsedCountries = [data['country'] as String];
+    }
+
     return Deck(
       id: id,
       name: data['name'] ?? '',
@@ -425,11 +545,15 @@ class DeckFirebaseService {
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
       country: data['country'] as String?,
+      countries: parsedCountries,
       tags: data['tags'] != null 
           ? List<String>.from(data['tags'] as List)
           : [],
       priority: data['priority'] as int? ?? 0,
       isActive: data['isActive'] as bool? ?? true,
+      cardsByDifficulty: cardsByDifficulty,
+      hasDifficultyModes: data['hasDifficultyModes'] as bool? ?? false,
+      playCount: data['playCount'] as int? ?? 0,
     );
   }
 
@@ -447,10 +571,25 @@ class DeckFirebaseService {
       'cards': deck.cards,
       'createdAt': deck.createdAt,
       'updatedAt': deck.updatedAt,
-      'country': deck.country,
+      'country': deck.country, // Legacy field for backward compatibility
+      'countries': deck.countries.isNotEmpty ? deck.countries : deck.effectiveCountries,
       'tags': deck.tags,
       'priority': deck.priority,
       'isActive': deck.isActive,
+      'playCount': deck.playCount,
     };
+  }
+  
+  // Increment play count for a deck
+  Future<void> incrementDeckPlayCount(String deckId) async {
+    try {
+      await _defaultDecksRef.doc(deckId).update({
+        'playCount': FieldValue.increment(1),
+      });
+      debugPrint('📊 Incremented play count for deck: $deckId');
+    } catch (e) {
+      debugPrint('Error incrementing play count: $e');
+      // Non-critical error, don't throw
+    }
   }
 }

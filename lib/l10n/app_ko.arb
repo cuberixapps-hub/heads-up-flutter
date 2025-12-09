@@ -184,5 +184,14 @@
   "lastSync": "Last sync",
   "featured": "Featured",
   "featuredDecks": "Featured Decks",
-  "featuredDeck": "Featured Deck"
+  "featuredDeck": "Featured Deck",
+  "noInternetTitle": "인터넷 연결 없음",
+  "noInternetDescription": "인터넷 연결을 확인하고 다시 시도해 주세요. 이 앱을 사용하려면 활성 인터넷 연결이 필요합니다.",
+  "tryAgainButton": "다시 시도",
+  "checkingConnection": "확인 중...",
+  "tipsToReconnect": "재연결 팁:",
+  "tipEnableWifi": "WiFi가 활성화되어 있는지 확인",
+  "tipTryMobileData": "모바일 데이터로 전환해 보기",
+  "tipMoveCloser": "라우터에 더 가까이 이동",
+  "tipRestartDevice": "기기 재시작"
 }

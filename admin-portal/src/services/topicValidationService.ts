@@ -83,8 +83,8 @@ Be critical but fair. A score of 70+ total means excellent quality.`;
     
     const response = await withRetry(async () => {
       return await openai.chat.completions.create({
-        model: 'gpt-4o',
-        max_tokens: 1000,
+        model: 'gpt-5.1', // Latest flagship model
+        max_completion_tokens: 1000,
         temperature: 0.3, // Lower temperature for consistent scoring
         messages: [
           { role: 'system', content: systemPrompt },

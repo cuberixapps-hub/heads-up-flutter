@@ -184,5 +184,14 @@
   "lastSync": "Last sync",
   "featured": "Featured",
   "featuredDecks": "Featured Decks",
-  "featuredDeck": "Featured Deck"
+  "featuredDeck": "Featured Deck",
+  "noInternetTitle": "インターネット接続がありません",
+  "noInternetDescription": "インターネット接続を確認して、もう一度お試しください。このアプリを使用するには、アクティブなインターネット接続が必要です。",
+  "tryAgainButton": "再試行",
+  "checkingConnection": "確認中...",
+  "tipsToReconnect": "再接続のヒント：",
+  "tipEnableWifi": "WiFiが有効になっているか確認",
+  "tipTryMobileData": "モバイルデータに切り替えてみる",
+  "tipMoveCloser": "ルーターに近づく",
+  "tipRestartDevice": "デバイスを再起動する"
 }

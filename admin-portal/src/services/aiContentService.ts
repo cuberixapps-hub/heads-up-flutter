@@ -117,8 +117,8 @@ Generate EXACTLY ${diffConfig.cardCount} amazing cards for this ${difficulty} di
     // Call OpenAI API with retry logic
     const response = await withRetry(async () => {
       return await openai.chat.completions.create({
-        model: 'gpt-4o',
-        max_tokens: 2000,
+        model: 'gpt-5.1', // Latest flagship model
+        max_completion_tokens: 2000,
         temperature: 0.8,
         messages: [
           { role: 'system', content: systemPrompt },
@@ -268,8 +268,8 @@ Return only a JSON array of strings, no other text.`;
     
     const response = await withRetry(async () => {
       return await openai.chat.completions.create({
-        model: 'gpt-4o',
-        max_tokens: 1000,
+        model: 'gpt-5.1', // Latest flagship model
+        max_completion_tokens: 1000,
         temperature: 0.8,
         messages: [
           { role: 'user', content: prompt }

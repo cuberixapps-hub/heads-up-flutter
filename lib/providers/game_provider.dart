@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../models/game_session.dart';
 import '../models/deck.dart';
+
+// Re-export DeckDifficulty for convenience
+export '../models/deck.dart' show DeckDifficulty;
 import '../services/game_firebase_service.dart';
 import '../services/firebase_service.dart';
 import '../services/sync_config_service.dart';
@@ -48,6 +51,9 @@ class GameProvider extends ChangeNotifier {
   bool get isGameActive => _isGameActive;
   List<GameSession> get gameHistory => _gameHistory;
   Map<String, dynamic> get statistics => _statistics;
+  
+  // Check if current game is in unlimited time mode
+  bool get isUnlimitedMode => _remainingTime.inHours >= 24;
 
   // Settings getters
   int get roundDuration => _settings['roundDuration'] ?? 60;
@@ -169,25 +175,41 @@ class GameProvider extends ChangeNotifier {
   }
 
   // Start a new game
+  // customDuration: null means use default settings, 0 means unlimited
   void startGame({
     required Deck deck,
     bool isTeamMode = false,
     List<String>? teamNames,
     int totalRounds = 1,
+    DeckDifficulty difficulty = DeckDifficulty.mixed,
+    int? customDuration, // null = use settings, 0 = unlimited
   }) {
     // Don't clear video recording here - it should be cleared when leaving results screen
     // clearVideoRecording();
+    final duration = customDuration ?? roundDuration;
+    final isUnlimited = duration == 0;
+    
     _currentSession = GameSession.start(
       deck: deck,
-      roundDuration: Duration(seconds: roundDuration),
+      // For unlimited mode, use a very large duration (24 hours)
+      roundDuration: isUnlimited 
+          ? const Duration(hours: 24) 
+          : Duration(seconds: duration),
       isTeamMode: isTeamMode,
       teamNames: teamNames,
       totalRounds: totalRounds,
+      difficulty: difficulty,
     );
 
     _isGameActive = true;
-    _remainingTime = Duration(seconds: roundDuration);
-    _startTimer();
+    _remainingTime = isUnlimited 
+        ? const Duration(hours: 24) 
+        : Duration(seconds: duration);
+    
+    // Only start timer if not unlimited
+    if (!isUnlimited) {
+      _startTimer();
+    }
 
     // Set up real-time listeners for active gameplay
     _setupRealtimeListeners();

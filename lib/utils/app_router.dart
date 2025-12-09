@@ -1,10 +1,12 @@
 import 'package:go_router/go_router.dart';
 import '../screens/splash_screen.dart';
 import '../screens/onboarding_screen.dart';
+import '../screens/notification_permission_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/home_screen_v2.dart';
 import '../screens/category_selection_screen.dart';
 import '../screens/results_screen.dart';
+import '../screens/shared_results_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/team_setup_screen.dart';
 import '../screens/team_results_screen.dart';
@@ -12,6 +14,8 @@ import '../screens/custom_deck_management_screen.dart';
 import '../screens/custom_deck_screen.dart';
 import '../screens/explore_screen.dart';
 import '../screens/search_screen.dart';
+import '../screens/deck_details_screen.dart';
+import '../services/deep_link_service.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -25,6 +29,10 @@ class AppRouter {
       GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: '/notification-permission',
+        builder: (context, state) => const NotificationPermissionScreen(isOnboarding: true),
       ),
       GoRoute(path: '/home', builder: (context, state) => const HomeScreenV2()),
       GoRoute(
@@ -76,6 +84,21 @@ class AppRouter {
       GoRoute(
         path: '/custom-deck-create',
         builder: (context, state) => const CustomDeckScreen(),
+      ),
+      // Deep link routes
+      GoRoute(
+        path: '/deck/:id',
+        builder: (context, state) {
+          final deckId = state.pathParameters['id'];
+          return DeckDetailsScreen(deckId: deckId ?? '');
+        },
+      ),
+      GoRoute(
+        path: '/shared-results',
+        builder: (context, state) {
+          final data = state.extra as DeepLinkData?;
+          return SharedResultsScreen(linkData: data);
+        },
       ),
     ],
   );

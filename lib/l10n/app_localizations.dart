@@ -1352,6 +1352,12 @@ abstract class AppLocalizations {
   /// **'NEW'**
   String get newBadge;
 
+  /// No description provided for @updatedBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'UPDATED'**
+  String get updatedBadge;
+
   /// No description provided for @day.
   ///
   /// In en, this message translates to:
@@ -1675,6 +1681,240 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Please enter a deck name'**
   String get pleaseEnterDeckName;
+
+  /// No description provided for @noInternetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No Internet Connection'**
+  String get noInternetTitle;
+
+  /// No description provided for @noInternetDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Please check your internet connection and try again. This app requires an active internet connection to work.'**
+  String get noInternetDescription;
+
+  /// No description provided for @tryAgainButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Try Again'**
+  String get tryAgainButton;
+
+  /// No description provided for @checkingConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking...'**
+  String get checkingConnection;
+
+  /// No description provided for @tipsToReconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Tips to reconnect:'**
+  String get tipsToReconnect;
+
+  /// No description provided for @tipEnableWifi.
+  ///
+  /// In en, this message translates to:
+  /// **'Check if WiFi is enabled'**
+  String get tipEnableWifi;
+
+  /// No description provided for @tipTryMobileData.
+  ///
+  /// In en, this message translates to:
+  /// **'Try switching to mobile data'**
+  String get tipTryMobileData;
+
+  /// No description provided for @tipMoveCloser.
+  ///
+  /// In en, this message translates to:
+  /// **'Move closer to your router'**
+  String get tipMoveCloser;
+
+  /// No description provided for @tipRestartDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart your device'**
+  String get tipRestartDevice;
+
+  /// No description provided for @updateRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Required'**
+  String get updateRequired;
+
+  /// No description provided for @updateRequiredDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Please update to the latest version to continue using the app. This update includes important improvements and bug fixes.'**
+  String get updateRequiredDescription;
+
+  /// No description provided for @updateAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Available'**
+  String get updateAvailable;
+
+  /// No description provided for @updateAvailableDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'A new version is available with exciting features and improvements!'**
+  String get updateAvailableDescription;
+
+  /// No description provided for @updateNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Now'**
+  String get updateNow;
+
+  /// No description provided for @later.
+  ///
+  /// In en, this message translates to:
+  /// **'Later'**
+  String get later;
+
+  /// No description provided for @currentVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Current'**
+  String get currentVersion;
+
+  /// No description provided for @requiredVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Required'**
+  String get requiredVersion;
+
+  /// No description provided for @enableNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Notifications'**
+  String get enableNotifications;
+
+  /// No description provided for @streakReminders.
+  ///
+  /// In en, this message translates to:
+  /// **'Streak Reminders'**
+  String get streakReminders;
+
+  /// No description provided for @streakRemindersDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Get reminded to maintain your streak'**
+  String get streakRemindersDesc;
+
+  /// No description provided for @newContentAlerts.
+  ///
+  /// In en, this message translates to:
+  /// **'New Content Alerts'**
+  String get newContentAlerts;
+
+  /// No description provided for @newContentAlertsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Be notified about new decks'**
+  String get newContentAlertsDesc;
+
+  /// No description provided for @challengeReminders.
+  ///
+  /// In en, this message translates to:
+  /// **'Challenge Reminders'**
+  String get challengeReminders;
+
+  /// No description provided for @challengeRemindersDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders for daily challenges'**
+  String get challengeRemindersDesc;
+
+  /// No description provided for @reminderTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminder Time'**
+  String get reminderTime;
+
+  /// No description provided for @reminderTimeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'When to remind you to play'**
+  String get reminderTimeDesc;
+
+  /// No description provided for @notificationPermissionDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification permission denied. Enable it in device settings.'**
+  String get notificationPermissionDenied;
+
+  /// No description provided for @notificationsEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications enabled!'**
+  String get notificationsEnabled;
+
+  /// No description provided for @stayInTheLoop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stay in the Loop!'**
+  String get stayInTheLoop;
+
+  /// No description provided for @notificationPermissionSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Never miss a moment of fun!'**
+  String get notificationPermissionSubtitle;
+
+  /// No description provided for @notificationPrivacyNote.
+  ///
+  /// In en, this message translates to:
+  /// **'You can change this anytime in Settings'**
+  String get notificationPrivacyNote;
+
+  /// No description provided for @streakRemindersBenefit.
+  ///
+  /// In en, this message translates to:
+  /// **'Streak Reminders'**
+  String get streakRemindersBenefit;
+
+  /// No description provided for @streakRemindersBenefitDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t lose your winning streak'**
+  String get streakRemindersBenefitDesc;
+
+  /// No description provided for @newDecksBenefit.
+  ///
+  /// In en, this message translates to:
+  /// **'New Decks'**
+  String get newDecksBenefit;
+
+  /// No description provided for @newDecksBenefitDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Be first to play new content'**
+  String get newDecksBenefitDesc;
+
+  /// No description provided for @challengesBenefit.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily Challenges'**
+  String get challengesBenefit;
+
+  /// No description provided for @challengesBenefitDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Never miss a challenge'**
+  String get challengesBenefitDesc;
+
+  /// No description provided for @inviteFriends.
+  ///
+  /// In en, this message translates to:
+  /// **'Invite Friends'**
+  String get inviteFriends;
+
+  /// No description provided for @shareWithFriends.
+  ///
+  /// In en, this message translates to:
+  /// **'Share with Friends'**
+  String get shareWithFriends;
 }
 
 class _AppLocalizationsDelegate

@@ -184,5 +184,14 @@
   "lastSync": "Last sync",
   "featured": "Featured",
   "featuredDecks": "Featured Decks",
-  "featuredDeck": "Featured Deck"
+  "featuredDeck": "Featured Deck",
+  "noInternetTitle": "ไม่มีการเชื่อมต่ออินเทอร์เน็ต",
+  "noInternetDescription": "กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตของคุณและลองอีกครั้ง แอปนี้ต้องการการเชื่อมต่ออินเทอร์เน็ตที่ใช้งานได้",
+  "tryAgainButton": "ลองอีกครั้ง",
+  "checkingConnection": "กำลังตรวจสอบ...",
+  "tipsToReconnect": "เคล็ดลับในการเชื่อมต่อใหม่:",
+  "tipEnableWifi": "ตรวจสอบว่าเปิด WiFi อยู่หรือไม่",
+  "tipTryMobileData": "ลองสลับไปใช้ข้อมูลมือถือ",
+  "tipMoveCloser": "เข้าใกล้เราเตอร์ของคุณมากขึ้น",
+  "tipRestartDevice": "รีสตาร์ทอุปกรณ์ของคุณ"
 }

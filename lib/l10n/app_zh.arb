@@ -184,5 +184,14 @@
   "lastSync": "Last sync",
   "featured": "Featured",
   "featuredDecks": "Featured Decks",
-  "featuredDeck": "Featured Deck"
+  "featuredDeck": "Featured Deck",
+  "noInternetTitle": "无网络连接",
+  "noInternetDescription": "请检查您的网络连接并重试。此应用需要有效的网络连接才能运行。",
+  "tryAgainButton": "重试",
+  "checkingConnection": "检查中...",
+  "tipsToReconnect": "重新连接提示：",
+  "tipEnableWifi": "检查WiFi是否已启用",
+  "tipTryMobileData": "尝试切换到移动数据",
+  "tipMoveCloser": "靠近路由器",
+  "tipRestartDevice": "重启您的设备"
 }

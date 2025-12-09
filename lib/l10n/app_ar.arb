@@ -184,5 +184,14 @@
   "lastSync": "آخر مزامنة",
   "featured": "مميز",
   "featuredDecks": "مجموعات مميزة",
-  "featuredDeck": "مجموعة مميزة"
+  "featuredDeck": "مجموعة مميزة",
+  "noInternetTitle": "لا يوجد اتصال بالإنترنت",
+  "noInternetDescription": "يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى. يتطلب هذا التطبيق اتصالاً نشطًا بالإنترنت للعمل.",
+  "tryAgainButton": "حاول مرة أخرى",
+  "checkingConnection": "...جارٍ التحقق",
+  "tipsToReconnect": "نصائح لإعادة الاتصال:",
+  "tipEnableWifi": "تحقق من تفعيل WiFi",
+  "tipTryMobileData": "حاول التبديل إلى بيانات الهاتف المحمول",
+  "tipMoveCloser": "اقترب من جهاز التوجيه",
+  "tipRestartDevice": "أعد تشغيل جهازك"
 }

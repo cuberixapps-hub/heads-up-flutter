@@ -14,14 +14,14 @@ export interface ResearchedTopic {
   targetAudience: 'teens' | 'adults' | 'families' | 'universal';
   audienceAppeal: string; // Why this audience will love it
   
-  // Engagement Metrics
-  viralPotential: number; // 1-10 score
-  recognitionScore: number; // 1-10 score (how well-known)
-  playabilityScore: number; // 1-10 score (how fun to act out)
+  // Engagement Metrics (STRICT: 8-10 only for Gen Z appeal)
+  viralPotential: number; // 8-10 score (must be shareable)
+  recognitionScore: number; // 8-10 score (instant recognition)
+  playabilityScore: number; // 8-10 score (fun charades potential)
   
   // Supporting Evidence
   trendingData: {
-    source: string; // e.g., "2024 Box Office", "Social Media Trends"
+    source: string; // e.g., "Social Media Trending", "Netflix Top 10", "Gaming Charts"
     evidence: string; // Specific data point or stat
     timeframe: string; // e.g., "2024", "November 2024"
   }[];
@@ -31,11 +31,144 @@ export interface ResearchedTopic {
   
   // Deck Quality Justification
   whyItWorks: string; // Comprehensive explanation of why this deck will be AMAZING
+  
+  // Gen Z specific
+  vibeCheck: string; // Quick Gen Z language summary of why this slaps
 }
 
 /**
+ * DIVERSE CATEGORY SYSTEM - Ensures variety in deck generation
+ * Each country has specific relevant categories
+ */
+const CATEGORY_DIVERSITY = {
+  // Universal categories that work everywhere
+  universal: [
+    'streaming_shows', 'gaming', 'anime', 'music_global', 'movies', 
+    'tech_brands', 'youtubers', 'memes', 'esports', 'superheroes'
+  ],
+  
+  // Country-specific category mappings
+  countryCategories: {
+    'IN': ['bollywood', 'cricket', 'indian_web_series', 'regional_cinema', 'indian_food', 'indian_festivals', 'ipl', 'indian_music'],
+    'US': ['nfl_nba', 'hollywood', 'american_music', 'fast_food', 'reality_tv', 'broadway', 'us_politics'],
+    'GB': ['premier_league', 'british_tv', 'british_music', 'british_food', 'royal_family'],
+    'JP': ['anime', 'manga', 'jpop', 'japanese_games', 'japanese_food', 'nintendo'],
+    'KR': ['kdrama', 'kpop', 'korean_food', 'kbeauty', 'korean_variety', 'korean_esports'],
+    'BR': ['brazilian_football', 'telenovela', 'brazilian_music', 'carnival', 'brazilian_food'],
+    'CA': ['hockey', 'canadian_celebs', 'canadian_food', 'canadian_tv'],
+    'AU': ['australian_sports', 'australian_celebs', 'australian_food', 'australian_wildlife'],
+    'MX': ['reggaeton', 'mexican_food', 'mexican_football', 'telenovelas', 'luchadores'],
+    'CN': ['cdrama', 'cpop', 'chinese_food', 'chinese_tech', 'chinese_mythology'],
+  } as Record<string, string[]>
+};
+
+/**
+ * Get a random category to ensure diversity
+ */
+const getRandomCategory = (countryCode: string): string => {
+  const countrySpecific = CATEGORY_DIVERSITY.countryCategories[countryCode] || [];
+  const allCategories = [...CATEGORY_DIVERSITY.universal, ...countrySpecific];
+  return allCategories[Math.floor(Math.random() * allCategories.length)];
+};
+
+/**
+ * Get country-specific topic examples for the prompt
+ */
+const getCountrySpecificExamples = (countryCode: string, countryName: string): string => {
+  const examples: Record<string, string> = {
+    'IN': `
+🇮🇳 INDIA-SPECIFIC DECK IDEAS:
+- "Bollywood Superstars" - Shah Rukh Khan, Salman Khan, Deepika, Alia
+- "Cricket Legends" - Sachin, Dhoni, Virat, Rohit Sharma
+- "Indian Web Series" - Mirzapur, Sacred Games, Panchayat, TVF shows
+- "IPL Teams & Players" - CSK, MI, RCB, player names
+- "Bollywood Hit Songs" - Iconic movie songs everyone knows
+- "Indian Street Food" - Pani Puri, Vada Pav, Chole Bhature
+- "Indian Festivals" - Diwali, Holi, Eid, Navratri, Durga Puja
+- "Regional Cinema Stars" - Telugu (Allu Arjun), Tamil (Vijay), Malayalam
+- "Bollywood Dialogues" - Famous movie lines
+- "Indian Memes" - Viral Indian meme templates
+- "Punjabi Music Artists" - Diljit, AP Dhillon, Sidhu Moosewala
+- "Indian Reality TV" - Bigg Boss, KBC, Indian Idol`,
+
+    'US': `
+🇺🇸 USA-SPECIFIC DECK IDEAS:
+- "NFL Legends" - Tom Brady, Patrick Mahomes, famous players
+- "NBA Superstars" - LeBron, Curry, Jordan, Kobe
+- "American Fast Food" - McDonald's, Chick-fil-A, In-N-Out
+- "Reality TV Stars" - Kardashians, Bachelor, Real Housewives
+- "Broadway Musicals" - Hamilton, Wicked, Les Mis
+- "US Presidents" - Famous presidents past & present
+- "American Sitcoms" - Friends, The Office, Seinfeld
+- "Hip-Hop Legends" - Kanye, Drake, Kendrick, Jay-Z
+- "Hollywood A-Listers" - DiCaprio, Dwayne Johnson, Jennifer Lawrence`,
+
+    'GB': `
+🇬🇧 UK-SPECIFIC DECK IDEAS:
+- "Premier League Players" - Haaland, Salah, famous footballers
+- "British TV Shows" - Doctor Who, Peaky Blinders, The Crown
+- "British Slang" - British expressions and words
+- "UK Music Artists" - Adele, Ed Sheeran, Dua Lipa, Harry Styles
+- "British Food" - Fish & Chips, Sunday Roast, Full English
+- "British Royals" - Royal family members
+- "British Comedians" - James Corden, Ricky Gervais`,
+
+    'JP': `
+🇯🇵 JAPAN-SPECIFIC DECK IDEAS:
+- "Anime Characters" - Naruto, Goku, Luffy, Tanjiro
+- "Manga Titles" - One Piece, Dragon Ball, Death Note
+- "J-Pop Artists" - YOASOBI, Kenshi Yonezu, Ado
+- "Japanese Video Games" - Mario, Pokemon, Final Fantasy
+- "Japanese Food" - Sushi types, Ramen varieties, Wagashi
+- "Nintendo Characters" - Mario, Link, Kirby, Pikachu
+- "Studio Ghibli" - Spirited Away characters, Totoro`,
+
+    'KR': `
+🇰🇷 KOREA-SPECIFIC DECK IDEAS:
+- "K-Drama Characters" - Popular K-drama leads
+- "K-Pop Groups" - BTS, BLACKPINK, Stray Kids, NewJeans
+- "Korean Street Food" - Tteokbokki, Kimbap, Korean BBQ
+- "K-Beauty Brands" - Innisfree, Laneige, COSRX
+- "Korean Variety Shows" - Running Man, Knowing Bros
+- "Korean eSports" - Faker, Korean gaming legends`,
+
+    'AU': `
+🇦🇺 AUSTRALIA-SPECIFIC DECK IDEAS:
+- "Australian Sports Stars" - Cricket, Rugby, Tennis stars
+- "Australian Celebrities" - Hugh Jackman, Margot Robbie
+- "Australian Food" - Vegemite, Meat Pie, Tim Tam
+- "Australian Wildlife" - Kangaroo, Koala, unique animals
+- "Australian Slang" - Aussie expressions`,
+
+    'CA': `
+🇨🇦 CANADA-SPECIFIC DECK IDEAS:
+- "NHL Hockey Stars" - Gretzky, Crosby, McDavid
+- "Canadian Celebrities" - Ryan Reynolds, Drake, The Weeknd
+- "Canadian Food" - Poutine, Maple Syrup dishes
+- "Canadian TV Shows" - Schitt's Creek, Letterkenny`,
+
+    'BR': `
+🇧🇷 BRAZIL-SPECIFIC DECK IDEAS:
+- "Brazilian Football Legends" - Neymar, Ronaldo, Pelé
+- "Telenovela Characters" - Famous soap opera stars
+- "Brazilian Music" - Sertanejo, Funk artists
+- "Carnival Culture" - Samba, Rio Carnival
+- "Brazilian Food" - Feijoada, Açaí, Coxinha`,
+  };
+
+  return examples[countryCode] || `
+🌍 ${countryName} DECK IDEAS:
+- Famous celebrities from ${countryName}
+- Popular sports in ${countryName}
+- Traditional food from ${countryName}
+- Cultural festivals of ${countryName}
+- Music artists from ${countryName}
+- TV shows popular in ${countryName}`;
+};
+
+/**
  * Generate deeply researched, engaging topics with proper reasoning
- * This is the PREMIUM topic generator that creates viral-worthy decks
+ * DIVERSE topic generator covering ALL entertainment categories
  */
 export const generateResearchedTopics = async (
   country: Country,
@@ -45,161 +178,177 @@ export const generateResearchedTopics = async (
   try {
     const openai = getOpenAIClient();
     
-    const audienceContext = targetAudience 
-      ? `\n\n🎯 TARGET AUDIENCE: ${targetAudience.toUpperCase()}
-${targetAudience === 'teens' ? `
-- Ages 13-19, deeply immersed in social media (TikTok, Instagram, YouTube)
-- Follow viral trends, memes, and internet celebrities
-- Love: K-pop, gaming, YouTube stars, viral challenges, current music
-- References should be 2022-2024 (nothing older unless it's making a comeback)
-- Gen Z humor and sensibilities
-` : targetAudience === 'adults' ? `
-- Ages 25-45, mix of nostalgia and current trends
-- Follow mainstream entertainment, streaming hits, popular culture
-- Love: 90s/2000s nostalgia, blockbuster movies, popular TV series, classic references
-- Balance between throwback and current content
-- Appreciate quality entertainment and recognizable names
-` : `
-- Mixed ages (kids, parents, grandparents playing together)
-- Need universally recognizable, wholesome references
-- Love: Disney/Pixar, classic movies, animals, simple categories
-- Nothing too niche or adult-oriented
-- References should span generations (kid-friendly but parents recognize too)
-`}` 
-      : '\n\n🎯 TARGET AUDIENCE: Universal (all ages and demographics)';
+    const effectiveAudience = targetAudience || 'teens';
     
-    const systemPrompt = `You are a PREMIUM cultural trends analyst, entertainment researcher, and viral content expert.
+    // Get a random suggested category to ensure diversity
+    const suggestedCategory = getRandomCategory(country.code);
+    
+    // Build country-specific topic examples
+    const countryExamples = getCountrySpecificExamples(country.code, country.name);
+    
+    const systemPrompt = `You are a DIVERSE ENTERTAINMENT EXPERT who creates engaging deck topics across ALL categories.
 
-Your mission: Create EXCEPTIONAL, VIRAL-WORTHY Heads Up! deck ideas that are:
-✅ Backed by REAL research, trends, and data
-✅ Deeply engaging for the target audience
-✅ Culturally relevant and resonant
-✅ Specific and creative (NOT generic)
-✅ Fun and playable in the game
+YOUR MISSION: Create FUN, RECOGNIZABLE deck topics that people will LOVE to play. Cover DIVERSE categories - NOT just internet/viral content!
 
-You understand:
-- What's trending on social media RIGHT NOW
-- Box office hits, streaming sensations, chart-topping music
-- Cultural moments, viral phenomena, and zeitgeist
-- What makes content go VIRAL
-- What different age groups love and talk about
+🎯 MANDATORY CATEGORY DIVERSITY - You MUST cover different areas:
+
+📺 ENTERTAINMENT:
+- Movies (Hollywood, Bollywood, Regional Cinema)
+- TV Shows (Netflix, Web Series, Reality TV)
+- Streaming Content (Originals, Documentaries)
+
+🏆 SPORTS:
+- Cricket (for India/UK/Australia)
+- Football/Soccer (Global)
+- Basketball/NFL (USA)
+- eSports & Gaming Tournaments
+
+🎵 MUSIC:
+- Bollywood Songs (India)
+- K-Pop Groups & Songs
+- Hip-Hop/Rap Artists
+- Regional Music (Punjabi, Tamil, Telugu)
+- Global Pop Stars
+
+🎮 GAMING:
+- Video Game Characters
+- Game Titles (Fortnite, Minecraft, GTA, FIFA)
+- Gaming YouTubers
+- Retro Games
+
+🍕 FOOD & CULTURE:
+- Street Food (country-specific)
+- Restaurants & Chains
+- Festival Foods
+- Comfort Foods
+
+🎭 CELEBRITIES:
+- Movie Stars (country-specific)
+- Athletes
+- Musicians
+- YouTubers & Influencers
+
+🎪 CULTURE & FESTIVALS:
+- National Festivals
+- Cultural Traditions
+- Regional Specialties
+
+⚡ TECH & BRANDS:
+- Tech Companies
+- Apps & Platforms
+- Gadgets
 
 Return ONLY valid JSON, no additional text.`;
 
-    const userPrompt = `Generate ${count} EXCEPTIONAL, WELL-RESEARCHED deck ideas for Heads Up! game.
+    const userPrompt = `Generate ${count} DIVERSE deck ideas for Heads Up!
 
-🌍 COUNTRY: ${country.flag} ${country.name} (${country.region})
-${audienceContext}
+🌍 COUNTRY: ${country.flag} ${country.name}
+🎯 AUDIENCE: ${effectiveAudience}
+📂 SUGGESTED CATEGORY THIS TIME: ${suggestedCategory}
 
-📊 RESEARCH METHODOLOGY:
+⚠️ CRITICAL: DO NOT generate only internet/viral/meme content!
+⚠️ You MUST cover DIVERSE categories like the examples below!
 
-You must provide PROPER REASONING for each deck idea, including:
+${countryExamples}
 
-1. **Trending Analysis**: What's HOT in ${country.name} RIGHT NOW
-   - Current box office hits, streaming trends, music charts
-   - Viral social media phenomena (TikTok, Instagram, YouTube)
-   - Sports events, celebrity news, cultural moments
-   - Gaming trends, tech innovations, lifestyle trends
+🎯 CATEGORY TO FOCUS ON THIS TIME: ${suggestedCategory}
+(But you can pick from ANY category - just ensure DIVERSITY!)
 
-2. **Cultural Relevance**: Why it resonates in ${country.name}
-   - Local celebrities, entertainment, cultural phenomena
-   - Regional preferences and passions
-   - Cultural values and interests
+📋 GOOD DIVERSE EXAMPLES:
 
-3. **Audience Appeal**: Why the target audience will LOVE it
-   - What makes it engaging for this specific age group
-   - Why they'll get excited about this topic
-   - Social/viral potential
+🎬 ENTERTAINMENT:
+- "Bollywood Superstars" - Iconic actors everyone knows
+- "Netflix Originals Everyone Binged" - Streaming hits
+- "Marvel & DC Superheroes" - Comic book characters
+- "Anime Characters" - Popular anime protagonists
+- "K-Drama Lead Characters" - Korean drama stars
 
-4. **Data & Evidence**: Back it up with specifics
-   - Box office numbers, streaming stats, chart positions
-   - Social media engagement, viral metrics
-   - Cultural impact, news coverage, search trends
+🏏 SPORTS:
+- "Cricket Legends" - Famous cricketers past & present
+- "IPL Teams & Players" - Indian Premier League
+- "Football Icons" - Soccer/football stars
+- "NBA Superstars" - Basketball greats
+- "Olympic Champions" - Multi-sport athletes
 
-5. **Playability**: Why it works for Heads Up!
-   - Easy to act out and describe
-   - Recognizable items/references
-   - Fun and engaging gameplay
-   - Variety of cards possible
+🎵 MUSIC:
+- "Bollywood Hit Songs" - Iconic movie songs
+- "K-Pop Groups" - Korean pop bands
+- "90s Music Icons" - Nostalgic artists
+- "Punjabi Music Stars" - Regional music
+- "Global Pop Stars" - International artists
 
-🎯 QUALITY STANDARDS:
+🎮 GAMING:
+- "Video Game Characters" - Mario, Sonic, etc.
+- "Fortnite & Minecraft" - Popular games
+- "Gaming YouTubers" - Content creators
+- "Retro Games" - Classic video games
 
-✅ GOOD TOPICS (Be like these):
-- "2024 Grammy Winners & Nominees" 
-  WHY: Specific, timely, current events
-- "Viral TikTok Dance Challenges 2024"
-  WHY: Social media trending, fun to act out
-- "Marvel Phase 5 Characters"
-  WHY: Specific niche within massive popular franchise
-- "Bollywood Blockbusters 2024" (for India)
-  WHY: Culturally specific, current, huge appeal
-- "Netflix Top 10 Binge Shows"
-  WHY: Specific angle on broad category, everyone's watching
+🍕 FOOD:
+- "Indian Street Food" - Pani puri, vada pav, etc.
+- "Fast Food Chains" - McDonald's, KFC, etc.
+- "Regional Cuisines" - South Indian, Punjabi, etc.
+- "Festival Foods" - Diwali sweets, etc.
 
-❌ BAD TOPICS (Avoid these):
-- "Movies" - Too generic, boring, overdone
-- "Famous People" - Vague, no angle
-- "Sports" - Not specific enough
-- "Food" - Too broad
+🎉 CULTURE:
+- "Indian Festivals" - Diwali, Holi, Eid, etc.
+- "Bollywood Dialogues" - Famous movie lines
+- "Indian Web Series" - Mirzapur, Sacred Games
+- "Regional Cinema Stars" - Telugu, Tamil heroes
 
-🔥 CREATIVE REQUIREMENTS:
-- Find UNIQUE angles on popular themes
-- Combine: Trending + Cultural + Specific
-- Think "What would go VIRAL?"
-- Must be fun to guess and act out
-- Should spark excitement and recognition
+❌ DO NOT GENERATE:
+- Only internet/viral/meme topics
+- Only "Viral Reels" type content
+- Generic "Internet Trends" topics
+- Repetitive social media topics
 
-📋 RESPONSE FORMAT:
-
-Return a JSON array of ${count} researched topics:
+📋 REQUIRED JSON FORMAT:
 
 [
   {
-    "name": "Specific, catchy topic name (3-5 words)",
-    "category": "movies|food|music|sports|celebrities|travel|games|tech|culture",
-    "tags": ["3-5 specific tags"],
+    "name": "Specific Topic Name (3-5 words)",
+    "category": "bollywood|cricket|gaming|streaming|music|food|sports|anime|kpop|festivals|celebrities|tech",
+    "tags": ["5 relevant tags"],
     "isPremium": false,
     
-    "trendingReason": "Detailed explanation with SPECIFIC data/trends (2-3 sentences, be SPECIFIC!)",
-    "culturalRelevance": "Why this deeply resonates with ${country.name} culture (2-3 sentences)",
-    "targetAudience": "${targetAudience || 'universal'}",
-    "audienceAppeal": "Why ${targetAudience || 'everyone'} will absolutely LOVE this (2-3 sentences)",
+    "trendingReason": "Why people love this topic - 2 sentences",
+    "culturalRelevance": "Why it matters for ${country.name} specifically - 2 sentences",
+    "targetAudience": "${effectiveAudience}",
+    "audienceAppeal": "Why this audience will enjoy playing this - 2 sentences",
     
     "viralPotential": 8,
     "recognitionScore": 9,
-    "playabilityScore": 8,
+    "playabilityScore": 9,
     
     "trendingData": [
       {
-        "source": "Specific source (e.g., '2024 Box Office', 'Billboard Charts Nov 2024')",
-        "evidence": "Specific data point (e.g., 'grossed $1.5B worldwide', 'viral with 500M views')",
-        "timeframe": "2024 or specific date"
+        "source": "Relevant source (Netflix, Gaming Charts, Box Office, etc.)",
+        "evidence": "Specific popularity metric",
+        "timeframe": "2024-2025"
       }
     ],
     
     "exampleCards": [
-      "Specific example 1",
-      "Specific example 2", 
-      "Specific example 3"
+      "Specific example 1 everyone knows",
+      "Specific example 2 everyone knows",
+      "Specific example 3 everyone knows",
+      "Specific example 4 everyone knows",
+      "Specific example 5 everyone knows"
     ],
     
-    "whyItWorks": "Comprehensive 3-4 sentence explanation of why this deck is AMAZING. Include: trending appeal + cultural fit + audience match + playability + viral potential. Make it compelling!"
+    "whyItWorks": "3-4 sentences explaining why this is fun to play and easy to guess",
+    
+    "vibeCheck": "One sentence summary of why this deck is great"
   }
 ]
 
-🌟 SCORE TARGETS:
-- Viral Potential: 7-10 (will people talk about this?)
-- Recognition Score: 7-10 (will the audience know these items?)
-- Playability Score: 7-10 (fun to act out?)
-
-Generate ${count} OUTSTANDING, well-researched topics with PROPER REASONING!`;
+Generate ${count} DIVERSE topics covering DIFFERENT categories!`;
 
     console.log(`Generating ${count} researched topics for ${country.name}${targetAudience ? ` (${targetAudience})` : ''}...`);
     
     const response = await withRetry(async () => {
       return await openai.chat.completions.create({
-        model: 'gpt-4o', // Premium model for quality research
-        max_tokens: 4000, // More tokens for detailed research
+        model: 'gpt-5.1', // Latest flagship model - premium research
+        max_completion_tokens: 4000, // More tokens for detailed research
         temperature: 0.85, // Balanced creativity and coherence
         messages: [
           { role: 'system', content: systemPrompt },
@@ -219,7 +368,7 @@ Generate ${count} OUTSTANDING, well-researched topics with PROPER REASONING!`;
     try {
       const jsonStr = textContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       parsedTopics = JSON.parse(jsonStr);
-    } catch (parseError) {
+    } catch {
       console.error('Failed to parse OpenAI response:', textContent);
       throw new Error('Invalid JSON response from AI');
     }
@@ -254,7 +403,7 @@ Generate ${count} OUTSTANDING, well-researched topics with PROPER REASONING!`;
     
     return validTopics;
     
-  } catch (error: any) {
+  } catch (error) {
     console.error('Researched topic generation error:', error);
     throw handleAIError(error);
   }
@@ -272,7 +421,21 @@ export const generateSingleResearchedTopic = async (
 };
 
 /**
+ * Get random universal category for diversity
+ */
+const getRandomUniversalCategory = (): string => {
+  const categories = [
+    'netflix_originals', 'gaming_icons', 'anime_characters', 'kpop_groups',
+    'marvel_dc_heroes', 'global_music', 'youtubers_streamers', 'classic_movies',
+    'video_game_characters', 'global_food_chains', 'tech_brands', 'sports_legends',
+    'disney_pixar', 'internet_memes', 'esports_players', 'podcast_hosts'
+  ];
+  return categories[Math.floor(Math.random() * categories.length)];
+};
+
+/**
  * Generate a universal researched topic (works across all countries)
+ * DIVERSE topics covering all entertainment categories
  */
 export const generateUniversalResearchedTopic = async (
   targetAudience?: 'teens' | 'adults' | 'families'
@@ -280,81 +443,146 @@ export const generateUniversalResearchedTopic = async (
   try {
     const openai = getOpenAIClient();
     
-    const audienceContext = targetAudience 
-      ? `\n\n🎯 TARGET AUDIENCE: ${targetAudience.toUpperCase()}`
-      : '\n\n🎯 TARGET AUDIENCE: Universal (all ages, all countries)';
+    const effectiveAudience = targetAudience || 'teens';
+    const suggestedCategory = getRandomUniversalCategory();
     
-    const systemPrompt = `You are a GLOBAL trends expert and viral content specialist.
-Create EXCEPTIONAL, UNIVERSALLY VIRAL deck ideas with proper research and reasoning.
-Think global phenomena, worldwide obsessions, content that breaks cultural barriers.
+    const systemPrompt = `You are a GLOBAL ENTERTAINMENT EXPERT creating universally fun deck topics.
+
+YOUR MISSION: Create diverse, FUN topics that work EVERYWHERE in the world.
+Cover ALL entertainment categories - NOT just internet/viral content!
+
+🎯 DIVERSE UNIVERSAL CATEGORIES TO COVER:
+
+📺 STREAMING & TV:
+- Netflix Originals (Squid Game, Stranger Things, Wednesday)
+- Disney+ Shows (Mandalorian, Marvel series)
+- Global TV phenomena
+
+🎮 GAMING:
+- Video Game Characters (Mario, Sonic, Master Chief)
+- Gaming Icons (Fortnite, Minecraft, GTA)
+- eSports Players
+- Gaming YouTubers
+
+🎬 MOVIES:
+- Marvel/DC Superheroes
+- Disney/Pixar Characters
+- Hollywood Blockbusters
+- Classic Movie Characters
+
+🎵 MUSIC:
+- K-Pop Groups & Idols
+- Global Pop Stars
+- Music Festival Artists
+- 90s/2000s Music Icons
+
+📱 TECH & INTERNET:
+- Tech Brands & Products
+- YouTubers & Streamers
+- Internet Memes (global ones)
+- AI & Tech Personalities
+
+🏆 SPORTS:
+- Football/Soccer Stars (global)
+- Olympic Athletes
+- Sports Legends
+
+🍕 FOOD:
+- Global Fast Food Chains
+- International Cuisines
+- Food Trends
+
 Return ONLY valid JSON, no additional text.`;
 
-    const userPrompt = `Generate 1 OUTSTANDING universal deck idea for Heads Up! that works WORLDWIDE.
+    const userPrompt = `Generate 1 UNIVERSALLY FUN deck topic for Heads Up!
 
-🌍 UNIVERSAL CRITERIA:
-- Recognizable in New York, Tokyo, Mumbai, London, São Paulo, Sydney
-- Transcends language and cultural barriers  
-- Currently trending GLOBALLY
-- Family-friendly worldwide
-${audienceContext}
+🌍 MUST work for players in ANY country (India, USA, UK, Japan, Brazil, etc.)
+🎯 SUGGESTED CATEGORY: ${suggestedCategory}
+👥 AUDIENCE: ${effectiveAudience}
 
-🌐 GLOBAL TRENDING ANALYSIS:
+⚠️ DO NOT generate only internet/viral/meme topics!
+⚠️ Cover DIVERSE categories!
 
-What's VIRAL worldwide RIGHT NOW:
-- International streaming sensations (Netflix, Disney+, Apple TV+)
-- Global sports events and superstars (Olympics, World Cup, etc.)
-- Worldwide social media phenomena (TikTok trends that cross borders)
-- Universal human experiences and emotions
-- Cross-cultural music hits (artists with global fanbase)
-- Global brands and tech innovations
-- Worldwide movements and cultural moments
+📋 EXCELLENT UNIVERSAL DECK IDEAS BY CATEGORY:
 
-📊 PROVIDE PROPER RESEARCH:
-- Global box office numbers, streaming stats
-- Worldwide social media engagement
-- International chart positions
-- Cross-cultural appeal evidence
-- Why it works in multiple regions
+🎬 MOVIES & TV:
+- "Netflix Originals Everyone Binged" - Squid Game, Stranger Things, Wednesday
+- "Marvel Superheroes" - Iron Man, Spider-Man, Thor, Captain America
+- "DC Superheroes" - Batman, Superman, Wonder Woman, Aquaman
+- "Disney/Pixar Characters" - Elsa, Woody, Simba, Nemo
+- "Classic Movie Villains" - Thanos, Joker, Darth Vader
 
-Return a JSON object with this structure:
+🎮 GAMING:
+- "Video Game Characters" - Mario, Sonic, Master Chief, Lara Croft
+- "Gaming Icons" - Fortnite, Minecraft, GTA, FIFA games
+- "Pokemon Characters" - Pikachu, Charizard, Mewtwo
+- "Gaming YouTubers" - PewDiePie, MrBeast Gaming, Markiplier
+
+🎵 MUSIC:
+- "K-Pop Groups" - BTS, BLACKPINK, Stray Kids, NewJeans
+- "Global Pop Stars" - Taylor Swift, Ed Sheeran, The Weeknd
+- "90s/2000s Music Icons" - Backstreet Boys, Spice Girls
+
+📺 ANIME:
+- "Anime Characters" - Naruto, Goku, Luffy, Tanjiro
+- "Anime Villains" - Frieza, Madara, Pain
+- "Studio Ghibli Characters" - Totoro, Spirited Away characters
+
+🍕 GLOBAL FOOD:
+- "Fast Food Chains" - McDonald's, KFC, Starbucks, Pizza Hut
+- "Global Snacks" - Oreos, Pringles, Kit-Kat flavors
+
+⚽ GLOBAL SPORTS:
+- "Football/Soccer Legends" - Messi, Ronaldo, Neymar, Mbappé
+- "Olympic Sports" - Athletics, Swimming, Gymnastics events
+
+📱 TECH:
+- "Tech Brands" - Apple, Google, Tesla, Netflix
+- "Famous Apps" - Instagram, YouTube, Spotify
+
+📋 REQUIRED JSON FORMAT:
 {
-  "name": "Specific universal topic (3-5 words)",
-  "category": "movies|food|music|sports|celebrities|travel|games|tech|culture",
-  "tags": ["3-5 globally relevant tags"],
+  "name": "Clear topic name (3-5 words)",
+  "category": "streaming|gaming|music|anime|movies|sports|food|tech|kpop|superheroes",
+  "tags": ["5 globally recognized Gen Z tags"],
   "isPremium": false,
   
-  "trendingReason": "Why this is HOT worldwide RIGHT NOW (2-3 sentences, SPECIFIC data)",
-  "culturalRelevance": "Why this resonates across ALL cultures (2-3 sentences)",
-  "targetAudience": "${targetAudience || 'universal'}",
-  "audienceAppeal": "Why ${targetAudience || 'everyone globally'} will love this (2-3 sentences)",
+  "trendingReason": "Why this is GLOBALLY trending with SPECIFIC evidence across multiple regions (3 sentences)",
+  "culturalRelevance": "Why this resonates with Gen Z EVERYWHERE - what's the universal experience? (2 sentences)",
+  "targetAudience": "${effectiveAudience}",
+  "audienceAppeal": "Why Gen Z from ANY country would be excited about this (2-3 sentences)",
   
   "viralPotential": 9,
   "recognitionScore": 9,
-  "playabilityScore": 8,
+  "playabilityScore": 9,
   
   "trendingData": [
     {
-      "source": "Global Box Office 2024",
-      "evidence": "Specific worldwide data",
+      "source": "Global Social Media/Netflix/Spotify/Gaming (specific platform)",
+      "evidence": "Worldwide metrics: global views, international charts, cross-border engagement",
       "timeframe": "2024"
     }
   ],
   
   "exampleCards": [
-    "Example that works globally 1",
-    "Example that works globally 2",
-    "Example that works globally 3"
+    "Example recognized globally 1",
+    "Example recognized globally 2",
+    "Example recognized globally 3",
+    "Example recognized globally 4",
+    "Example recognized globally 5"
   ],
   
-  "whyItWorks": "Comprehensive explanation of why this deck is GLOBALLY AMAZING (3-4 sentences)"
+  "whyItWorks": "4-5 sentence explanation of why this is PERFECT for global Gen Z: What's the universal appeal? Why does it cross cultural barriers? Why would someone in Tokyo AND Lagos both get excited? Why is it fun to play?",
+  
+  "vibeCheck": "One sentence Gen Z summary of why this topic is globally fire (e.g., 'literally everyone on earth knows these and that's the point')"
 }
 
-Make it EXCEPTIONAL with PROPER REASONING!`;
+Generate something SO good it could trend in 100 countries simultaneously! 🌍🔥`;
 
     const response = await withRetry(async () => {
       return await openai.chat.completions.create({
-        model: 'gpt-4o',
-        max_tokens: 3000,
+        model: 'gpt-5.1', // Latest flagship model
+        max_completion_tokens: 3000,
         temperature: 0.85,
         messages: [
           { role: 'system', content: systemPrompt },

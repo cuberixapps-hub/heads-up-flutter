@@ -184,5 +184,14 @@
   "lastSync": "Last sync",
   "featured": "Featured",
   "featuredDecks": "Featured Decks",
-  "featuredDeck": "Featured Deck"
+  "featuredDeck": "Featured Deck",
+  "noInternetTitle": "Tidak Ada Koneksi Internet",
+  "noInternetDescription": "Silakan periksa koneksi internet Anda dan coba lagi. Aplikasi ini memerlukan koneksi internet aktif untuk berfungsi.",
+  "tryAgainButton": "Coba Lagi",
+  "checkingConnection": "Memeriksa...",
+  "tipsToReconnect": "Tips untuk terhubung kembali:",
+  "tipEnableWifi": "Periksa apakah WiFi diaktifkan",
+  "tipTryMobileData": "Coba beralih ke data seluler",
+  "tipMoveCloser": "Pindah lebih dekat ke router Anda",
+  "tipRestartDevice": "Mulai ulang perangkat Anda"
 }

@@ -8,10 +8,12 @@ export interface AIGeneratedTopic {
   trendingReason: string; // Why this topic is hot right now
   culturalRelevance: string; // Why it matters for the country
   isPremium?: boolean;
+  viralScore?: number; // 1-10 how viral/engaging this topic is
 }
 
 /**
  * Generate trending and interesting topics for a specific country using AI
+ * OPTIMIZED FOR GEN Z - viral, trendy, social media aware content
  * @param country The country to generate topics for
  * @param count Number of topics to generate (default: 5)
  * @returns Promise<AIGeneratedTopic[]> Array of AI-generated trending topics
@@ -23,77 +25,89 @@ export const generateTrendingTopics = async (
   try {
     const openai = getOpenAIClient();
     
-    const systemPrompt = `You are an expert cultural trends analyst and game designer specializing in viral, engaging content. 
-Your mission is to create AMAZING, VIRAL-WORTHY topics that players will absolutely love - topics that are specific, 
-creative, and irresistibly fun. You understand what makes content trend and what resonates with different cultures.
-Return your response as valid JSON only, with no additional text.`;
+    const systemPrompt = `You are a DIVERSE ENTERTAINMENT EXPERT who creates engaging deck topics across ALL categories.
+
+YOUR MISSION: Create FUN, RECOGNIZABLE deck topics that people will LOVE to play.
+
+🎯 MANDATORY CATEGORY DIVERSITY - Cover these areas:
+- Movies & TV Shows (Bollywood, Hollywood, Netflix, K-drama)
+- Sports (Cricket, Football, NBA, IPL)
+- Music (Bollywood Songs, K-Pop, Hip-Hop, Regional Music)
+- Gaming (Video Games, Gaming Characters, eSports)
+- Food (Street Food, Restaurants, Regional Cuisines)
+- Celebrities (Actors, Athletes, Musicians, YouTubers)
+- Culture (Festivals, Traditions, Memes)
+- Tech & Brands
+
+Return ONLY valid JSON, no additional text.`;
     
-    const userPrompt = `Generate ${count} AMAZING, VIRAL-WORTHY topics for Heads Up! game decks for ${country.name} (${country.flag} ${country.region}).
+    const userPrompt = `Generate ${count} DIVERSE deck topics for Heads Up! game for ${country.name} (${country.flag}).
 
-🎯 WHAT MAKES AN AMAZING TOPIC:
+⚠️ CRITICAL: Generate DIVERSE topics - NOT just internet/viral/meme content!
 
-✅ GOOD TOPICS (Be like these):
-- "2024 Grammy Winners" - Specific, timely, current
-- "Viral TikTok Dance Challenges" - Trending, fun, recognizable
-- "Marvel Phase 5 Characters" - Specific niche within popular category
-- "Bollywood Dance Numbers 2024" - Cultural + current + specific
-- "Netflix Top 10 Binge Shows" - Specific angle on broad category
+📋 EXCELLENT DIVERSE TOPICS BY CATEGORY:
 
-❌ BAD TOPICS (Avoid these):
-- "Movies" - Too generic, boring, overdone
-- "Food" - Too broad, not interesting
-- "Famous People" - Vague, unoriginal
-- "Sports" - Not specific enough
-- "Random Things" - Lazy, no focus
+🎬 MOVIES & TV:
+- "Bollywood Superstars" - Shah Rukh Khan, Salman, Deepika
+- "Netflix Originals Everyone Binged" - Squid Game, Stranger Things
+- "Marvel Superheroes" - Iron Man, Spider-Man, Thor
+- "Indian Web Series" - Mirzapur, Sacred Games, Panchayat
 
-🔥 CREATIVITY GUIDELINES:
-- Find unique angles on popular themes
-- Combine trending + cultural + specific
-- Think "What would go VIRAL on social media?"
-- Focus on what people are OBSESSED with RIGHT NOW
-- Make it fun to guess and act out!
+🏏 SPORTS:
+- "Cricket Legends" - Sachin, Dhoni, Virat, Rohit
+- "IPL Teams & Players" - CSK, MI, RCB stars
+- "Football Icons" - Messi, Ronaldo, Neymar
+- "NBA Superstars" - LeBron, Curry, Jordan
 
-📱 TRENDING ANALYSIS for ${country.name}:
-Consider what's HOT in ${country.name} RIGHT NOW:
-- Viral social media trends, challenges, memes
-- Latest blockbuster movies, hit shows, chart-topping music
-- Current sports events, celebrity news, gaming phenomena
-- Local festivals, cultural moments, seasonal events
-- What's dominating conversations in ${country.region}
+🎵 MUSIC:
+- "Bollywood Hit Songs" - Iconic movie songs
+- "K-Pop Groups" - BTS, BLACKPINK, NewJeans
+- "Punjabi Music Stars" - Diljit, AP Dhillon
+- "Global Pop Stars" - Taylor Swift, Ed Sheeran
 
-🎮 PLAYABILITY CHECK:
-- Can players act it out or describe it?
-- Are the items recognizable to the audience?
-- Will it be FUN in a fast-paced game?
-- Does it have enough variety for 15-20 cards?
+🎮 GAMING:
+- "Video Game Characters" - Mario, Sonic, Master Chief
+- "Fortnite & Minecraft" - Popular game content
+- "Gaming YouTubers" - PewDiePie, MrBeast Gaming
 
-Return ONLY a JSON array with this structure:
+🍕 FOOD:
+- "Indian Street Food" - Pani Puri, Vada Pav, Chole Bhature
+- "Fast Food Chains" - McDonald's, KFC, Domino's
+- "Regional Cuisines" - South Indian, Punjabi foods
+
+🎉 CULTURE:
+- "Indian Festivals" - Diwali, Holi, Eid, Navratri
+- "Bollywood Dialogues" - Famous movie lines
+- "Indian Memes" - Viral meme templates
+- "Regional Cinema Stars" - Telugu, Tamil actors
+
+❌ DO NOT GENERATE:
+- Only internet/viral/meme topics
+- Only "Viral Reels" or "Trending Online" content
+- Generic categories without specificity
+
+📊 REQUIRED JSON FORMAT:
 [
   {
-    "name": "Catchy, specific topic name (3-5 words, be creative!)",
-    "category": "movies|food|music|sports|celebrities|travel|games|tech|culture",
-    "tags": ["3-5 relevant, specific tags"],
-    "trendingReason": "Compelling explanation of why this is HOT right now (1-2 sentences, be specific!)",
-    "culturalRelevance": "Why this resonates deeply with ${country.name} culture (1-2 sentences)",
-    "isPremium": false
+    "name": "Clear Topic Name (3-5 words)",
+    "category": "bollywood|cricket|gaming|streaming|music|food|sports|anime|kpop|festivals|celebrities|tech",
+    "tags": ["4-5 specific tags"],
+    "trendingReason": "Why people love this topic (2 sentences)",
+    "culturalRelevance": "Why ${country.name} specifically loves this (1-2 sentences)",
+    "isPremium": false,
+    "viralScore": 9
   }
 ]
 
-🌟 QUALITY STANDARDS:
-- Each topic must score 70+ on quality (creativity, trend, cultural, playability)
-- Aim for 90+ scores with specificity and creativity
-- Think viral, think exciting, think AMAZING!
-- Make every topic something players will get HYPED about!
-
-Generate ${count} unique, OUTSTANDING topics as a JSON array. Make them INCREDIBLE!`;
+Generate ${count} DIVERSE topics covering DIFFERENT categories!`;
 
     console.log(`Generating ${count} trending topics for ${country.name}...`);
     
     // Call OpenAI API with retry logic
     const response = await withRetry(async () => {
       return await openai.chat.completions.create({
-        model: 'gpt-4o', // Using GPT-4o for best quality
-        max_tokens: 3000,
+        model: 'gpt-5.1', // Latest flagship model - best quality
+        max_completion_tokens: 3000,
         temperature: 0.9, // Higher temperature for more creative/diverse topics
         messages: [
           { role: 'system', content: systemPrompt },
@@ -199,67 +213,80 @@ export const generateTopicsForMultipleCountries = async (
 
 /**
  * Generate a universal topic that works across all countries
+ * OPTIMIZED FOR GEN Z WORLDWIDE - viral, trendy, globally recognizable
  * @returns Promise<AIGeneratedTopic> A universal trending topic
  */
 export const generateUniversalTopic = async (): Promise<AIGeneratedTopic> => {
   try {
     const openai = getOpenAIClient();
     
-    const systemPrompt = `You are a global trends expert and viral content specialist.
-Create AMAZING, UNIVERSALLY VIRAL topics that work across all cultures and countries.
-Think global phenomena, worldwide obsessions, and content that breaks cultural barriers.
-Return your response as valid JSON only, with no additional text.`;
+    const systemPrompt = `You are a GLOBAL ENTERTAINMENT EXPERT creating universally fun deck topics.
+
+YOUR MISSION: Create diverse, FUN topics that work EVERYWHERE in the world.
+Cover ALL entertainment categories - NOT just internet/viral content!
+
+🎯 DIVERSE UNIVERSAL CATEGORIES:
+- Streaming & TV (Netflix, Disney+, global shows)
+- Gaming (Video game characters, popular games)
+- Movies (Marvel/DC, Disney/Pixar, Hollywood)
+- Music (K-Pop, Global Pop Stars, Classic artists)
+- Sports (Football/Soccer, Olympics)
+- Food (Global chains, International cuisines)
+- Tech (Brands, Apps, Products)
+- Anime & Animation
+
+Return ONLY valid JSON, no additional text.`;
     
-    const userPrompt = `Generate 1 OUTSTANDING universal topic for a Heads Up! game deck that appeals to people WORLDWIDE.
+    const userPrompt = `Generate 1 UNIVERSALLY FUN deck topic for Heads Up!
 
-🌍 UNIVERSAL TOPIC GUIDELINES:
+🌍 MUST work for players in ANY country (India, USA, UK, Japan, Brazil, etc.)
 
-✅ EXCELLENT UNIVERSAL TOPICS:
-- "2024 Olympics Viral Moments" - Global event, specific, timely
-- "Worldwide Netflix Hits" - Universal platform, current
-- "Iconic Disney Characters" - Recognizable everywhere
-- "Global Climate Heroes" - Universal concern, inspiring
-- "Social Media Viral Challenges" - Cross-cultural, trending
+📋 EXCELLENT UNIVERSAL DECK IDEAS:
 
-❌ AVOID:
-- Country-specific references
-- Regional celebrities unknown elsewhere
-- Cultural practices unfamiliar globally
-- Language-specific humor
+🎬 MOVIES & TV:
+- "Netflix Originals Everyone Binged" - Squid Game, Stranger Things, Wednesday
+- "Marvel Superheroes" - Iron Man, Spider-Man, Thor, Captain America
+- "Disney/Pixar Characters" - Elsa, Woody, Simba, Nemo
+- "Classic Movie Villains" - Thanos, Joker, Darth Vader
 
-🔥 GLOBAL TRENDING ANALYSIS:
-What's VIRAL worldwide RIGHT NOW:
-- International streaming sensations (Netflix, Disney+, etc.)
-- Global sports events and superstars
-- Worldwide social media phenomena
-- Universal human experiences and emotions
-- Cross-cultural music and entertainment hits
-- Global brands and tech innovations
-- Worldwide environmental/social movements
+🎮 GAMING:
+- "Video Game Characters" - Mario, Sonic, Master Chief
+- "Pokemon Characters" - Pikachu, Charizard, Mewtwo
+- "Gaming Icons" - Fortnite, Minecraft, GTA characters
 
-🎯 CRITERIA:
-- Recognizable in New York, Tokyo, Mumbai, London, São Paulo
-- Transcends language and cultural barriers
-- Current and trending globally
-- Fun to play for any audience
-- Family-friendly worldwide
+🎵 MUSIC:
+- "K-Pop Groups" - BTS, BLACKPINK, Stray Kids
+- "Global Pop Stars" - Taylor Swift, Ed Sheeran, The Weeknd
+- "90s/2000s Music Icons" - Classic artists everyone knows
 
-Return ONLY a JSON object with this structure:
+📺 ANIME:
+- "Anime Characters" - Naruto, Goku, Luffy, Tanjiro
+- "Studio Ghibli Characters" - Totoro, Spirited Away
+
+🍕 GLOBAL FOOD:
+- "Fast Food Chains" - McDonald's, KFC, Starbucks
+- "Global Snacks" - Oreos, Pringles, Kit-Kat
+
+⚽ SPORTS:
+- "Football/Soccer Legends" - Messi, Ronaldo, Neymar
+
+📊 REQUIRED JSON FORMAT:
 {
-  "name": "Catchy, specific universal topic (3-5 words)",
-  "category": "movies|food|music|sports|celebrities|travel|games|tech|culture",
-  "tags": ["3-5 globally relevant tags"],
-  "trendingReason": "Why this is HOT worldwide right now (1-2 sentences, be specific about global appeal)",
-  "culturalRelevance": "Why this resonates across ALL cultures (1-2 sentences)",
-  "isPremium": false
+  "name": "Clear Topic Name (3-5 words)",
+  "category": "streaming|gaming|music|anime|movies|sports|food|tech|kpop|superheroes",
+  "tags": ["4-5 globally recognized tags"],
+  "trendingReason": "Why people everywhere love this (2 sentences)",
+  "culturalRelevance": "Why this works globally (1-2 sentences)",
+  "isPremium": false,
+  "viralScore": 9
 }
 
-Make it AMAZING - something that would trend GLOBALLY!`;
+Generate a topic that would be fun in ANY country!`;
 
     const response = await withRetry(async () => {
       return await openai.chat.completions.create({
-        model: 'gpt-4o', // Using GPT-4o for best quality
-        max_tokens: 2000,
+        model: 'gpt-5.1', // Latest flagship model - best quality
+        max_completion_tokens: 2000,
         temperature: 0.9,
         messages: [
           { role: 'system', content: systemPrompt },
