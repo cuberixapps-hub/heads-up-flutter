@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
@@ -25,6 +26,7 @@ import '../widgets/home_screen/streak_widget.dart';
 import '../widgets/home_screen/daily_deck_widget.dart';
 import '../widgets/home_screen/tutorial_overlay.dart';
 import '../widgets/home_screen/home_screen_utils.dart';
+import '../utils/premium_utils.dart';
 import '../utils/responsive.dart';
 
 class HomeScreenV2 extends StatefulWidget {
@@ -104,15 +106,410 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final deckProvider = Provider.of<DeckProvider>(context, listen: false);
-        final availableDecks =
-            deckProvider.freeDecks.isNotEmpty
-                ? deckProvider.freeDecks
-                : deckProvider.allDecks;
+        
+        // 🌍 Debug print the user's country for engagement tracking
+        _debugPrintUserCountryInfo(deckProvider);
+        
+        final availableDecks = _getCountryPrioritizedDecks(deckProvider);
         if (availableDecks.isNotEmpty) {
           _updateGradientColors(availableDecks.first.color);
         }
       }
     });
+  }
+
+  /// Debug prints user country information and deck prioritization stats
+  void _debugPrintUserCountryInfo(DeckProvider deckProvider) {
+    final userCountry = deckProvider.userCountryCode;
+    final isManual = deckProvider.isUsingManualCountry;
+    
+    debugPrint('═══════════════════════════════════════════════════════════');
+    debugPrint('🌍 USER COUNTRY DETECTION');
+    debugPrint('═══════════════════════════════════════════════════════════');
+    debugPrint('📍 Country Code: $userCountry');
+    debugPrint('🔧 Manual Override: ${isManual ? "YES" : "NO (auto-detected)"}');
+    debugPrint('───────────────────────────────────────────────────────────');
+    
+    // Count decks by country match
+    final allDecks = deckProvider.allDecks;
+    int countrySpecificDecks = 0;
+    int universalDecks = 0;
+    int otherDecks = 0;
+    
+    for (final deck in allDecks) {
+      if (deck.effectiveCountries.contains(userCountry)) {
+        countrySpecificDecks++;
+      } else if (deck.effectiveCountries.contains('UNIVERSAL')) {
+        universalDecks++;
+      } else {
+        otherDecks++;
+      }
+    }
+    
+    debugPrint('📊 DECK DISTRIBUTION:');
+    debugPrint('   • Country-specific ($userCountry): $countrySpecificDecks decks');
+    debugPrint('   • Universal decks: $universalDecks decks');
+    debugPrint('   • Regional/Other: $otherDecks decks');
+    debugPrint('   • Total decks available: ${allDecks.length}');
+    debugPrint('───────────────────────────────────────────────────────────');
+    
+    // Show top recommended decks for this country
+    final topRecommended = deckProvider.getTopRecommendedDecks(limit: 5);
+    debugPrint('🎯 TOP 5 RECOMMENDED DECKS FOR $userCountry:');
+    for (int i = 0; i < topRecommended.length; i++) {
+      final deck = topRecommended[i];
+      final countries = deck.effectiveCountries.join(', ');
+      debugPrint('   ${i + 1}. ${deck.name} [Countries: $countries]');
+    }
+    debugPrint('═══════════════════════════════════════════════════════════');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🧪 DEBUG ONLY: Country Selector for Testing Recommendations
+  // This entire section is excluded from production builds via kDebugMode
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  bool _debugPanelExpanded = false;
+  
+  /// Test countries for recommendation testing
+  static const List<Map<String, String>> _testCountries = [
+    {'code': 'US', 'name': '🇺🇸 United States', 'flag': '🇺🇸'},
+    {'code': 'IN', 'name': '🇮🇳 India', 'flag': '🇮🇳'},
+    {'code': 'GB', 'name': '🇬🇧 United Kingdom', 'flag': '🇬🇧'},
+    {'code': 'JP', 'name': '🇯🇵 Japan', 'flag': '🇯🇵'},
+    {'code': 'KR', 'name': '🇰🇷 South Korea', 'flag': '🇰🇷'},
+    {'code': 'BR', 'name': '🇧🇷 Brazil', 'flag': '🇧🇷'},
+    {'code': 'MX', 'name': '🇲🇽 Mexico', 'flag': '🇲🇽'},
+    {'code': 'CN', 'name': '🇨🇳 China', 'flag': '🇨🇳'},
+    {'code': 'AU', 'name': '🇦🇺 Australia', 'flag': '🇦🇺'},
+    {'code': 'DE', 'name': '🇩🇪 Germany', 'flag': '🇩🇪'},
+  ];
+
+  Widget _buildDebugCountrySelector(DeckProvider deckProvider) {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 60.s,
+      right: 16.s,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Toggle button
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _debugPanelExpanded = !_debugPanelExpanded;
+              });
+            },
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 12.s, vertical: 8.s),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(20.s),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.withOpacity(0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.bug_report_rounded,
+                    color: Colors.white,
+                    size: 16.s,
+                  ),
+                  SizedBox(width: 6.s),
+                  Text(
+                    '🧪 ${deckProvider.userCountryCode}',
+                    style: GoogleFonts.robotoMono(
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(width: 4.s),
+                  Icon(
+                    _debugPanelExpanded 
+                        ? Icons.expand_less_rounded 
+                        : Icons.expand_more_rounded,
+                    color: Colors.white,
+                    size: 16.s,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          // Expanded country list
+          if (_debugPanelExpanded) ...[
+            SizedBox(height: 8.s),
+            Container(
+              width: 200.s,
+              constraints: BoxConstraints(maxHeight: 350.s),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C1E).withOpacity(0.95),
+                borderRadius: BorderRadius.circular(16.s),
+                border: Border.all(
+                  color: Colors.orange.withOpacity(0.3),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16.s),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(12.s),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.orange.withOpacity(0.3),
+                            Colors.orange.withOpacity(0.1),
+                          ],
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '🧪 DEBUG MODE',
+                            style: GoogleFonts.robotoMono(
+                              fontSize: 10.sp,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                          SizedBox(height: 4.s),
+                          Text(
+                            'Test Country Recommendations',
+                            style: GoogleFonts.inter(
+                              fontSize: 11.sp,
+                              color: Colors.white.withOpacity(0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Reset to auto-detect option
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () async {
+                          await deckProvider.resetToAutoDetectedCountry();
+                          setState(() {
+                            _debugPanelExpanded = false;
+                          });
+                          _debugPrintUserCountryInfo(deckProvider);
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12.s,
+                            vertical: 10.s,
+                          ),
+                          decoration: BoxDecoration(
+                            color: deckProvider.isUsingManualCountry
+                                ? Colors.transparent
+                                : Colors.green.withOpacity(0.2),
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Colors.white.withOpacity(0.1),
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.my_location_rounded,
+                                size: 16.s,
+                                color: Colors.green,
+                              ),
+                              SizedBox(width: 10.s),
+                              Expanded(
+                                child: Text(
+                                  'Auto-detect',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13.sp,
+                                    fontWeight: deckProvider.isUsingManualCountry
+                                        ? FontWeight.normal
+                                        : FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              if (!deckProvider.isUsingManualCountry)
+                                Icon(
+                                  Icons.check_rounded,
+                                  size: 16.s,
+                                  color: Colors.green,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    // Country list
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        itemCount: _testCountries.length,
+                        itemBuilder: (context, index) {
+                          final country = _testCountries[index];
+                          final isSelected = 
+                              deckProvider.userCountryCode == country['code'] &&
+                              deckProvider.isUsingManualCountry;
+                          
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () async {
+                                debugPrint('🧪 Switching to test country: ${country['code']}');
+                                await deckProvider.setUserCountry(country['code']);
+                                setState(() {
+                                  _debugPanelExpanded = false;
+                                  _currentFeaturedIndex = 0; // Reset featured index
+                                });
+                                _debugPrintUserCountryInfo(deckProvider);
+                              },
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 12.s,
+                                  vertical: 10.s,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? Colors.orange.withOpacity(0.2)
+                                      : Colors.transparent,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      country['flag']!,
+                                      style: TextStyle(fontSize: 16.sp),
+                                    ),
+                                    SizedBox(width: 10.s),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            country['code']!,
+                                            style: GoogleFonts.robotoMono(
+                                              fontSize: 12.sp,
+                                              fontWeight: FontWeight.bold,
+                                              color: isSelected 
+                                                  ? Colors.orange 
+                                                  : Colors.white,
+                                            ),
+                                          ),
+                                          Text(
+                                            country['name']!.replaceAll(RegExp(r'[^\w\s]'), '').trim(),
+                                            style: GoogleFonts.inter(
+                                              fontSize: 10.sp,
+                                              color: Colors.white.withOpacity(0.5),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      Icon(
+                                        Icons.check_rounded,
+                                        size: 16.s,
+                                        color: Colors.orange,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    
+                    // Footer disclaimer
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(10.s),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                      ),
+                      child: Text(
+                        '⚠️ Debug only - Hidden in production',
+                        style: GoogleFonts.inter(
+                          fontSize: 9.sp,
+                          color: Colors.red.withOpacity(0.8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // END DEBUG SECTION
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Get decks prioritized by user's country for better engagement
+  /// STRICT ORDER: Country-specific decks FIRST, then universal, then others
+  List<Deck> _getCountryPrioritizedDecks(DeckProvider deckProvider) {
+    final userCountry = deckProvider.userCountryCode;
+    final decks = deckProvider.freeDecks.isNotEmpty
+        ? deckProvider.freeDecks
+        : deckProvider.allDecks;
+    
+    if (decks.isEmpty) return decks;
+
+    // Separate decks into strict tiers
+    final List<Deck> countrySpecificDecks = [];
+    final List<Deck> universalDecks = [];
+    final List<Deck> otherDecks = [];
+
+    for (final deck in decks) {
+      final countries = deck.effectiveCountries;
+      if (countries.contains(userCountry)) {
+        countrySpecificDecks.add(deck);
+      } else if (countries.contains('UNIVERSAL')) {
+        universalDecks.add(deck);
+      } else {
+        otherDecks.add(deck);
+      }
+    }
+
+    // Sort each tier by priority
+    countrySpecificDecks.sort((a, b) => a.priority.compareTo(b.priority));
+    universalDecks.sort((a, b) => a.priority.compareTo(b.priority));
+    otherDecks.sort((a, b) => a.priority.compareTo(b.priority));
+
+    // Return with STRICT priority order
+    return [
+      ...countrySpecificDecks,
+      ...universalDecks,
+      ...otherDecks,
+    ];
   }
 
   void _startBadgeCollapseTimer() {
@@ -182,10 +579,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     _deckRotationTimer = Timer.periodic(_rotationInterval, (timer) {
       if (mounted && !_isAutoRotationPaused) {
         final deckProvider = Provider.of<DeckProvider>(context, listen: false);
-        final availableDecks =
-            deckProvider.freeDecks.isNotEmpty
-                ? deckProvider.freeDecks
-                : deckProvider.allDecks;
+        // 🌍 Use country-prioritized decks for rotation
+        final availableDecks = _getCountryPrioritizedDecks(deckProvider);
 
         if (availableDecks.isNotEmpty) {
           final nextIndex = (_currentFeaturedIndex + 1) % availableDecks.length;
@@ -456,18 +851,13 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   void _playDeck(Deck deck) async {
-    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
-    
-    // Check if user has premium or if this is a free deck
-    final hasPremium = deckProvider.unlockedDecks.any((d) => d.isPremium);
-    
-    // Show paywall for non-premium users
-    if (!hasPremium) {
+    // Check if deck is premium and user doesn't have premium access
+    if (deck.isPremium && !PremiumUtils.hasPremium) {
       _showPaywall(deck);
       return;
     }
     
-    // User has premium - start game directly
+    // User has access - start game directly
     _startGameWithDeck(deck);
   }
   
@@ -773,25 +1163,56 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   /// Get trending decks with smart scoring algorithm
-  /// Combines priority, recency, and card count sweet spot
+  /// STRICTLY prioritizes user's country for better engagement
   List<Deck> _getTrendingDecks(List<Deck> decks) {
+    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+    final userCountry = deckProvider.userCountryCode;
     final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
 
-    return (List<Deck>.from(decks)..sort((a, b) {
-      // Calculate trending score for each deck
-      int scoreA = (10 - a.priority) * 100;
-      int scoreB = (10 - b.priority) * 100;
+    // Separate decks into tiers for strict prioritization
+    final List<Deck> countrySpecificDecks = [];
+    final List<Deck> universalDecks = [];
+    final List<Deck> otherDecks = [];
 
-      // Boost new decks created within last 7 days
-      if (a.createdAt.isAfter(sevenDaysAgo)) scoreA += 500;
-      if (b.createdAt.isAfter(sevenDaysAgo)) scoreB += 500;
+    for (final deck in decks) {
+      final countries = deck.effectiveCountries;
+      if (countries.contains(userCountry)) {
+        countrySpecificDecks.add(deck);
+      } else if (countries.contains('UNIVERSAL')) {
+        universalDecks.add(deck);
+      } else {
+        otherDecks.add(deck);
+      }
+    }
 
-      // Favor sweet spot card count (10-30 cards)
-      if (a.cards.length >= 10 && a.cards.length <= 30) scoreA += 200;
-      if (b.cards.length >= 10 && b.cards.length <= 30) scoreB += 200;
+    // Sort each tier by secondary criteria
+    int scoreDeck(Deck deck) {
+      int score = (10 - deck.priority) * 100;
+      
+      // Boost new decks
+      if (deck.createdAt.isAfter(sevenDaysAgo)) score += 300;
+      
+      // Favor sweet spot card count
+      if (deck.cards.length >= 10 && deck.cards.length <= 30) score += 150;
+      
+      // Popularity boost
+      score += (deck.playCount ~/ 10).clamp(0, 100);
+      
+      return score;
+    }
 
-      return scoreB.compareTo(scoreA);
-    })).take(15).toList();
+    countrySpecificDecks.sort((a, b) => scoreDeck(b).compareTo(scoreDeck(a)));
+    universalDecks.sort((a, b) => scoreDeck(b).compareTo(scoreDeck(a)));
+    otherDecks.sort((a, b) => scoreDeck(b).compareTo(scoreDeck(a)));
+
+    // Combine with STRICT priority: Country-specific FIRST, then Universal, then Others
+    final sortedDecks = [
+      ...countrySpecificDecks,
+      ...universalDecks,
+      ...otherDecks,
+    ];
+
+    return sortedDecks.take(15).toList();
   }
 
   /// Get quick play decks (5-12 cards for 3-8 minute games)
@@ -803,7 +1224,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   /// Get party decks (20-40 cards OR party-related tags)
+  /// Prioritizes user's country for better engagement
   List<Deck> _getPartyDecks(List<Deck> decks) {
+    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+    final userCountry = deckProvider.userCountryCode;
+    
     const partyKeywords = [
       'party',
       'group',
@@ -815,7 +1240,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       'charades',
     ];
 
-    return decks.where((d) {
+    final partyDecks = decks.where((d) {
         final goodLength = d.cards.length >= 20 && d.cards.length <= 40;
         final hasPartyTag = d.tags.any(
           (tag) => partyKeywords.any(
@@ -823,8 +1248,29 @@ class _HomeScreenV2State extends State<HomeScreenV2>
           ),
         );
         return goodLength || hasPartyTag;
-      }).toList()
-      ..sort((a, b) => b.cards.length.compareTo(a.cards.length));
+      }).toList();
+    
+    // Sort with country prioritization
+    partyDecks.sort((a, b) {
+      int scoreA = 0;
+      int scoreB = 0;
+      
+      // 🌍 Country-specific decks first
+      if (a.effectiveCountries.contains(userCountry)) scoreA += 100;
+      if (b.effectiveCountries.contains(userCountry)) scoreB += 100;
+      
+      // Universal decks second
+      if (a.effectiveCountries.contains('UNIVERSAL')) scoreA += 50;
+      if (b.effectiveCountries.contains('UNIVERSAL')) scoreB += 50;
+      
+      // Then by card count
+      scoreA += a.cards.length;
+      scoreB += b.cards.length;
+      
+      return scoreB.compareTo(scoreA);
+    });
+    
+    return partyDecks;
   }
 
   /// Smoothly scrolls to the category content section
@@ -925,6 +1371,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               children: [
                 // Black background
                 Container(color: Colors.black),
+                
+                // 🧪 DEBUG ONLY: Country selector for testing recommendations
+                // This will be automatically excluded in release builds
+                if (kDebugMode) _buildDebugCountrySelector(deckProvider),
                 // Gradient overlay with fixed height - animates smoothly
                 Positioned(
                   top: 0,
@@ -980,13 +1430,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
                             SizedBox(height: 20.s),
 
-                            // Featured deck
+                            // Featured deck - Country-prioritized for better engagement
                             Consumer<DeckProvider>(
                               builder: (context, deckProvider, _) {
-                                final availableDecks =
-                                    deckProvider.freeDecks.isNotEmpty
-                                        ? deckProvider.freeDecks
-                                        : deckProvider.allDecks;
+                                // 🌍 Use country-prioritized decks for featured section
+                                final availableDecks = _getCountryPrioritizedDecks(deckProvider);
 
                                 return FeaturedDeckWidget(
                                   availableDecks: availableDecks,
@@ -1301,12 +1749,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                     duration: 600.ms,
                                     curve: Curves.easeOutCubic,
                                   ),
-                              Consumer<DeckProvider>(
-                                builder: (context, deckProvider, _) {
-                                  final hasUnlockedPremium = deckProvider
-                                      .unlockedDecks
-                                      .any((deck) => deck.isPremium);
-                                  if (!hasUnlockedPremium) {
+                              Builder(
+                                builder: (context) {
+                                  // Show premium badge if user has premium subscription
+                                  if (!PremiumUtils.hasPremium) {
                                     return const SizedBox();
                                   }
                                   return Container(
@@ -2419,6 +2865,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   Widget _buildContinueCard(Deck deck) {
+    final heroTag = 'continue_card_${deck.id}_${DateTime.now().millisecondsSinceEpoch}';
+    
     return Container(
       width: 200.s,
       margin: EdgeInsets.only(right: 8.s),
@@ -2507,40 +2955,52 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   ),
                 ),
 
-                // Info button (bottom left)
+                // Info button (bottom left) - Shows deck details
                 Positioned(
                   bottom: 8.s,
                   left: 8.s,
-                  child: Container(
-                    width: 32.s,
-                    height: 32.s,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.info_outline,
-                      color: Colors.white,
-                      size: 20,
+                  child: GestureDetector(
+                    onTap: () {
+                      _hapticService.lightImpact();
+                      _showDeckDetails(deck, heroTag: heroTag);
+                    },
+                    child: Container(
+                      width: 32.s,
+                      height: 32.s,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.info_outline,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ),
                 ),
 
-                // More button (bottom right)
+                // More button (bottom right) - Shows options menu
                 Positioned(
                   bottom: 8.s,
                   right: 8.s,
-                  child: Container(
-                    width: 32.s,
-                    height: 32.s,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.more_vert,
-                      color: Colors.white,
-                      size: 20,
+                  child: GestureDetector(
+                    onTap: () {
+                      _hapticService.lightImpact();
+                      _showContinueCardOptions(deck);
+                    },
+                    child: Container(
+                      width: 32.s,
+                      height: 32.s,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.more_vert,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ),
                 ),
@@ -2550,6 +3010,243 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         ),
       ),
     ).animate().fadeIn(duration: 400.ms);
+  }
+  
+  /// Show options menu for continue playing card
+  void _showContinueCardOptions(Deck deck) {
+    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+    final isFavorite = deckProvider.isFavorite(deck.id);
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF1C1C1E),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.1),
+            width: 1,
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              
+              // Deck info header
+              Padding(
+                padding: EdgeInsets.all(16.s),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48.s,
+                      height: 48.s,
+                      decoration: BoxDecoration(
+                        color: deck.color.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: deck.color.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: deck.imageUrl != null && deck.imageUrl!.isNotEmpty
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(11),
+                              child: CachedNetworkImage(
+                                imageUrl: deck.imageUrl!,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          : Icon(
+                              deck.icon,
+                              color: deck.color,
+                              size: 24.s,
+                            ),
+                    ),
+                    SizedBox(width: 12.s),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            deck.name,
+                            style: GoogleFonts.inter(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '${deck.cards.length} cards',
+                            style: GoogleFonts.inter(
+                              fontSize: 13.sp,
+                              color: Colors.white.withOpacity(0.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              Divider(color: Colors.white.withOpacity(0.1), height: 1),
+              
+              // Options
+              _buildBottomSheetOption(
+                icon: Icons.play_arrow_rounded,
+                label: AppLocalizations.of(context)!.play,
+                color: deck.color,
+                onTap: () {
+                  Navigator.pop(context);
+                  _playDeck(deck);
+                },
+              ),
+              
+              _buildBottomSheetOption(
+                icon: isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                label: isFavorite 
+                    ? AppLocalizations.of(context)!.removeFromFavorites 
+                    : AppLocalizations.of(context)!.addToFavorites,
+                color: const Color(0xFFFFD700),
+                onTap: () async {
+                  Navigator.pop(context);
+                  if (isFavorite) {
+                    await deckProvider.removeFromFavorites(deck.id);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            AppLocalizations.of(context)!.removedFromFavorites,
+                            style: GoogleFonts.inter(),
+                          ),
+                          backgroundColor: Colors.grey[800],
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      );
+                    }
+                  } else {
+                    await deckProvider.addToFavorites(deck.id);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            AppLocalizations.of(context)!.addedToFavorites,
+                            style: GoogleFonts.inter(),
+                          ),
+                          backgroundColor: const Color(0xFFFFD700),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+              
+              _buildBottomSheetOption(
+                icon: Icons.remove_circle_outline_rounded,
+                label: AppLocalizations.of(context)!.removeFromRecent,
+                color: Colors.red.withOpacity(0.8),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _removeFromRecentDecks(deck.id);
+                },
+              ),
+              
+              SizedBox(height: 8.s),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildBottomSheetOption({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20.s, vertical: 14.s),
+          child: Row(
+            children: [
+              Container(
+                width: 36.s,
+                height: 36.s,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              SizedBox(width: 14.s),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 15.sp,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  /// Remove deck from recent decks list
+  Future<void> _removeFromRecentDecks(String deckId) async {
+    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+    
+    // Remove from local list
+    setState(() {
+      _recentDecks.removeWhere((d) => d.id == deckId);
+    });
+    
+    // Remove from storage
+    await deckProvider.removeFromRecentDecks(deckId);
+    
+    // Show feedback
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!.removedFromRecent,
+            style: GoogleFonts.inter(),
+          ),
+          backgroundColor: Colors.grey[800],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildSection({

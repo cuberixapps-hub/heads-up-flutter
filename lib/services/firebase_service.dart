@@ -55,28 +55,45 @@ class FirebaseService {
         cacheSizeBytes: 100 * 1024 * 1024, // 100MB cache limit (was unlimited)
       );
 
-      // Configure Crashlytics
+      // Configure Crashlytics (don't await - non-blocking)
       if (!kDebugMode) {
-        await _crashlytics.setCrashlyticsCollectionEnabled(true);
+        _crashlytics.setCrashlyticsCollectionEnabled(true);
         FlutterError.onError = _crashlytics.recordFlutterError;
       }
 
-      // Initialize Remote Config
-      await _initializeRemoteConfig();
-
-      // Auto-create guest user if not already signed in
-      if (_auth.currentUser == null) {
-        await _createGuestUser();
-      } else {
-        // Update last seen for existing user
-        await updateUserLastSeen();
-      }
-
       _initialized = true;
-      debugPrint('✅ Firebase initialized successfully');
+      debugPrint('✅ Firebase core initialized successfully');
+
+      // Initialize Remote Config in background (don't block startup)
+      _initializeRemoteConfig().catchError((e) {
+        debugPrint('⚠️ Remote Config init failed: $e');
+      });
+
+      // Auto-create guest user in background (don't block startup)
+      _initializeUserInBackground();
     } catch (e) {
       debugPrint('Error initializing Firebase: $e');
       rethrow;
+    }
+  }
+  
+  /// Initialize user authentication in background
+  Future<void> _initializeUserInBackground() async {
+    try {
+      if (_auth.currentUser == null) {
+        // Create guest user with timeout
+        await _createGuestUser().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {
+            debugPrint('⚠️ Guest user creation timeout - will retry later');
+          },
+        );
+      } else {
+        // Update last seen (don't await - fire and forget)
+        updateUserLastSeen();
+      }
+    } catch (e) {
+      debugPrint('⚠️ Background user init failed: $e');
     }
   }
 
@@ -318,10 +335,10 @@ class FirebaseService {
         '📝 Remote Config: Default value set for $_useProductionAdsKey = false',
       );
 
-      // Set config settings
+      // Set config settings with SHORT fetch timeout to avoid blocking
       await _remoteConfig.setConfigSettings(
         RemoteConfigSettings(
-          fetchTimeout: const Duration(minutes: 1),
+          fetchTimeout: const Duration(seconds: 5), // Reduced from 1 minute
           minimumFetchInterval:
               kDebugMode
                   ? const Duration(hours: 1) // 1 hour in debug (was 5 min)
@@ -329,28 +346,27 @@ class FirebaseService {
         ),
       );
 
-      // Fetch and activate
-      final bool fetchSucceeded = await _remoteConfig.fetchAndActivate();
+      // Try to fetch, but don't wait too long - use cached values if slow
+      try {
+        final bool fetchSucceeded = await _remoteConfig.fetchAndActivate().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {
+            debugPrint('📦 Remote Config: Fetch timeout, using cached values');
+            return false;
+          },
+        );
 
-      // Log fetch status
-      if (fetchSucceeded) {
-        debugPrint('✅ Remote Config: Successfully fetched from Firebase');
-      } else {
-        debugPrint('📦 Remote Config: Using cached values');
+        // Log fetch status
+        if (fetchSucceeded) {
+          debugPrint('✅ Remote Config: Successfully fetched from Firebase');
+        } else {
+          debugPrint('📦 Remote Config: Using cached values');
+        }
+      } catch (e) {
+        debugPrint('📦 Remote Config: Fetch failed, using cached values');
       }
 
-      // Log the actual value and its source
-      final bool configValue = _remoteConfig.getBool(_useProductionAdsKey);
-      final ValueSource source =
-          _remoteConfig.getValue(_useProductionAdsKey).source;
-
-      debugPrint('🔍 Remote Config Value Details:');
-      debugPrint('   - Parameter: $_useProductionAdsKey');
-      debugPrint('   - Raw Value from Firebase: $configValue');
-      debugPrint('   - Value Source: ${_getSourceName(source)}');
-      debugPrint('   - Last Fetch Time: ${_remoteConfig.lastFetchTime}');
-
-      // Listen for real-time updates
+      // Listen for real-time updates (non-blocking)
       _remoteConfig.onConfigUpdated.listen((event) async {
         debugPrint('🔔 Remote Config: Update detected from Firebase!');
         await _remoteConfig.activate();
@@ -364,51 +380,10 @@ class FirebaseService {
       });
 
       debugPrint('🎛️ Remote Config initialized successfully');
-      _logCurrentAdConfiguration();
     } catch (e) {
       debugPrint('⚠️ Remote Config initialization failed: $e');
       debugPrint('⚠️ Will use default values (test ads)');
     }
-  }
-
-  // Get human-readable source name
-  static String _getSourceName(ValueSource source) {
-    switch (source) {
-      case ValueSource.valueStatic:
-        return 'Static (Default value)';
-      case ValueSource.valueDefault:
-        return 'Default (Local default)';
-      case ValueSource.valueRemote:
-        return 'Remote (From Firebase)';
-    }
-  }
-
-  // Log current ad configuration
-  static void _logCurrentAdConfiguration() {
-    final bool useProductionAds = shouldUseProductionAds();
-    final bool remoteConfigValue = _instance._remoteConfig.getBool(
-      _useProductionAdsKey,
-    );
-
-    debugPrint('');
-    debugPrint('📱 === CURRENT AD CONFIGURATION ===');
-    debugPrint(
-      '   Build Mode: ${kDebugMode ? "DEBUG" : (kProfileMode ? "PROFILE" : "RELEASE")}',
-    );
-    debugPrint('   Remote Config ($_useProductionAdsKey): $remoteConfigValue');
-    debugPrint(
-      '   Effective Setting: ${useProductionAds ? "PRODUCTION ADS" : "TEST ADS"}',
-    );
-
-    if (kDebugMode || kProfileMode) {
-      debugPrint(
-        '   ⚠️ Note: Debug/Profile mode always uses TEST ADS for safety',
-      );
-    } else {
-      debugPrint('   ✅ Production mode: Using Remote Config value');
-    }
-    debugPrint('===================================');
-    debugPrint('');
   }
 
   // Check if production ads should be used based on Remote Config

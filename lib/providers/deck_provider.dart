@@ -87,128 +87,108 @@ class DeckProvider extends ChangeNotifier {
   }
 
   DeckProvider() {
+    // Start async initialization but don't block constructor
+    // This allows the UI to render immediately
     _initializeDecks();
   }
 
   Future<void> _initializeDecks() async {
     _isLoading = true;
     _errorMessage = '';
-    notifyListeners();
+    
+    // DON'T call notifyListeners here - let UI render first with loading state
+    // Schedule the notification for after the current frame
+    Future.microtask(() => notifyListeners());
 
     try {
-      debugPrint('🎮 HEADS UP: Starting app initialization...');
-      debugPrint('📦 Build mode: ${kReleaseMode ? "RELEASE (production)" : "DEBUG/PROFILE"}');
+      debugPrint('🎮 DeckProvider: Starting initialization...');
       
+      // PHASE 1: Fast local initialization (< 100ms)
       // Initialize sync config service
       await _syncConfigService.initialize();
-      debugPrint('✅ Sync config service initialized');
       
-      // Initialize listener manager
+      // Initialize listener manager (sync)
       _listenerManager.initialize();
       
-      // Initialize cache service
-      await _cacheService.initialize();
-      debugPrint('✅ Cache service initialized');
-      
-      // Initialize location service (for manual override support)
-      await _locationService.initialize();
-      debugPrint('✅ Location service initialized');
+      // Initialize cache and location in parallel
+      await Future.wait([
+        _cacheService.initialize(),
+        _locationService.initialize(),
+      ]);
 
-      // Get user's preferred country (respects manual override)
+      // Get user's preferred country (fast - from local storage)
       _userCountryCode = await _locationService.getUserPreferredCountry();
       _isUsingManualCountry = _locationService.isUsingManualOverride();
-      debugPrint('📍 User country: $_userCountryCode (manual: $_isUsingManualCountry)');
+      debugPrint('📍 User country: $_userCountryCode');
       
-      // Try to get cached decks immediately for better UX
+      // PHASE 2: Load cached decks immediately (fast)
       final cachedDecks = await _cacheService.getCachedDecksByCountry(_userCountryCode);
       if (cachedDecks != null && cachedDecks.isNotEmpty) {
         _defaultDecks = cachedDecks;
-        debugPrint('✅ Loaded ${cachedDecks.length} decks from cache');
-        notifyListeners(); // Show cached data immediately
+        _isInitialized = true; // Mark as ready even with cached data
+        _isLoading = false;
+        debugPrint('✅ Loaded ${cachedDecks.length} decks from cache - UI ready!');
+        notifyListeners(); // Show cached data immediately - UI can proceed
       }
 
-      // SMART CACHING STRATEGY:
-      // - Debug/Profile mode: Always fetch fresh data from Firebase (for testing new decks)
-      // - Release/Production mode: Only fetch if cache is expired (24 hours) to reduce Firebase costs
-      final shouldRefresh = await _cacheService.shouldRefreshDecks(_userCountryCode);
-      
-      if (shouldRefresh) {
-        // Force fetch fresh decks from Firebase (bypasses cache check in the service)
-        try {
-          debugPrint('🔄 Fetching fresh decks from Firebase...');
-          _defaultDecks = await _deckFirebaseService
-              .refreshDecksByCountry(_userCountryCode)
-            .timeout(
-                const Duration(seconds: 10),
-              onTimeout: () {
-                  throw TimeoutException(
-                    'Connection timeout. Please check your internet connection.',
-                );
-                },
-              );
+      // PHASE 3: Background refresh from Firebase (if needed)
+      // This runs in background while user can already use the app
+      _refreshDecksInBackground();
 
-          debugPrint('✅ Loaded ${_defaultDecks.length} fresh decks for country: $_userCountryCode');
-          
-          // Record the fetch timestamp for next cache check
-          await _cacheService.recordFetchTimestamp(_userCountryCode);
-
-          _errorMessage = '';
-        } catch (e) {
-          // Handle Firebase/Network errors
-          debugPrint('❌ Error loading decks from Firebase: $e');
-          
-          // If we have cached data, use it and show a warning instead of error
-          if (_defaultDecks.isNotEmpty) {
-            debugPrint('⚠️ Using cached data due to network error');
-            _errorMessage = '';
-          } else {
-            _errorMessage = 'Unable to load decks. Please check your internet connection and try again.';
-            _isInitialized = false;
-          }
-        }
-      } else {
-        // Using cached data in production mode (cache is still valid)
-        debugPrint('💾 Using cached decks - no Firebase call needed (TTL: ${CacheService.decksTTL.inHours}h)');
-        
-        // Verify we have data (should be loaded from cache above)
-        if (_defaultDecks.isEmpty) {
-          // Cache was empty, need to fetch anyway
-          debugPrint('⚠️ Cache was empty despite being valid, fetching from Firebase...');
-          try {
-            _defaultDecks = await _deckFirebaseService
-                .getDecksByCountry(_userCountryCode)
-              .timeout(const Duration(seconds: 10));
-            await _cacheService.recordFetchTimestamp(_userCountryCode);
-            debugPrint('✅ Loaded ${_defaultDecks.length} decks from Firebase');
-          } catch (e) {
-            debugPrint('❌ Error loading decks: $e');
-            _errorMessage = 'Unable to load decks. Please check your internet connection and try again.';
-            _isInitialized = false;
-          }
-        } else {
-          debugPrint('💰 Saved a Firebase read! Using ${_defaultDecks.length} cached decks');
-        }
-      }
-      
-      // Set up real-time listeners only if enabled in sync settings
-      // (typically disabled in production to reduce costs)
-      _setupRealtimeListeners();
-
-      // Load user-specific data
-      await _loadUserData();
-
-      if (_defaultDecks.isNotEmpty) {
-        _isInitialized = true;
-        _errorMessage = '';
-        debugPrint(
-            '🎉 APP READY: Heads Up game is fully loaded with country-specific decks!',
-        );
-      }
     } catch (e) {
       debugPrint('❌ Error during initialization: $e');
-      _errorMessage = 'An error occurred during initialization. Please restart the app.';
+      _errorMessage = 'An error occurred. Please restart the app.';
       _isInitialized = false;
-    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+  
+  /// Refresh decks from Firebase in background (non-blocking)
+  Future<void> _refreshDecksInBackground() async {
+    try {
+      final shouldRefresh = await _cacheService.shouldRefreshDecks(_userCountryCode);
+      
+      if (shouldRefresh || _defaultDecks.isEmpty) {
+        debugPrint('🔄 Background: Fetching decks from Firebase...');
+        
+        final freshDecks = await _deckFirebaseService
+            .refreshDecksByCountry(_userCountryCode)
+            .timeout(
+              const Duration(seconds: 8),
+              onTimeout: () {
+                debugPrint('⚠️ Firebase fetch timeout - using cached data');
+                return _defaultDecks; // Return existing data on timeout
+              },
+            );
+
+        if (freshDecks.isNotEmpty) {
+          _defaultDecks = freshDecks;
+          await _cacheService.recordFetchTimestamp(_userCountryCode);
+          debugPrint('✅ Background: Loaded ${freshDecks.length} fresh decks');
+        }
+        _errorMessage = '';
+      } else {
+        debugPrint('💾 Cache valid - no Firebase fetch needed');
+      }
+      
+      // Set up real-time listeners if enabled
+      _setupRealtimeListeners();
+
+      // Load user-specific data in background
+      await _loadUserData();
+
+      _isInitialized = true;
+      _isLoading = false;
+      notifyListeners();
+      
+      debugPrint('🎉 DeckProvider fully initialized');
+    } catch (e) {
+      debugPrint('⚠️ Background refresh failed: $e');
+      // Don't show error if we have cached data
+      if (_defaultDecks.isEmpty) {
+        _errorMessage = 'Unable to load decks. Please check your connection.';
+      }
       _isLoading = false;
       notifyListeners();
     }
@@ -494,6 +474,20 @@ class DeckProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('Error adding to recent decks: $e');
+    }
+  }
+  
+  // Remove from recent decks
+  Future<void> removeFromRecentDecks(String deckId) async {
+    try {
+      await _localStorageService.removeFromRecentDecks(deckId);
+      
+      // Update local recent deck IDs list
+      _recentDeckIds.remove(deckId);
+      
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error removing from recent decks: $e');
     }
   }
   

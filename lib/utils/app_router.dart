@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/splash_screen.dart';
 import '../screens/onboarding_screen.dart';
@@ -21,6 +22,67 @@ class AppRouter {
   static final GoRouter router = GoRouter(
     initialLocation:
         '/splash', // Start with splash screen to check onboarding status
+    
+    // Handle deep link URLs that GoRouter can't match directly
+    onException: (context, state, router) {
+      final uri = state.uri;
+      debugPrint('🔗 GoRouter exception for URI: $uri');
+      
+      // Parse the URI to extract path and query parameters
+      // For custom scheme URLs (headsup://deck?id=x), the path segment is in the HOST
+      final rawPath = uri.path.replaceAll(RegExp(r'^/+|/+$'), '');
+      final host = uri.host;
+      
+      // Reconstruct effective path from host if it's a known route
+      final String effectivePath;
+      if (host.isNotEmpty && (host == 'deck' || host == 'results' || host == 'invite' || host == 'home')) {
+        effectivePath = host; // Use host as path for custom scheme URLs
+      } else {
+        effectivePath = rawPath;
+      }
+      
+      final queryParams = uri.queryParameters;
+      
+      debugPrint('🔗 EffectivePath: $effectivePath, Host: $host, RawPath: $rawPath, Query: $queryParams');
+      
+      // Handle deck deep links
+      if (effectivePath == 'deck' || effectivePath.startsWith('deck') || queryParams.containsKey('deckId')) {
+        final deckId = queryParams['deckId'] ?? queryParams['id'] ?? '';
+        if (deckId.isNotEmpty) {
+          debugPrint('🔗 Navigating to deck: $deckId');
+          router.go('/deck/$deckId');
+          return;
+        }
+      }
+      
+      // Handle results deep links
+      if (effectivePath == 'results' || effectivePath.startsWith('results') || queryParams.containsKey('score')) {
+        if (queryParams.containsKey('score') || queryParams.containsKey('deck')) {
+          final linkData = DeepLinkData(
+            type: DeepLinkType.results,
+            deckName: queryParams['deck'] != null 
+                ? Uri.decodeComponent(queryParams['deck']!) 
+                : null,
+            score: int.tryParse(queryParams['score'] ?? ''),
+            correct: int.tryParse(queryParams['correct'] ?? ''),
+            passed: int.tryParse(queryParams['passed'] ?? ''),
+          );
+          router.go('/shared-results', extra: linkData);
+          return;
+        }
+      }
+      
+      // Handle invite deep links
+      if (effectivePath == 'invite' || effectivePath.startsWith('invite') || queryParams.containsKey('ref')) {
+        router.go('/home');
+        return;
+      }
+      
+      // Default: go to home
+      debugPrint('🔗 Unknown deep link, going to home');
+      router.go('/home');
+    },
+    
     routes: [
       GoRoute(
         path: '/splash',
@@ -62,10 +124,6 @@ class AppRouter {
         builder: (context, state) => const SearchScreen(),
       ),
       GoRoute(
-        path: '/results',
-        builder: (context, state) => const ResultsScreen(),
-      ),
-      GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
       ),
@@ -86,6 +144,7 @@ class AppRouter {
         builder: (context, state) => const CustomDeckScreen(),
       ),
       // Deep link routes
+      // Route for /deck/:id (path parameter format)
       GoRoute(
         path: '/deck/:id',
         builder: (context, state) {
@@ -93,11 +152,51 @@ class AppRouter {
           return DeckDetailsScreen(deckId: deckId ?? '');
         },
       ),
+      // Route for /deck?deckId=xxx (query parameter format - from deep links)
+      GoRoute(
+        path: '/deck',
+        builder: (context, state) {
+          // Get deckId from query parameters
+          final deckId = state.uri.queryParameters['deckId'] ?? 
+                         state.uri.queryParameters['id'] ?? '';
+          return DeckDetailsScreen(deckId: deckId);
+        },
+      ),
+      // Route for /results with query params (from deep links)
+      GoRoute(
+        path: '/results',
+        builder: (context, state) {
+          final queryParams = state.uri.queryParameters;
+          // Check if this is a shared results deep link
+          if (queryParams.containsKey('score') || queryParams.containsKey('deck')) {
+            final linkData = DeepLinkData(
+              type: DeepLinkType.results,
+              deckName: queryParams['deck'] != null 
+                  ? Uri.decodeComponent(queryParams['deck']!) 
+                  : null,
+              score: int.tryParse(queryParams['score'] ?? ''),
+              correct: int.tryParse(queryParams['correct'] ?? ''),
+              passed: int.tryParse(queryParams['passed'] ?? ''),
+            );
+            return SharedResultsScreen(linkData: linkData);
+          }
+          // Regular results screen (from gameplay)
+          return const ResultsScreen();
+        },
+      ),
       GoRoute(
         path: '/shared-results',
         builder: (context, state) {
           final data = state.extra as DeepLinkData?;
           return SharedResultsScreen(linkData: data);
+        },
+      ),
+      // Route for /invite (from deep links)
+      GoRoute(
+        path: '/invite',
+        builder: (context, state) {
+          // Just navigate to home, referral tracking is done in DeepLinkService
+          return const HomeScreenV2();
         },
       ),
     ],

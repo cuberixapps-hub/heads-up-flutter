@@ -26,6 +26,7 @@ class _ResultsScreenState extends State<ResultsScreen>
   final _hapticService = HapticService();
   final _audioService = AudioService();
   final _adService = AdService();
+  final _videoSectionKey = GlobalKey<VideoSectionState>();
 
   late AnimationController _scoreController;
   late AnimationController _statsController;
@@ -166,6 +167,8 @@ class _ResultsScreenState extends State<ResultsScreen>
       canPop: false,
       onPopInvoked: (didPop) {
         if (!didPop) {
+          // Cancel video processing before navigating
+          _videoSectionKey.currentState?.cancelVideoProcessing();
           Navigator.of(context).popUntil((route) => route.isFirst);
         }
       },
@@ -291,8 +294,8 @@ class _ResultsScreenState extends State<ResultsScreen>
                                 if (!_hasDoubledScore)
                                   _buildDoubleScoreButton(session),
                                 const SizedBox(height: 24),
-                                // Add video section
-                                const VideoSection(),
+                                // Add video section with key
+                                VideoSection(key: _videoSectionKey),
                                 const SizedBox(height: 24),
                                 _buildStatsGrid(session, timeInSeconds),
                                 const SizedBox(height: 24),
@@ -341,6 +344,8 @@ class _ResultsScreenState extends State<ResultsScreen>
               color: Colors.transparent,
               child: InkWell(
                 onTap: () {
+                  // Cancel video processing before navigating
+                  _videoSectionKey.currentState?.cancelVideoProcessing();
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
                 borderRadius: BorderRadius.circular(12),
@@ -1684,6 +1689,8 @@ class _ResultsScreenState extends State<ResultsScreen>
                       child: InkWell(
                         onTap: () async {
                           _hapticService.lightImpact();
+                          // Cancel video processing before navigating
+                          _videoSectionKey.currentState?.cancelVideoProcessing();
                           await _showInterstitialWithLoader(() {
                             Navigator.of(
                               context,
@@ -1741,6 +1748,8 @@ class _ResultsScreenState extends State<ResultsScreen>
                       child: InkWell(
                         onTap: () async {
                           _hapticService.lightImpact();
+                          // Cancel video processing before navigating
+                          _videoSectionKey.currentState?.cancelVideoProcessing();
                           await _showInterstitialWithLoader(() {
                             Navigator.pushReplacement(
                               context,

@@ -53,6 +53,12 @@
   "yourCreations": "Your Creations",
   "favorites": "Favorites",
   "myFavorites": "My Favorites",
+  "addToFavorites": "Add to Favorites",
+  "removeFromFavorites": "Remove from Favorites",
+  "addedToFavorites": "Added to favorites",
+  "removedFromFavorites": "Removed from favorites",
+  "removeFromRecent": "Remove from Recent",
+  "removedFromRecent": "Removed from recently played",
   "allDecks": "All Decks",
   "newLabel": "New",
   "popular": "Popular",
@@ -378,5 +384,22 @@
   "challengesBenefit": "Daily Challenges",
   "challengesBenefitDesc": "Never miss a challenge",
   "inviteFriends": "Invite Friends",
-  "shareWithFriends": "Share with Friends"
+  "shareWithFriends": "Share with Friends",
+  "clearAll": "Clear All",
+  "popularThisWeek": "Popular This Week",
+  "newReleases": "New Releases",
+  "premiumCollection": "Premium Collection",
+  "familyFun": "Family Fun",
+  "partyGames": "Party Games",
+  "seeAll": "See All",
+  "noDecksInCategory": "There are no decks in this category yet.",
+  "tryDifferentKeywords": "Try searching with different keywords.",
+  "cardsCount": "{count} cards",
+  "@cardsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

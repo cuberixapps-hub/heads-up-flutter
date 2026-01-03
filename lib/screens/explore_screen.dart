@@ -5,10 +5,49 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../l10n/app_localizations.dart';
 import '../models/deck.dart';
 import '../providers/deck_provider.dart';
 import '../services/haptic_service.dart';
+import '../utils/premium_utils.dart';
 import 'deck_details_screen.dart';
+
+// Shimmer loading widget for skeleton placeholders
+class _ShimmerBox extends StatelessWidget {
+  final double width;
+  final double height;
+  final double borderRadius;
+
+  const _ShimmerBox({
+    required this.width,
+    required this.height,
+    this.borderRadius = 16,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.05),
+            Colors.white.withOpacity(0.1),
+            Colors.white.withOpacity(0.05),
+          ],
+          stops: const [0.0, 0.5, 1.0],
+        ),
+      ),
+    )
+        .animate(onPlay: (controller) => controller.repeat())
+        .shimmer(
+          duration: 1200.ms,
+          color: Colors.white.withOpacity(0.1),
+        );
+  }
+}
 
 class ExploreScreen extends StatefulWidget {
   final String? category;
@@ -89,9 +128,23 @@ class _ExploreScreenState extends State<ExploreScreen>
                 // Category sections or single category grid
                 Consumer<DeckProvider>(
                   builder: (context, deckProvider, _) {
+                    // Show loading skeleton while data is being fetched
+                    if (deckProvider.isLoading && deckProvider.allDecks.isEmpty) {
+                      return SliverToBoxAdapter(
+                        child: _buildLoadingSkeleton(),
+                      );
+                    }
+                    
                     // If a specific category is selected, show filtered/sorted decks
                     if (widget.category != null) {
                       final decks = _getFilteredDecksForCategory(widget.category!, deckProvider);
+                      
+                      if (decks.isEmpty) {
+                        return SliverToBoxAdapter(
+                          child: _buildEmptyState(),
+                        );
+                      }
+                      
                       return SliverPadding(
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                         sliver: SliverGrid(
@@ -118,6 +171,13 @@ class _ExploreScreenState extends State<ExploreScreen>
                       final searchResults = deckProvider.allDecks
                           .where((deck) => _matchesSearch(deck))
                           .toList();
+                      
+                      if (searchResults.isEmpty) {
+                        return SliverToBoxAdapter(
+                          child: _buildEmptySearchState(),
+                        );
+                      }
+                      
                       return SliverPadding(
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                         sliver: SliverGrid(
@@ -139,46 +199,47 @@ class _ExploreScreenState extends State<ExploreScreen>
                     }
                     
                     // Show all categories
+                    final l10n = AppLocalizations.of(context)!;
                     return SliverToBoxAdapter(
                       child: Column(
                         children: [
                           _buildCategorySection(
-                            'Trending Now',
+                            l10n.trendingNow,
                             Icons.local_fire_department_rounded,
                             _getTrendingDecks(deckProvider),
                             const Color(0xFFFF6B6B),
                             0,
                           ),
                           _buildCategorySection(
-                            'Popular This Week',
+                            l10n.popularThisWeek,
                             Icons.star_rounded,
                             _getPopularDecks(deckProvider),
                             const Color(0xFFFFB800),
                             1,
                           ),
                           _buildCategorySection(
-                            'New Releases',
+                            l10n.newReleases,
                             Icons.auto_awesome,
                             _getNewReleases(deckProvider),
                             const Color(0xFF00D4FF),
                             2,
                           ),
                           _buildCategorySection(
-                            'Premium Collection',
+                            l10n.premiumCollection,
                             Icons.workspace_premium_rounded,
                             _getPremiumDecks(deckProvider),
                             const Color(0xFF7C3AED),
                             3,
                           ),
                           _buildCategorySection(
-                            'Family Fun',
+                            l10n.familyFun,
                             Icons.family_restroom_rounded,
                             _getFamilyFunDecks(deckProvider),
                             const Color(0xFF10B981),
                             4,
                           ),
                           _buildCategorySection(
-                            'Party Games',
+                            l10n.partyGames,
                             Icons.celebration_rounded,
                             _getPartyGamesDecks(deckProvider),
                             const Color(0xFFF59E0B),
@@ -243,7 +304,7 @@ class _ExploreScreenState extends State<ExploreScreen>
               // Title
               Expanded(
                 child: Text(
-                      widget.category ?? 'Explore',
+                      widget.category ?? AppLocalizations.of(context)!.explore,
                       style: GoogleFonts.inter(
                         color: Colors.white,
                         fontSize: 24,
@@ -348,15 +409,19 @@ class _ExploreScreenState extends State<ExploreScreen>
                      fontWeight: FontWeight.w400,
                    ),
                    decoration: InputDecoration(
-                     hintText: 'Search for decks',
+                     hintText: AppLocalizations.of(context)!.searchForDecks,
                      hintStyle: GoogleFonts.inter(
                        color: Colors.white.withOpacity(0.4),
                        fontSize: 15,
                        fontWeight: FontWeight.w400,
                      ),
                      border: InputBorder.none,
+                     enabledBorder: InputBorder.none,
+                     focusedBorder: InputBorder.none,
                      contentPadding: EdgeInsets.zero,
                      isDense: true,
+                     filled: true,
+                     fillColor: Colors.transparent,
                    ),
                    cursorColor: const Color(0xFF9B59B6),
                  ),
@@ -488,7 +553,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'See All',
+                      AppLocalizations.of(context)!.seeAll,
                       style: GoogleFonts.inter(
                         color: Colors.white.withOpacity(0.6),
                         fontSize: 13,
@@ -535,8 +600,9 @@ class _ExploreScreenState extends State<ExploreScreen>
 
   Widget _buildDeckCard(Deck deck, int sectionIndex, int cardIndex) {
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
-    final isUnlocked = deckProvider.isDeckUnlocked(deck.id);
     final isPremium = deck.isPremium;
+    // Deck is unlocked if: not premium, OR user has premium subscription, OR individually unlocked
+    final isUnlocked = !isPremium || PremiumUtils.hasPremium || deckProvider.isDeckUnlocked(deck.id);
     
     // Create unique hero tag
     final heroTag = 'explore_deck_${deck.id}_${sectionIndex}_$cardIndex';
@@ -577,42 +643,19 @@ class _ExploreScreenState extends State<ExploreScreen>
                     CachedNetworkImage(
                       imageUrl: deck.imageUrl!,
                       fit: BoxFit.cover,
-                      memCacheWidth: 158,
-                      memCacheHeight: 210,
+                      memCacheWidth: 300,
+                      memCacheHeight: 400,
                       maxWidthDiskCache: 600,
                       maxHeightDiskCache: 800,
-                      placeholder: (context, url) => Container(
-                        decoration: BoxDecoration(
-                          color: deck.color.withOpacity(0.15),
-                        ),
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: deck.color.withOpacity(0.5),
-                            strokeWidth: 2,
-                          ),
-                        ),
-                      ),
-                      fadeInDuration: const Duration(milliseconds: 300),
+                      placeholder: (context, url) => _buildImagePlaceholder(deck),
+                      fadeInDuration: const Duration(milliseconds: 200),
+                      fadeOutDuration: const Duration(milliseconds: 100),
                       errorWidget: (context, url, error) {
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: deck.color.withOpacity(0.2),
-                          ),
-                          child: Center(
-                            child: Icon(deck.icon, color: deck.color, size: 40),
-                          ),
-                        );
+                        return _buildImageFallback(deck);
                       },
                     )
                   else
-                    Container(
-                      decoration: BoxDecoration(
-                        color: deck.color.withOpacity(0.15),
-                      ),
-                      child: Center(
-                        child: Icon(deck.icon, color: deck.color, size: 40),
-                      ),
-                    ),
+                    _buildImageFallback(deck),
 
                   // Gradient overlay
                   Container(
@@ -652,7 +695,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${deck.cards.length} cards',
+                          AppLocalizations.of(context)!.cardsCount(deck.cards.length),
                           style: GoogleFonts.inter(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
@@ -729,6 +772,78 @@ class _ExploreScreenState extends State<ExploreScreen>
     );
   }
 
+  // Image placeholder with shimmer effect
+  Widget _buildImagePlaceholder(Deck deck) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            deck.color.withOpacity(0.2),
+            deck.color.withOpacity(0.1),
+          ],
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Shimmer overlay
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withOpacity(0.0),
+                    Colors.white.withOpacity(0.1),
+                    Colors.white.withOpacity(0.0),
+                  ],
+                ),
+              ),
+            )
+                .animate(onPlay: (controller) => controller.repeat())
+                .shimmer(
+                  duration: 1200.ms,
+                  color: Colors.white.withOpacity(0.15),
+                ),
+          ),
+          // Icon hint
+          Center(
+            child: Icon(
+              deck.icon,
+              color: deck.color.withOpacity(0.3),
+              size: 32,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Image fallback when loading fails or no image
+  Widget _buildImageFallback(Deck deck) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            deck.color.withOpacity(0.25),
+            deck.color.withOpacity(0.1),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          deck.icon,
+          color: deck.color.withOpacity(0.8),
+          size: 40,
+        ),
+      ),
+    );
+  }
+
   void _navigateToDeckDetails(Deck deck, {required String heroTag}) {
     _hapticService.mediumImpact();
     Navigator.push(
@@ -763,6 +878,187 @@ class _ExploreScreenState extends State<ExploreScreen>
           );
         },
         transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
+  }
+
+  // Loading skeleton widget
+  Widget _buildLoadingSkeleton() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(3, (sectionIndex) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 48),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Section header skeleton
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    _ShimmerBox(width: 32, height: 32, borderRadius: 8),
+                    const SizedBox(width: 10),
+                    _ShimmerBox(width: 140, height: 24, borderRadius: 6),
+                    const Spacer(),
+                    _ShimmerBox(width: 60, height: 20, borderRadius: 10),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Grid skeleton
+              SizedBox(
+                height: 320,
+                child: GridView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    childAspectRatio: 0.7,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemCount: 6,
+                  itemBuilder: (context, index) => _buildSkeletonCard(),
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  // Skeleton card widget
+  Widget _buildSkeletonCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C2C2E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.08),
+          width: 1,
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Background shimmer
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(15),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withOpacity(0.03),
+                      Colors.white.withOpacity(0.08),
+                      Colors.white.withOpacity(0.03),
+                    ],
+                  ),
+                ),
+              )
+                  .animate(onPlay: (controller) => controller.repeat())
+                  .shimmer(
+                    duration: 1500.ms,
+                    color: Colors.white.withOpacity(0.05),
+                  ),
+            ),
+          ),
+          // Text placeholders at bottom
+          Positioned(
+            bottom: 12,
+            left: 12,
+            right: 12,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _ShimmerBox(width: 80, height: 14, borderRadius: 4),
+                const SizedBox(height: 6),
+                _ShimmerBox(width: 50, height: 10, borderRadius: 4),
+              ],
+            ),
+          ),
+          // Play icon placeholder
+          Positioned(
+            top: 8,
+            right: 8,
+            child: _ShimmerBox(width: 32, height: 32, borderRadius: 8),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Empty state widget
+  Widget _buildEmptyState() {
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 40),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.folder_open_rounded,
+            size: 64,
+            color: Colors.white.withOpacity(0.3),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            l10n.noDecksFound,
+            style: GoogleFonts.inter(
+              color: Colors.white.withOpacity(0.6),
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.noDecksInCategory,
+            style: GoogleFonts.inter(
+              color: Colors.white.withOpacity(0.4),
+              fontSize: 14,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Empty search state widget
+  Widget _buildEmptySearchState() {
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 40),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.search_off_rounded,
+            size: 64,
+            color: Colors.white.withOpacity(0.3),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            l10n.noResultsFound,
+            style: GoogleFonts.inter(
+              color: Colors.white.withOpacity(0.6),
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.tryDifferentKeywords,
+            style: GoogleFonts.inter(
+              color: Colors.white.withOpacity(0.4),
+              fontSize: 14,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -802,21 +1098,22 @@ class _ExploreScreenState extends State<ExploreScreen>
   }
   
   List<Deck> _getDecksForCategory(String category, DeckProvider provider) {
-    switch (category) {
-      case 'Trending Now':
-        return _getTrendingDecks(provider);
-      case 'Popular This Week':
-        return _getPopularDecks(provider);
-      case 'New Releases':
-        return _getNewReleases(provider);
-      case 'Premium Collection':
-        return _getPremiumDecks(provider);
-      case 'Family Fun':
-        return _getFamilyFunDecks(provider);
-      case 'Party Games':
-        return _getPartyGamesDecks(provider);
-      default:
-        return provider.allDecks;
+    final l10n = AppLocalizations.of(context)!;
+    
+    if (category == l10n.trendingNow) {
+      return _getTrendingDecks(provider);
+    } else if (category == l10n.popularThisWeek) {
+      return _getPopularDecks(provider);
+    } else if (category == l10n.newReleases) {
+      return _getNewReleases(provider);
+    } else if (category == l10n.premiumCollection) {
+      return _getPremiumDecks(provider);
+    } else if (category == l10n.familyFun) {
+      return _getFamilyFunDecks(provider);
+    } else if (category == l10n.partyGames) {
+      return _getPartyGamesDecks(provider);
+    } else {
+      return provider.allDecks;
     }
   }
 

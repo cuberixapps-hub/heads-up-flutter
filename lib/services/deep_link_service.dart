@@ -23,13 +23,27 @@ class DeepLinkService {
   final StreamController<DeepLinkData> _deepLinkController =
       StreamController<DeepLinkData>.broadcast();
   Stream<DeepLinkData> get onDeepLink => _deepLinkController.stream;
+  
+  // Store pending deep link for late subscribers (handles cold start race condition)
+  DeepLinkData? _pendingDeepLink;
+  
+  /// Get and clear any pending deep link (for handling cold start links)
+  DeepLinkData? consumePendingDeepLink() {
+    final pending = _pendingDeepLink;
+    _pendingDeepLink = null;
+    return pending;
+  }
+  
+  /// Check if there's a pending deep link
+  bool get hasPendingDeepLink => _pendingDeepLink != null;
 
-  // Configuration - Your app's domain for deep links
-  // You'll need to host an assetlinks.json (Android) and apple-app-site-association (iOS) file
-  static const String _baseUrl = 'https://headsupgame.app';
-  static const String _fallbackUrl = 'https://headsupgame.app'; // Your website/landing page
+  // Configuration - Firebase Hosting domain for deep links
+  // assetlinks.json and apple-app-site-association are hosted at /.well-known/
+  static const String _baseUrl = 'https://heads-up-game-48f14.web.app';
+  static const String _fallbackUrl = 'https://heads-up-game-48f14.web.app';
 
-  // Deep link paths
+  // Deep link paths (using /link/ prefix for redirect page)
+  static const String _linkPrefix = '/link';
   static const String _deckPath = '/deck';
   static const String _resultsPath = '/results';
   static const String _invitePath = '/invite';
@@ -92,8 +106,21 @@ class DeepLinkService {
 
   /// Process a received deep link
   void _processLink(Uri link) {
-    final path = link.path;
+    // Parse URI - handle both custom scheme (headsup://deck?id=x) and https links
+    // For custom scheme: host becomes the path segment (headsup://deck -> host="deck", path="")
+    final String path;
+    final String host = link.host;
+    
+    // Check if host contains our path (custom scheme case)
+    if (host.isNotEmpty && (host == 'deck' || host == 'results' || host == 'invite' || host == 'home')) {
+      path = '/$host${link.path}'; // Reconstruct path from host
+    } else {
+      path = link.path;
+    }
+    
     final queryParams = link.queryParameters;
+    
+    debugPrint('🔗 Processing deep link - Path: $path, Host: $host, Query: $queryParams');
 
     DeepLinkData? linkData;
 
@@ -102,6 +129,7 @@ class DeepLinkService {
         type: DeepLinkType.deck,
         deckId: queryParams['deckId'] ?? queryParams['id'],
       );
+      debugPrint('🔗 Created deck deep link data: ${linkData.deckId}');
     } else if (path.contains(_resultsPath) || queryParams.containsKey('score')) {
       linkData = DeepLinkData(
         type: DeepLinkType.results,
@@ -112,16 +140,24 @@ class DeepLinkService {
         correct: int.tryParse(queryParams['correct'] ?? ''),
         passed: int.tryParse(queryParams['passed'] ?? ''),
       );
+      debugPrint('🔗 Created results deep link data');
     } else if (path.contains(_invitePath) || queryParams.containsKey('ref')) {
       linkData = DeepLinkData(
         type: DeepLinkType.invite,
         referrerId: queryParams['ref'],
       );
+      debugPrint('🔗 Created invite deep link data');
     } else {
       // Default to opening home
       linkData = DeepLinkData(type: DeepLinkType.home);
+      debugPrint('🔗 Default to home deep link');
     }
 
+    // Store as pending for late subscribers (cold start case)
+    _pendingDeepLink = linkData;
+    debugPrint('🔗 Stored pending deep link: $linkData');
+    
+    // Also emit to stream for active listeners
     _deepLinkController.add(linkData);
   }
 
@@ -168,8 +204,7 @@ class DeepLinkService {
   // ============================================
   
   /// Generate a shareable link for a deck
-  /// Returns a regular URL - for full deep link functionality, you need to
-  /// host assetlinks.json (Android) and apple-app-site-association (iOS)
+  /// Uses Firebase Hosting redirect page that handles app-installed vs store redirect
   String createDeckLink({
     required String deckId,
     required String deckName,
@@ -177,7 +212,7 @@ class DeepLinkService {
     String? imageUrl,
   }) {
     final encodedId = Uri.encodeComponent(deckId);
-    return '$_baseUrl$_deckPath?deckId=$encodedId';
+    return '$_baseUrl$_linkPrefix$_deckPath?deckId=$encodedId';
   }
   
   /// Create a fallback link using custom URL scheme (always works in-app)
@@ -187,6 +222,7 @@ class DeepLinkService {
   }
 
   /// Generate a shareable link for game results
+  /// Uses Firebase Hosting redirect page that handles app-installed vs store redirect
   String createResultsLink({
     required String deckName,
     required int score,
@@ -194,13 +230,14 @@ class DeepLinkService {
     required int passed,
   }) {
     final encodedDeck = Uri.encodeComponent(deckName);
-    return '$_baseUrl$_resultsPath?deck=$encodedDeck&score=$score&correct=$correct&passed=$passed';
+    return '$_baseUrl$_linkPrefix$_resultsPath?deck=$encodedDeck&score=$score&correct=$correct&passed=$passed';
   }
 
   /// Generate an app invite link
+  /// Uses Firebase Hosting redirect page that handles app-installed vs store redirect
   String createInviteLink({String? referrerId}) {
     final userId = referrerId ?? FirebaseService().currentUser?.uid ?? 'unknown';
-    return '$_baseUrl$_invitePath?ref=$userId';
+    return '$_baseUrl$_linkPrefix$_invitePath?ref=$userId';
   }
   
   /// Get the fallback/landing page URL for when app isn't installed

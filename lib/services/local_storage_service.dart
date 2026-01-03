@@ -9,6 +9,8 @@ class LocalStorageService {
   static const String _recentDecksKey = 'recent_decks';
   static const String _unlockedPremiumKey = 'unlocked_premium_decks';
   static const String _favoriteDecksKey = 'favorite_decks';
+  static const String _recentSearchesKey = 'recent_searches';
+  static const int _maxRecentSearches = 10;
 
   // Save custom decks to local storage
   Future<bool> saveCustomDecks(List<Deck> decks) async {
@@ -133,6 +135,17 @@ class LocalStorageService {
       await saveRecentDeckIds(recentIds);
     } catch (e) {
       debugPrint('Error adding to recent decks: $e');
+    }
+  }
+  
+  // Remove from recent decks
+  Future<void> removeFromRecentDecks(String deckId) async {
+    try {
+      final recentIds = await loadRecentDeckIds();
+      recentIds.remove(deckId);
+      await saveRecentDeckIds(recentIds);
+    } catch (e) {
+      debugPrint('Error removing from recent decks: $e');
     }
   }
 
@@ -290,6 +303,73 @@ class LocalStorageService {
     return iconMap[codePoint];
   }
 
+  // ============================================================================
+  // RECENT SEARCHES
+  // ============================================================================
+
+  /// Save recent searches to local storage
+  Future<bool> saveRecentSearches(List<String> searches) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // Keep only the last N searches
+      final recentSearches = searches.take(_maxRecentSearches).toList();
+      return await prefs.setStringList(_recentSearchesKey, recentSearches);
+    } catch (e) {
+      debugPrint('Error saving recent searches: $e');
+      return false;
+    }
+  }
+
+  /// Load recent searches from local storage
+  Future<List<String>> loadRecentSearches() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getStringList(_recentSearchesKey) ?? [];
+    } catch (e) {
+      debugPrint('Error loading recent searches: $e');
+      return [];
+    }
+  }
+
+  /// Add a search query to recent searches
+  Future<void> addToRecentSearches(String query) async {
+    if (query.trim().isEmpty) return;
+    
+    try {
+      final searches = await loadRecentSearches();
+      final trimmedQuery = query.trim();
+      
+      // Remove if already exists (case-insensitive) and add to front
+      searches.removeWhere((s) => s.toLowerCase() == trimmedQuery.toLowerCase());
+      searches.insert(0, trimmedQuery);
+      
+      await saveRecentSearches(searches);
+    } catch (e) {
+      debugPrint('Error adding to recent searches: $e');
+    }
+  }
+
+  /// Remove a specific search from recent searches
+  Future<void> removeFromRecentSearches(String query) async {
+    try {
+      final searches = await loadRecentSearches();
+      searches.removeWhere((s) => s.toLowerCase() == query.toLowerCase());
+      await saveRecentSearches(searches);
+    } catch (e) {
+      debugPrint('Error removing from recent searches: $e');
+    }
+  }
+
+  /// Clear all recent searches
+  Future<void> clearRecentSearches() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_recentSearchesKey);
+    } catch (e) {
+      debugPrint('Error clearing recent searches: $e');
+    }
+  }
+
   // Clear all local data (for debugging/reset)
   Future<void> clearAllData() async {
     try {
@@ -298,6 +378,7 @@ class LocalStorageService {
       await prefs.remove(_recentDecksKey);
       await prefs.remove(_unlockedPremiumKey);
       await prefs.remove(_favoriteDecksKey);
+      await prefs.remove(_recentSearchesKey);
     } catch (e) {
       debugPrint('Error clearing all data: $e');
     }

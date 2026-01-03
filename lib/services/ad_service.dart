@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'firebase_service.dart';
+import 'purchases_service.dart';
 
 class AdService {
   static final AdService _instance = AdService._internal();
@@ -177,8 +178,17 @@ class AdService {
   }
 
   /// Get Banner Ad Widget
+  /// Returns null for premium users (ad-free experience)
   Widget? getBannerAdWidget() {
+    // Skip ads ONLY if user has verified premium status
+    final isPremium = PurchasesService().isPremium;
+    if (isPremium) {
+      debugPrint('⭐ Banner ad skipped - user has premium');
+      return null;
+    }
+    
     if (_isBannerAdReady && _bannerAd != null) {
+      debugPrint('📢 Showing banner ad to free user');
       return Container(
         alignment: Alignment.center,
         width: _bannerAd!.size.width.toDouble(),
@@ -186,6 +196,7 @@ class AdService {
         child: AdWidget(ad: _bannerAd!),
       );
     }
+    debugPrint('⚠️ Banner ad not ready');
     return null;
   }
 
@@ -257,12 +268,21 @@ class AdService {
   }
 
   /// Show Interstitial Ad with frequency control
+  /// Skips showing ads ONLY for verified premium users
   Future<void> showInterstitialAd() async {
+    // Skip ads ONLY if user has verified premium status
+    final isPremium = PurchasesService().isPremium;
+    if (isPremium) {
+      debugPrint('⭐ Skipping interstitial ad - user has premium');
+      return;
+    }
+    
     if (!shouldShowInterstitialAd()) {
       return;
     }
 
     if (_isInterstitialAdReady && _interstitialAd != null) {
+      debugPrint('📢 Showing interstitial ad to free user');
       _gamesPlayedSinceLastAd = 0;
       _lastInterstitialTime = DateTime.now();
       await _interstitialAd!.show();
@@ -279,7 +299,15 @@ class AdService {
   }
 
   /// Show Interstitial Ad for returning home
+  /// Skips showing ads ONLY for verified premium users
   Future<void> showInterstitialAdForHome() async {
+    // Skip ads ONLY if user has verified premium status
+    final isPremium = PurchasesService().isPremium;
+    if (isPremium) {
+      debugPrint('⭐ Skipping home interstitial ad - user has premium');
+      return;
+    }
+    
     // Only show occasionally (1 in 3 times)
     if (math.Random().nextInt(3) != 0) return;
 
@@ -290,6 +318,7 @@ class AdService {
     }
 
     if (_isInterstitialAdReady && _interstitialAd != null) {
+      debugPrint('📢 Showing home interstitial ad to free user');
       _lastInterstitialTime = DateTime.now();
       await _interstitialAd!.show();
 
@@ -303,11 +332,19 @@ class AdService {
 
   /// Force show interstitial ad without frequency restrictions
   /// Used for game over screen actions (Play Again, Home)
+  /// Skips showing ads ONLY for verified premium users
   Future<void> showInterstitialAdForced({required String location}) async {
+    // Skip ads ONLY if user has verified premium status
+    final isPremium = PurchasesService().isPremium;
+    if (isPremium) {
+      debugPrint('⭐ Skipping forced interstitial ad - user has premium');
+      return;
+    }
+    
     debugPrint('🎯 Attempting to force show interstitial ad for: $location');
 
     if (_isInterstitialAdReady && _interstitialAd != null) {
-      debugPrint('✅ Interstitial ad is ready, showing now');
+      debugPrint('📢 Showing forced interstitial ad to free user');
       _lastInterstitialTime = DateTime.now();
       _gamesPlayedSinceLastAd = 0; // Reset counter
 

@@ -8,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/deck.dart';
 import '../providers/deck_provider.dart';
 import '../services/haptic_service.dart';
+import '../services/local_storage_service.dart';
 import '../l10n/app_localizations.dart';
 import 'deck_details_screen.dart';
 
@@ -24,8 +25,10 @@ class _SearchScreenState extends State<SearchScreen>
   final FocusNode _searchFocusNode = FocusNode();
   final HapticService _hapticService = HapticService();
   final ScrollController _scrollController = ScrollController();
+  final LocalStorageService _storageService = LocalStorageService();
 
   List<Deck> _filteredDecks = [];
+  List<String> _recentSearches = [];
   bool _isSearching = false;
   late AnimationController _animationController;
   late AnimationController _textFieldAnimationController;
@@ -81,13 +84,41 @@ class _SearchScreenState extends State<SearchScreen>
 
     _searchController.addListener(_onSearchChanged);
 
-    // Initialize with trending decks
+    // Initialize with trending decks and load recent searches
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final deckProvider = Provider.of<DeckProvider>(context, listen: false);
       setState(() {
         _filteredDecks = deckProvider.allDecks;
       });
+      _loadRecentSearches();
     });
+  }
+
+  Future<void> _loadRecentSearches() async {
+    final searches = await _storageService.loadRecentSearches();
+    if (mounted) {
+      setState(() {
+        _recentSearches = searches;
+      });
+    }
+  }
+
+  Future<void> _saveSearch(String query) async {
+    if (query.trim().isEmpty) return;
+    await _storageService.addToRecentSearches(query.trim());
+    await _loadRecentSearches();
+  }
+
+  Future<void> _removeRecentSearch(String query) async {
+    _hapticService.lightImpact();
+    await _storageService.removeFromRecentSearches(query);
+    await _loadRecentSearches();
+  }
+
+  Future<void> _clearAllRecentSearches() async {
+    _hapticService.mediumImpact();
+    await _storageService.clearRecentSearches();
+    await _loadRecentSearches();
   }
 
   @override
@@ -145,6 +176,10 @@ class _SearchScreenState extends State<SearchScreen>
 
   void _navigateToDeckDetails(Deck deck, {String? heroTag}) {
     _hapticService.mediumImpact();
+    // Save the current search query if there is one
+    if (_searchController.text.trim().isNotEmpty) {
+      _saveSearch(_searchController.text);
+    }
     Navigator.push(
       context,
       PageRouteBuilder(
@@ -833,34 +868,56 @@ class _SearchScreenState extends State<SearchScreen>
 
           const SizedBox(height: 40),
 
-          // Recent searches
-          Text(
-            AppLocalizations.of(context)!.recentSearches,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.5,
-            ),
-          ).animate().fadeIn(delay: 600.ms, duration: 600.ms),
+          // Recent searches header with clear button
+          if (_recentSearches.isNotEmpty) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  AppLocalizations.of(context)!.recentSearches,
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _clearAllRecentSearches,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      child: Text(
+                        AppLocalizations.of(context)!.clearAll,
+                        style: GoogleFonts.inter(
+                          color: _primaryAccent.withOpacity(0.8),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ).animate().fadeIn(delay: 600.ms, duration: 600.ms),
 
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Recent search items
-          ..._buildRecentSearchItems(),
+            // Recent search items
+            ..._buildRecentSearchItems(),
+          ],
         ],
       ),
     );
   }
 
   List<Widget> _buildRecentSearchItems() {
-    final recentSearches = [
-      'Celebrity Challenge',
-      'Movie Quotes',
-      'Animal Kingdom',
-    ];
-
-    return recentSearches.asMap().entries.map((entry) {
+    return _recentSearches.asMap().entries.map((entry) {
       final index = entry.key;
       final search = entry.value;
 
@@ -902,8 +959,24 @@ class _SearchScreenState extends State<SearchScreen>
                             fontSize: 15,
                             fontWeight: FontWeight.w400,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      // Remove button
+                      GestureDetector(
+                        onTap: () => _removeRecentSearch(search),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.close_rounded,
+                            color: Colors.white.withOpacity(0.25),
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
                       Icon(
                         Icons.north_east_rounded,
                         color: Colors.white.withOpacity(0.2),

@@ -1,16 +1,16 @@
 import 'package:flutter/widgets.dart';
 
 /// Responsive utility for scaling UI elements based on screen size.
-/// Design baseline: iPhone 16 Plus (430 x 932 logical pixels)
+/// Design baseline: iPhone 16 Pro Max (440 x 956 logical pixels)
 class Responsive {
   static late double _screenWidth;
   static late double _screenHeight;
   static late double _scaleFactor;
   static late double _textScaleFactor;
   
-  // Design baseline dimensions (iPhone 16 Plus)
-  static const double _baselineWidth = 430.0;
-  static const double _baselineHeight = 932.0;
+  // Design baseline dimensions (iPhone 16 Pro Max)
+  static const double _baselineWidth = 440.0;
+  static const double _baselineHeight = 956.0;
   
   /// Initialize responsive utility with screen dimensions
   /// Call this once in your MaterialApp's builder or at the root widget

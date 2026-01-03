@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -17,6 +19,7 @@ import '../services/audio_service.dart';
 import '../services/haptic_service.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
+import '../services/purchases_service.dart';
 import '../services/share_service.dart';
 import '../models/notification_settings.dart';
 import '../widgets/version_switcher.dart';
@@ -33,6 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   final _audioService = AudioService();
   final _hapticService = HapticService();
   final _notificationService = NotificationService();
+  final _purchasesService = PurchasesService();
 
   // Settings values
   bool _soundEnabled = true;
@@ -47,11 +51,28 @@ class _SettingsScreenState extends State<SettingsScreen>
   
   // Notification settings
   NotificationSettings _notificationSettings = NotificationSettings.defaults();
+  
+  // Premium status
+  bool _isPremium = false;
+  bool _isRestoringPurchases = false;
+  StreamSubscription<bool>? _premiumSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    _setupPremiumListener();
+  }
+  
+  void _setupPremiumListener() {
+    _isPremium = _purchasesService.isPremium;
+    _premiumSubscription = _purchasesService.premiumStatusStream.listen((isPremium) {
+      if (mounted) {
+        setState(() {
+          _isPremium = isPremium;
+        });
+      }
+    });
   }
 
   Future<void> _loadSettings() async {
@@ -227,6 +248,7 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   @override
   void dispose() {
+    _premiumSubscription?.cancel();
     super.dispose();
   }
 
@@ -527,6 +549,11 @@ class _SettingsScreenState extends State<SettingsScreen>
                       ],
                       3,
                     ),
+
+                    const SizedBox(height: 28),
+
+                    // Subscription Section
+                    _buildSubscriptionSection(),
 
                     const SizedBox(height: 28),
 
@@ -1231,6 +1258,423 @@ class _SettingsScreenState extends State<SettingsScreen>
   void _inviteFriends() {
     _hapticService.mediumImpact();
     ShareService().shareAppInvite(context);
+  }
+
+  // Subscription Management Section
+  Widget _buildSubscriptionSection() {
+    // Use state variable for reactive updates from stream
+    final isPremium = _isPremium;
+    final planName = _purchasesService.activePlanName;
+    final expirationDate = _purchasesService.subscriptionExpirationDate;
+    final isLifetime = _purchasesService.isLifetime;
+    final willRenew = _purchasesService.willRenew;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section Header
+        Padding(
+              padding: const EdgeInsets.only(left: 8, bottom: 12),
+              child: Text(
+                'SUBSCRIPTION',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.4),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            )
+            .animate()
+            .fadeIn(delay: 100.ms, duration: 500.ms)
+            .slideX(begin: -0.02, end: 0),
+
+        // Section Card
+        Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF111111),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isPremium 
+                      ? const Color(0xFFFFD700).withOpacity(0.3)
+                      : Colors.white.withOpacity(0.08),
+                  width: isPremium ? 1.5 : 0.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                  if (isPremium)
+                    BoxShadow(
+                      color: const Color(0xFFFFD700).withOpacity(0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
+                    ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Column(
+                  children: [
+                    // Status Row
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                      child: Row(
+                        children: [
+                          // Premium Badge Icon
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              gradient: isPremium
+                                  ? const LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Color(0xFFFFD700),
+                                        Color(0xFFFFA500),
+                                      ],
+                                    )
+                                  : LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Colors.white.withOpacity(0.1),
+                                        Colors.white.withOpacity(0.05),
+                                      ],
+                                    ),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              isPremium 
+                                  ? Icons.workspace_premium_rounded
+                                  : Icons.star_outline_rounded,
+                              color: isPremium ? Colors.black : Colors.white.withOpacity(0.5),
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 18),
+                          // Status Text
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isPremium ? 'Premium Active' : 'Free Plan',
+                                  style: TextStyle(
+                                    color: isPremium ? const Color(0xFFFFD700) : Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: -0.4,
+                                    height: 1.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  isPremium 
+                                      ? planName
+                                      : 'Upgrade to unlock all decks',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.45),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w400,
+                                    letterSpacing: -0.15,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Expiration info (if premium and not lifetime)
+                    if (isPremium && !isLifetime && expirationDate != null) ...[
+                      _buildItemDivider(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        child: Row(
+                          children: [
+                            Icon(
+                              willRenew ? Icons.autorenew_rounded : Icons.event_rounded,
+                              color: Colors.white.withOpacity(0.5),
+                              size: 18,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              willRenew ? 'Renews on' : 'Expires on',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 13,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              _formatDate(expirationDate),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    
+                    _buildItemDivider(),
+                    
+                    // Manage Subscription Button
+                    if (isPremium && !isLifetime)
+                      _buildSubscriptionActionItem(
+                        'Manage Subscription',
+                        Icons.settings_rounded,
+                        _openSubscriptionManagement,
+                      ),
+                    
+                    // Restore Purchases Button
+                    _buildSubscriptionActionItem(
+                      _isRestoringPurchases ? 'Restoring...' : 'Restore Purchases',
+                      Icons.refresh_rounded,
+                      _isRestoringPurchases ? null : _restorePurchases,
+                    ),
+                    
+                    // Debug Controls (only in debug mode)
+                    if (kDebugMode) ...[
+                      _buildItemDivider(),
+                      _buildDebugPremiumToggle(),
+                    ],
+                  ],
+                ),
+              ),
+            )
+            .animate()
+            .fadeIn(delay: 150.ms, duration: 600.ms)
+            .slideY(
+              begin: 0.05,
+              end: 0,
+              duration: 600.ms,
+              curve: Curves.easeOutCubic,
+            ),
+      ],
+    );
+  }
+  
+  Widget _buildSubscriptionActionItem(String title, IconData icon, VoidCallback? onTap) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        splashColor: AppTheme.primaryColor.withOpacity(0.1),
+        highlightColor: Colors.white.withOpacity(0.03),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color: Colors.white.withOpacity(0.6),
+                size: 20,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: Colors.white.withOpacity(0.3),
+                size: 14,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildDebugPremiumToggle() {
+    final isDebugPremium = PurchasesService.isDebugPremiumActive;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text(
+              '🧪 DEBUG',
+              style: TextStyle(
+                color: Colors.orange,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Simulate Premium',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              _hapticService.lightImpact();
+              if (isDebugPremium) {
+                PurchasesService.debugDisablePremium();
+              } else {
+                PurchasesService.debugEnablePremium();
+              }
+              setState(() {});
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              width: 52,
+              height: 32,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: isDebugPremium
+                    ? const LinearGradient(
+                        colors: [Colors.orange, Colors.deepOrange],
+                      )
+                    : null,
+                color: isDebugPremium ? null : const Color(0xFF1E1E1E),
+              ),
+              child: Stack(
+                children: [
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOutCubic,
+                    left: isDebugPremium ? 22 : 2,
+                    top: 2,
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.25),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  String _formatDate(DateTime date) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+  
+  Future<void> _restorePurchases() async {
+    _hapticService.lightImpact();
+    
+    setState(() {
+      _isRestoringPurchases = true;
+    });
+    
+    try {
+      final result = await _purchasesService.restorePurchases();
+      
+      if (!mounted) return;
+      
+      setState(() {
+        _isRestoringPurchases = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                result == RestoreResult.success 
+                    ? Icons.check_circle 
+                    : Icons.info_outline,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(result.message)),
+            ],
+          ),
+          backgroundColor: result == RestoreResult.success 
+              ? Colors.green.shade700 
+              : Colors.blueGrey.shade700,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      
+      setState(() {
+        _isRestoringPurchases = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.white, size: 20),
+              SizedBox(width: 12),
+              Expanded(child: Text('Failed to restore purchases')),
+            ],
+          ),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
+  
+  void _openSubscriptionManagement() {
+    _hapticService.lightImpact();
+    
+    final String url;
+    if (Platform.isIOS) {
+      url = 'https://apps.apple.com/account/subscriptions';
+    } else if (Platform.isAndroid) {
+      url = 'https://play.google.com/store/account/subscriptions';
+    } else {
+      return;
+    }
+    
+    _launchUrl(url);
   }
 
   // Language Selector Widget

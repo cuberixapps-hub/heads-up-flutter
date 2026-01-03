@@ -159,6 +159,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get myFavorites => 'My Favorites';
 
   @override
+  String get addToFavorites => 'Add to Favorites';
+
+  @override
+  String get removeFromFavorites => 'Remove from Favorites';
+
+  @override
+  String get addedToFavorites => 'Added to favorites';
+
+  @override
+  String get removedFromFavorites => 'Removed from favorites';
+
+  @override
+  String get removeFromRecent => 'Remove from Recent';
+
+  @override
+  String get removedFromRecent => 'Removed from recently played';
+
+  @override
   String get allDecks => 'All Decks';
 
   @override
@@ -944,4 +962,36 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get shareWithFriends => 'Share with Friends';
+
+  @override
+  String get clearAll => 'Clear All';
+
+  @override
+  String get popularThisWeek => 'Popular This Week';
+
+  @override
+  String get newReleases => 'New Releases';
+
+  @override
+  String get premiumCollection => 'Premium Collection';
+
+  @override
+  String get familyFun => 'Family Fun';
+
+  @override
+  String get partyGames => 'Party Games';
+
+  @override
+  String get seeAll => 'See All';
+
+  @override
+  String get noDecksInCategory => 'There are no decks in this category yet.';
+
+  @override
+  String get tryDifferentKeywords => 'Try searching with different keywords.';
+
+  @override
+  String cardsCount(int count) {
+    return '$count cards';
+  }
 }

@@ -58,32 +58,57 @@ class _GameplayScreenState extends State<GameplayScreen>
   late AnimationController _backgroundAnimController;
   late AnimationController _glowController;
 
-  // Accelerometer
+  // Sensors - use gyroscope as primary, accelerometer as fallback
+  StreamSubscription<GyroscopeEvent>? _gyroscopeSubscription;
   StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
   bool _canDetectTilt = false;
   bool _hasTriggeredAction = false;
+  bool _useGyroscope = true; // Prefer gyroscope for rotation detection
 
-  // Calibration values
+  // Calibration values (for accelerometer fallback)
   double _calibrationX = 0.0;
   double _calibrationY = 0.0;
   double _calibrationZ = 0.0;
   bool _isCalibrated = false;
 
+  // Integrated angle from gyroscope (degrees)
+  double _integratedAngle = 0.0;
+  DateTime? _lastGyroTime;
+
+  // Smoothing for sensor data
+  double _smoothedTiltAngle = 0.0;
+  double _smoothedAngularVelocity = 0.0;
+  static const _smoothingFactor = 0.4; // For accelerometer smoothing
+
   // Neutral position tracking
   bool _isInNeutralPosition = true;
+  bool _isSettled = true; // Must be still AND in neutral to allow new action
   DateTime? _lastActionTime;
+  DateTime? _neutralEntryTime; // When we entered neutral zone
   static const _minTimeBetweenActions = Duration(
-    milliseconds: 1500,
-  ); // Increased for stability
-  static const _neutralThreshold = 20.0; // Increased neutral zone for stability
+    milliseconds: 700,
+  ); // Responsive timing
+  static const _settlingTime = Duration(
+    milliseconds: 400,
+  ); // Time to stay still in neutral before new action allowed
 
-  // Stability improvements
-  static const _actionThreshold =
-      45.0; // High threshold for very deliberate actions only
+  // Thresholds for gyroscope-based detection
+  static const _neutralVelocityThreshold = 0.25; // rad/s - considered "still"
+  static const _neutralAngleThreshold = 8.0; // degrees - return to neutral zone
+
+  // Action thresholds for accelerometer fallback
+  static const _actionThreshold = 25.0; // Degrees - threshold to trigger action
+  static const _confirmThreshold = 30.0; // Degrees - confirmation threshold
+  static const _neutralThreshold = 15.0; // Degrees - neutral zone
   bool _actionLocked = false; // Prevent any action during cooldown
 
-  // Debug flag - set to true to see accelerometer values
-  static const _debugAccelerometer = false;
+  // Auto-recalibration
+  int _failedAttempts = 0;
+  static const _maxFailedAttempts = 3;
+  DateTime? _lastCalibrationTime;
+
+  // Debug flag - set to true to see sensor values
+  static const _debugSensors = false;
 
   // Game state
   bool _isCountingDown = true;
@@ -103,7 +128,7 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   // Control mode
   bool _useManualControls = false;
-  bool _isLandscapeMode = false;
+  bool _isLandscapeMode = true; // Always true - gameplay is always in landscape
 
   // Camera recording
   final _cameraRecording = CameraRecordingService.instance;
@@ -114,6 +139,13 @@ class _GameplayScreenState extends State<GameplayScreen>
   @override
   void initState() {
     super.initState();
+
+    // Force landscape mode immediately - this must be synchronous
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
     _initializeAnimations();
     _checkTutorialHints();
     _checkPreferredOrientation();
@@ -148,15 +180,15 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   Future<void> _checkPreferredOrientation() async {
     final prefs = await SharedPreferences.getInstance();
-    _isLandscapeMode = prefs.getBool('prefer_landscape_gameplay') ?? true;
+    // Always use landscape mode for gameplay - accelerometer logic depends on this
+    _isLandscapeMode = true;
     _useManualControls = prefs.getBool('use_manual_controls') ?? false;
 
-    if (_isLandscapeMode) {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-    }
+    // Ensure landscape orientation is set (reinforcement in case initState wasn't enough)
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
   }
 
   Future<void> _checkTutorialHints() async {
@@ -288,10 +320,10 @@ class _GameplayScreenState extends State<GameplayScreen>
         timer.cancel();
         // Final dramatic exit animation
         _countdownBlurController.forward().then((_) {
-        setState(() {
-          _isCountingDown = false;
-        });
-        _startGame();
+          setState(() {
+            _isCountingDown = false;
+          });
+          _startGame();
         });
       }
     });
@@ -299,7 +331,7 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   void _startGame() async {
     if (!_useManualControls) {
-      _calibrateAccelerometer();
+      _initializeSensors();
     }
     _audioService.playClick();
     _hapticService.mediumImpact();
@@ -359,163 +391,466 @@ class _GameplayScreenState extends State<GameplayScreen>
     return success;
   }
 
-  void _calibrateAccelerometer() {
+  void _initializeSensors({bool isRecalibration = false}) {
+    // Reset state
+    _isInNeutralPosition = true;
+    _isSettled = true; // Start as settled so first action can trigger
+    _hasTriggeredAction = false;
+    _lastActionTime = null;
+    _neutralEntryTime = null;
+    _actionLocked = false;
+    _smoothedTiltAngle = 0.0;
+    _smoothedAngularVelocity = 0.0;
+    _integratedAngle = 0.0;
+    _lastGyroTime = null;
+    _failedAttempts = 0;
+
+    // For recalibration, don't wait
+    final delay = isRecalibration ? 50 : 200;
+
+    Future.delayed(Duration(milliseconds: delay), () {
+      if (!mounted) return;
+
+      // Try to use gyroscope first (much better for rotation detection)
+      _tryStartGyroscope().then((gyroAvailable) {
+        if (gyroAvailable) {
+          _useGyroscope = true;
+          _canDetectTilt = true;
+          _isCalibrated = true;
+          _lastCalibrationTime = DateTime.now();
+          if (_debugSensors) {
+            debugPrint('Using GYROSCOPE for tilt detection (more accurate)');
+          }
+        } else {
+          // Fall back to accelerometer
+          _useGyroscope = false;
+          _calibrateAccelerometer(isRecalibration: isRecalibration);
+          if (_debugSensors) {
+            debugPrint(
+              'Gyroscope not available, falling back to ACCELEROMETER',
+            );
+          }
+        }
+      });
+    });
+  }
+
+  Future<bool> _tryStartGyroscope() async {
+    try {
+      // Test if gyroscope is available by trying to get one event
+      final testEvent = await gyroscopeEventStream().first.timeout(
+        const Duration(milliseconds: 500),
+        onTimeout: () => throw Exception('Gyroscope timeout'),
+      );
+
+      if (_debugSensors) {
+        debugPrint(
+          'Gyroscope test event: x=${testEvent.x}, y=${testEvent.y}, z=${testEvent.z}',
+        );
+      }
+
+      // Gyroscope is available, start listening
+      _startGyroscope();
+      return true;
+    } catch (e) {
+      debugPrint('Gyroscope not available: $e');
+      return false;
+    }
+  }
+
+  void _startGyroscope() {
+    _gyroscopeSubscription?.cancel();
+    _gyroscopeSubscription = gyroscopeEventStream().listen((event) {
+      if (!_canDetectTilt || !mounted) return;
+
+      final now = DateTime.now();
+
+      // When phone is on forehead in landscape mode:
+      // The tilt (nodding) creates rotation that can appear on different axes
+      // depending on exact phone orientation and which landscape mode (left/right)
+      //
+      // We check multiple axes to be robust:
+      // - event.x: rotation around X-axis
+      // - event.y: rotation around Y-axis
+      // - event.z: rotation around Z-axis (twisting, usually ignored)
+      //
+      // The primary tilt axis depends on orientation, so we use the axis
+      // with the largest magnitude as our signal
+
+      double angularVelocity;
+      if (_isLandscapeMode) {
+        // Use the dominant rotation axis (X or Y) for tilt detection
+        // This handles both landscape-left and landscape-right orientations
+        if (event.x.abs() > event.y.abs()) {
+          angularVelocity = event.x;
+        } else {
+          angularVelocity = event.y;
+        }
+
+        // If both are significant, combine them
+        if (event.x.abs() > 0.3 && event.y.abs() > 0.3) {
+          // Use the one that matches the dominant direction
+          angularVelocity = (event.x.abs() > event.y.abs()) ? event.x : event.y;
+        }
+      } else {
+        // In portrait mode, X-axis is primary
+        angularVelocity = event.x;
+      }
+
+      // Apply lighter smoothing to preserve quick movements
+      _smoothedAngularVelocity =
+          _smoothedAngularVelocity * 0.4 + angularVelocity * 0.6;
+
+      // Integrate angular velocity to get angle change
+      if (_lastGyroTime != null) {
+        final dt = now.difference(_lastGyroTime!).inMicroseconds / 1000000.0;
+        if (dt > 0 && dt < 0.1) {
+          // Convert rad/s to degrees and integrate
+          final angleChange = _smoothedAngularVelocity * dt * (180 / math.pi);
+          _integratedAngle += angleChange;
+
+          // Light decay to prevent excessive drift
+          _integratedAngle *= 0.995;
+        }
+      }
+      _lastGyroTime = now;
+
+      if (_debugSensors) {
+        debugPrint(
+          'Gyro: x=${event.x.toStringAsFixed(2)}, y=${event.y.toStringAsFixed(2)}, z=${event.z.toStringAsFixed(2)} | '
+          'vel=${angularVelocity.toStringAsFixed(2)}, smoothed=${_smoothedAngularVelocity.toStringAsFixed(2)}, '
+          'angle=${_integratedAngle.toStringAsFixed(1)}°',
+        );
+      }
+
+      // Detect actions
+      _processGyroscopeData(angularVelocity);
+    });
+  }
+
+  void _processGyroscopeData(double rawVelocity) {
+    final velocity = _smoothedAngularVelocity;
+    final angle = _integratedAngle;
+    final now = DateTime.now();
+
+    // Check if we're in neutral position (both still AND near center)
+    final isStill = velocity.abs() < _neutralVelocityThreshold;
+    final isNearCenter = angle.abs() < _neutralAngleThreshold;
+
+    if (isStill && isNearCenter) {
+      // We're in the neutral zone
+      if (!_isInNeutralPosition) {
+        // Just entered neutral - start settling timer
+        _isInNeutralPosition = true;
+        _neutralEntryTime = now;
+        _isSettled = false; // Not settled yet, still need to wait
+        _integratedAngle = 0.0; // Reset angle drift
+
+        if (_debugSensors) {
+          debugPrint('Entered neutral zone, waiting to settle...');
+        }
+      } else if (!_isSettled && _neutralEntryTime != null) {
+        // Already in neutral, check if we've been still long enough
+        final timeInNeutral = now.difference(_neutralEntryTime!);
+        if (timeInNeutral >= _settlingTime) {
+          // We've been still in neutral long enough - now ready for new action
+          _isSettled = true;
+          _hasTriggeredAction = false;
+          _failedAttempts = 0;
+
+          if (_debugSensors) {
+            debugPrint('Settled in neutral - ready for new action');
+          }
+        }
+      }
+      return; // Don't process actions while in neutral
+    } else {
+      // We're outside neutral zone
+      if (_isInNeutralPosition && !_isSettled) {
+        // We left neutral before settling - this is return motion, ignore it
+        // Reset the neutral entry time so we have to settle again
+        _neutralEntryTime = null;
+      }
+      _isInNeutralPosition = false;
+    }
+
+    // Check cooldown
+    if (_lastActionTime != null) {
+      final timeSinceLastAction = now.difference(_lastActionTime!);
+      if (timeSinceLastAction < _minTimeBetweenActions) {
+        return;
+      }
+    }
+
+    // Don't trigger if already triggered or not settled
+    if (_actionLocked || _hasTriggeredAction || !_isSettled) {
+      return;
+    }
+
+    // Detect tilt based on velocity magnitude AND direction
+    final velocityMagnitude = velocity.abs();
+    final angleMagnitude = angle.abs();
+
+    // Thresholds for triggering
+    const velocityTrigger = 0.8; // rad/s
+    const angleTrigger = 15.0; // degrees
+
+    bool shouldTrigger =
+        velocityMagnitude > velocityTrigger || angleMagnitude > angleTrigger;
+
+    if (shouldTrigger) {
+      // Determine direction - use velocity if significant, otherwise angle
+      double directionSignal;
+      if (velocityMagnitude > 0.5) {
+        directionSignal = velocity;
+      } else if (rawVelocity.abs() > 0.4) {
+        directionSignal = rawVelocity;
+      } else {
+        directionSignal = angle;
+      }
+
+      if (_debugSensors) {
+        debugPrint(
+          'Trigger: vel=${velocity.toStringAsFixed(2)}, angle=${angle.toStringAsFixed(1)}, dir=${directionSignal.toStringAsFixed(2)}',
+        );
+      }
+
+      // Direction mapping:
+      // Negative = CORRECT (tilt forward/down)
+      // Positive = PASS (tilt backward/up)
+
+      if (directionSignal < -0.4) {
+        _triggerAction(isCorrect: true);
+      } else if (directionSignal > 0.4) {
+        _triggerAction(isCorrect: false);
+      }
+    }
+  }
+
+  void _calibrateAccelerometer({bool isRecalibration = false}) {
     // Reset state before calibration
     _isInNeutralPosition = true;
     _hasTriggeredAction = false;
     _lastActionTime = null;
     _actionLocked = false;
+    _smoothedTiltAngle = 0.0;
+    _failedAttempts = 0;
+
+    // For recalibration, don't wait - do it immediately
+    final delay = isRecalibration ? 100 : 300;
 
     // Wait a moment for the user to position the phone, then calibrate
-    Future.delayed(const Duration(milliseconds: 500), () {
-      accelerometerEventStream().first.then((event) {
-        _calibrationX = event.x;
-        _calibrationY = event.y;
-        _calibrationZ = event.z;
-        _isCalibrated = true;
-        _canDetectTilt = true;
-        _startAccelerometer();
+    Future.delayed(Duration(milliseconds: delay), () {
+      if (!mounted) return;
+
+      // Take multiple samples for more accurate calibration
+      int sampleCount = 0;
+      double sumX = 0, sumY = 0, sumZ = 0;
+      const requiredSamples = 5;
+
+      StreamSubscription<AccelerometerEvent>? calibrationSub;
+      calibrationSub = accelerometerEventStream().listen((event) {
+        sumX += event.x;
+        sumY += event.y;
+        sumZ += event.z;
+        sampleCount++;
+
+        if (sampleCount >= requiredSamples) {
+          calibrationSub?.cancel();
+
+          _calibrationX = sumX / requiredSamples;
+          _calibrationY = sumY / requiredSamples;
+          _calibrationZ = sumZ / requiredSamples;
+          _isCalibrated = true;
+          _canDetectTilt = true;
+          _lastCalibrationTime = DateTime.now();
+
+          if (_debugSensors) {
+            debugPrint(
+              'Calibration complete: X=${_calibrationX.toStringAsFixed(2)}, '
+              'Y=${_calibrationY.toStringAsFixed(2)}, Z=${_calibrationZ.toStringAsFixed(2)}',
+            );
+          }
+
+          // Only start accelerometer if not already running
+          if (_accelerometerSubscription == null) {
+            _startAccelerometer();
+          }
+        }
+      });
+
+      // Timeout for calibration
+      Future.delayed(const Duration(seconds: 2), () {
+        if (sampleCount < requiredSamples) {
+          calibrationSub?.cancel();
+          debugPrint('Calibration timeout - using partial data');
+          if (sampleCount > 0) {
+            _calibrationX = sumX / sampleCount;
+            _calibrationY = sumY / sampleCount;
+            _calibrationZ = sumZ / sampleCount;
+            _isCalibrated = true;
+            _canDetectTilt = true;
+            _lastCalibrationTime = DateTime.now();
+            if (_accelerometerSubscription == null) {
+              _startAccelerometer();
+            }
+          }
+        }
       });
     });
   }
 
   void _startAccelerometer() {
+    _accelerometerSubscription?.cancel();
     _accelerometerSubscription = accelerometerEventStream().listen((event) {
-      if (!_canDetectTilt || !_isCalibrated) return;
+      if (!_canDetectTilt || !_isCalibrated || !mounted) return;
+      // Skip accelerometer processing if using gyroscope
+      if (_useGyroscope && _gyroscopeSubscription != null) return;
 
       // Calculate relative tilt from calibrated position
       final deltaX = event.x - _calibrationX;
       final deltaY = event.y - _calibrationY;
       final deltaZ = event.z - _calibrationZ;
 
-      // IMPORTANT: Understanding accelerometer axes in different orientations:
-      //
-      // Portrait mode (phone vertical):
-      // - X-axis: left(-) to right(+)
-      // - Y-axis: bottom(-) to top(+) - THIS IS OUR TILT AXIS
-      // - Z-axis: back(-) to front(+)
-      //
-      // Landscape mode (phone horizontal, rotated 90° counter-clockwise):
-      // - The axes rotate with the device!
-      // - What was Y-axis becomes X-axis
-      // - What was X-axis becomes -Y-axis
-      // - Z-axis remains the same
-      //
-      // When phone is held to forehead in landscape:
-      // - Tilting forward (away from head) = CORRECT
-      // - Tilting backward (toward head) = PASS
-      // - This is detected via Z-axis changes
+      // Filter out excessive side-to-side rotation (not a valid tilt gesture)
+      if (deltaX.abs() > 6.0 && deltaZ.abs() < 2.0) {
+        // This is likely a rotation/twist rather than a tilt
+        return;
+      }
 
-      double tiltAngle;
+      double rawTiltAngle;
 
       if (_isLandscapeMode) {
-        // In landscape mode, when phone is on forehead:
-        // Forward/backward tilt affects Z-axis (perpendicular to screen)
-        // We use Z-axis change to detect the tilt
-        tiltAngle = deltaZ * 10; // Scale for sensitivity
+        // Combine Z and Y changes for robust detection
+        final combinedTilt = deltaZ * 6.0 + deltaY * 3.0;
+        rawTiltAngle = combinedTilt;
 
-        if (_debugAccelerometer) {
-          print(
-            'Landscape - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | '
-            'DeltaX: ${deltaX.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | '
-            'TiltAngle: ${tiltAngle.toStringAsFixed(1)}',
+        if (_debugSensors) {
+          debugPrint(
+            'Accel Landscape - DeltaZ: ${deltaZ.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)} | '
+            'RawTilt: ${rawTiltAngle.toStringAsFixed(1)} | Smoothed: ${_smoothedTiltAngle.toStringAsFixed(1)}',
           );
-        }
-
-        // Filter out side-to-side movements (rotation around vertical axis)
-        // In landscape, this would be deltaY (because axes are rotated)
-        if (deltaY.abs() > 5.0) {
-          if (_debugAccelerometer) {
-            print('Ignoring - too much rotation');
-          }
-          return;
         }
       } else {
-        // In portrait mode:
-        // Forward/backward tilt affects Y-axis
-        tiltAngle = deltaY * 10;
+        // In portrait mode
+        rawTiltAngle = deltaY * 8.0 + deltaZ * 4.0;
 
-        if (_debugAccelerometer) {
-          print(
-            'Portrait - X: ${event.x.toStringAsFixed(2)}, Y: ${event.y.toStringAsFixed(2)}, Z: ${event.z.toStringAsFixed(2)} | '
-            'DeltaX: ${deltaX.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | '
-            'TiltAngle: ${tiltAngle.toStringAsFixed(1)}',
+        if (_debugSensors) {
+          debugPrint(
+            'Accel Portrait - DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | '
+            'RawTilt: ${rawTiltAngle.toStringAsFixed(1)}',
           );
-        }
-
-        // Filter out side-to-side movements
-        if (deltaX.abs() > 5.0) {
-          if (_debugAccelerometer) {
-            print('Ignoring - too much side movement');
-          }
-          return;
         }
       }
 
-      // Check if we're in neutral position
-      if (tiltAngle.abs() < _neutralThreshold) {
-        // Phone is in neutral position
+      // Apply exponential smoothing to reduce noise
+      _smoothedTiltAngle =
+          _smoothedTiltAngle * (1 - _smoothingFactor) +
+          rawTiltAngle * _smoothingFactor;
+
+      final tiltAngle = _smoothedTiltAngle;
+      final now = DateTime.now();
+
+      // Check if we're in neutral position (low tilt angle AND low rate of change)
+      final isNearNeutral = tiltAngle.abs() < _neutralThreshold;
+      final isStable =
+          (rawTiltAngle - _smoothedTiltAngle).abs() < 5.0; // Low change rate
+
+      if (isNearNeutral && isStable) {
         if (!_isInNeutralPosition) {
+          // Just entered neutral - start settling
           _isInNeutralPosition = true;
-          _hasTriggeredAction =
-              false; // Reset trigger flag when returning to neutral
+          _neutralEntryTime = now;
+          _isSettled = false;
+
+          if (_debugSensors) {
+            debugPrint('Entered neutral (accel), waiting to settle...');
+          }
+        } else if (!_isSettled && _neutralEntryTime != null) {
+          // Check if settled long enough
+          final timeInNeutral = now.difference(_neutralEntryTime!);
+          if (timeInNeutral >= _settlingTime) {
+            _isSettled = true;
+            _hasTriggeredAction = false;
+            _failedAttempts = 0;
+
+            if (_debugSensors) {
+              debugPrint('Settled in neutral (accel) - ready for new action');
+            }
+          }
         }
         return;
+      } else {
+        // Outside neutral
+        if (_isInNeutralPosition && !_isSettled) {
+          _neutralEntryTime = null; // Reset settling
+        }
+        _isInNeutralPosition = false;
       }
 
-      // Check if enough time has passed since last action
+      // Check cooldown
       if (_lastActionTime != null) {
-        final timeSinceLastAction = DateTime.now().difference(_lastActionTime!);
+        final timeSinceLastAction = now.difference(_lastActionTime!);
         if (timeSinceLastAction < _minTimeBetweenActions) {
-          return; // Too soon for another action
+          return;
         }
       }
 
-      // Only process tilt if we were in neutral position and haven't triggered yet
-      if (!_isInNeutralPosition || _hasTriggeredAction) {
+      // Don't trigger if locked, already triggered, or not settled
+      if (_actionLocked || _hasTriggeredAction || !_isSettled) {
+        // Track failed attempts for recalibration
+        if (!_isInNeutralPosition && tiltAngle.abs() > _confirmThreshold) {
+          _failedAttempts++;
+          if (_failedAttempts > _maxFailedAttempts &&
+              (_lastCalibrationTime == null ||
+                  now.difference(_lastCalibrationTime!).inSeconds > 5)) {
+            if (_debugSensors) {
+              debugPrint('Auto-recalibrating due to stuck sensor');
+            }
+            _initializeSensors(isRecalibration: true);
+          }
+        }
         return;
       }
 
-      // Adjusted thresholds for better detection
-      // In landscape with Z-axis: positive deltaZ = tilt backward (toward head) = PASS
-      //                           negative deltaZ = tilt forward (away from head) = CORRECT
-      const correctThreshold =
-          -_actionThreshold; // Tilt forward (away from head) to mark correct
-      const passThreshold =
-          _actionThreshold; // Tilt backward (toward head) to pass
-
+      // Trigger actions
       if (_isLandscapeMode) {
-        // In landscape mode, the directions are specific to Z-axis behavior
-        if (tiltAngle < correctThreshold) {
-          // Tilted forward (away from head) - Correct
-          _isInNeutralPosition = false;
-          _hasTriggeredAction = true;
-          _lastActionTime = DateTime.now();
-          _handleCorrect();
-        } else if (tiltAngle > passThreshold) {
-          // Tilted backward (toward head) - Pass
-          _isInNeutralPosition = false;
-          _hasTriggeredAction = true;
-          _lastActionTime = DateTime.now();
-          _handlePass();
+        if (tiltAngle < -_actionThreshold &&
+            rawTiltAngle < -_confirmThreshold * 0.8) {
+          _triggerAction(isCorrect: true);
+        } else if (tiltAngle > _actionThreshold &&
+            rawTiltAngle > _confirmThreshold * 0.8) {
+          _triggerAction(isCorrect: false);
         }
       } else {
-        // In portrait mode, keep the original logic
-        if (tiltAngle > _actionThreshold) {
-          // Tilted forward - Pass
-          _isInNeutralPosition = false;
-          _hasTriggeredAction = true;
-          _lastActionTime = DateTime.now();
-          _handlePass();
-        } else if (tiltAngle < -_actionThreshold) {
-          // Tilted backward - Correct
-          _isInNeutralPosition = false;
-          _hasTriggeredAction = true;
-          _lastActionTime = DateTime.now();
-          _handleCorrect();
+        if (tiltAngle > _actionThreshold &&
+            rawTiltAngle > _confirmThreshold * 0.8) {
+          _triggerAction(isCorrect: false);
+        } else if (tiltAngle < -_actionThreshold &&
+            rawTiltAngle < -_confirmThreshold * 0.8) {
+          _triggerAction(isCorrect: true);
         }
       }
     });
+  }
+
+  void _triggerAction({required bool isCorrect}) {
+    _isInNeutralPosition = false;
+    _isSettled = false; // Must settle again before next action
+    _hasTriggeredAction = true;
+    _lastActionTime = DateTime.now();
+    _neutralEntryTime = null; // Reset neutral entry time
+    _failedAttempts = 0;
+
+    if (_debugSensors) {
+      debugPrint('Action triggered: ${isCorrect ? "CORRECT" : "PASS"}');
+    }
+
+    if (isCorrect) {
+      _handleCorrect();
+    } else {
+      _handlePass();
+    }
   }
 
   void _handleCorrect() {
@@ -549,9 +884,9 @@ class _GameplayScreenState extends State<GameplayScreen>
     _showFeedback('CORRECT!', AppTheme.successColor, Icons.check_circle);
     _feedbackBurstController.forward(from: 0);
 
-    // Play effects
+    // Play effects - premium haptic for correct answer
     _audioService.playCorrect();
-    _hapticService.lightImpact();
+    _hapticService.correctAnswer();
 
     // Premium card exit animation
     _cardExitController.forward(from: 0).then((_) {
@@ -600,9 +935,9 @@ class _GameplayScreenState extends State<GameplayScreen>
     _showFeedback('PASS', AppTheme.warningColor, Icons.skip_next);
     _feedbackBurstController.forward(from: 0);
 
-    // Play effects
+    // Play effects - premium haptic for pass
     _audioService.playPass();
-    _hapticService.selection();
+    _hapticService.passAnswer();
 
     // Premium card exit animation
     _cardExitController.forward(from: 0).then((_) {
@@ -655,7 +990,10 @@ class _GameplayScreenState extends State<GameplayScreen>
           );
         }
 
-        // Note: We don't reset flags here anymore
+        // Reset the smoothed angle gradually to help detect return to neutral
+        // This helps when user holds phone at an angle for too long
+        _smoothedTiltAngle *= 0.5;
+
         // The neutral position detection will handle resetting when phone returns to neutral
         // This prevents the issue where holding the phone tilted causes continuous triggers
         setState(() {});
@@ -820,7 +1158,10 @@ class _GameplayScreenState extends State<GameplayScreen>
                     SizedBox(height: 8.s),
                     Text(
                       'Are you sure you want to end this game?',
-                      style: TextStyle(fontSize: 16.sp, color: Colors.grey[600]),
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        color: Colors.grey[600],
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: 24.s),
@@ -1076,11 +1417,10 @@ class _GameplayScreenState extends State<GameplayScreen>
                                   onTap: () {
                                     Navigator.pop(dialogContext);
                                     context.read<GameProvider>().togglePause();
-                                    _canDetectTilt = true;
-                                    // Reset tilt detection state when resuming
-                                    _isInNeutralPosition = true;
-                                    _hasTriggeredAction = false;
-                                    _actionLocked = false;
+                                    // Reinitialize sensors on resume for better accuracy
+                                    if (!_useManualControls) {
+                                      _initializeSensors(isRecalibration: true);
+                                    }
                                     _hapticService.lightImpact();
                                   },
                                   borderRadius: BorderRadius.circular(14),
@@ -1215,6 +1555,7 @@ class _GameplayScreenState extends State<GameplayScreen>
     _backgroundAnimController.dispose();
     _glowController.dispose();
     _countdownTimer?.cancel();
+    _gyroscopeSubscription?.cancel();
     _accelerometerSubscription?.cancel();
     // Reset orientation to default
     SystemChrome.setPreferredOrientations([
@@ -1392,7 +1733,8 @@ class _GameplayScreenState extends State<GameplayScreen>
     // Use the smaller dimension to ensure it fits in landscape
     final minDimension = isLandscape ? screenSize.height : screenSize.width;
     // Scale factor for landscape mode
-    final scaleFactor = isLandscape ? (minDimension / 400).clamp(0.6, 1.0) : 1.0;
+    final scaleFactor =
+        isLandscape ? (minDimension / 400).clamp(0.6, 1.0) : 1.0;
 
     return AnimatedBuilder(
       animation: Listenable.merge([
@@ -1401,7 +1743,7 @@ class _GameplayScreenState extends State<GameplayScreen>
         _countdownRingController,
         _countdownBlurController,
       ]),
-        builder: (context, child) {
+      builder: (context, child) {
         // Premium easing curves for Netflix-like feel
         final elasticValue = Curves.elasticOut.transform(
           _countdownController.value.clamp(0.0, 1.0),
@@ -1462,15 +1804,19 @@ class _GameplayScreenState extends State<GameplayScreen>
                     // Pulsing glow effect behind number
                     Transform.scale(
                       scale: 1.0 + (pulseValue * 0.3),
-              child: Container(
+                      child: Container(
                         width: 200 * scaleFactor,
                         height: 200 * scaleFactor,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
                           gradient: RadialGradient(
                             colors: [
-                              widget.deck.color.withOpacity(0.4 * (1 - pulseValue)),
-                              widget.deck.color.withOpacity(0.2 * (1 - pulseValue)),
+                              widget.deck.color.withOpacity(
+                                0.4 * (1 - pulseValue),
+                              ),
+                              widget.deck.color.withOpacity(
+                                0.2 * (1 - pulseValue),
+                              ),
                               Colors.transparent,
                             ],
                             stops: const [0.0, 0.5, 1.0],
@@ -1493,12 +1839,14 @@ class _GameplayScreenState extends State<GameplayScreen>
                           ],
                           stops: const [0.0, 0.6, 1.0],
                         ),
-                  border: Border.all(
-                          color: Colors.white.withOpacity(0.4 + (pulseValue * 0.2)),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(
+                            0.4 + (pulseValue * 0.2),
+                          ),
                           width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
+                        ),
+                        boxShadow: [
+                          BoxShadow(
                             color: Colors.white.withOpacity(0.3),
                             blurRadius: 30 + (pulseValue * 20),
                             spreadRadius: 5,
@@ -1506,10 +1854,10 @@ class _GameplayScreenState extends State<GameplayScreen>
                           BoxShadow(
                             color: widget.deck.color.withOpacity(0.4),
                             blurRadius: 60,
-                      spreadRadius: 10,
-                    ),
-                  ],
-                ),
+                            spreadRadius: 10,
+                          ),
+                        ],
+                      ),
                     ),
 
                     // Animated progress arc
@@ -1537,10 +1885,10 @@ class _GameplayScreenState extends State<GameplayScreen>
                           opacity: numberOpacity * (1 - blurValue),
                           child: Stack(
                             alignment: Alignment.center,
-                    children: [
+                            children: [
                               // Shadow layer
-                      Text(
-                        _countdownValue.toString(),
+                              Text(
+                                _countdownValue.toString(),
                                 style: TextStyle(
                                   color: widget.deck.color.withOpacity(0.5),
                                   fontSize: 120 * scaleFactor,
@@ -1551,23 +1899,24 @@ class _GameplayScreenState extends State<GameplayScreen>
                               ),
                               // Main text with gradient
                               ShaderMask(
-                                shaderCallback: (bounds) => LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.white,
-                                    Colors.white.withOpacity(0.9),
-                                    Colors.white.withOpacity(0.7),
-                                  ],
-                                  stops: const [0.0, 0.5, 1.0],
-                                ).createShader(bounds),
+                                shaderCallback:
+                                    (bounds) => LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.white,
+                                        Colors.white.withOpacity(0.9),
+                                        Colors.white.withOpacity(0.7),
+                                      ],
+                                      stops: const [0.0, 0.5, 1.0],
+                                    ).createShader(bounds),
                                 child: Text(
                                   _countdownValue.toString(),
                                   style: TextStyle(
-                          color: Colors.white,
+                                    color: Colors.white,
                                     fontSize: 120 * scaleFactor,
-                          fontWeight: FontWeight.w900,
-                          height: 1,
+                                    fontWeight: FontWeight.w900,
+                                    height: 1,
                                     letterSpacing: -4,
                                     shadows: const [
                                       Shadow(
@@ -1628,10 +1977,7 @@ class _GameplayScreenState extends State<GameplayScreen>
           ],
         ),
         borderRadius: BorderRadius.circular(40),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.15),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1685,12 +2031,12 @@ class _GameplayScreenState extends State<GameplayScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-                      Text(
+              Text(
                 'Place on forehead',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
                   fontSize: 12 * scaleFactor,
-                          fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w600,
                   letterSpacing: 0.3,
                   height: 1.2,
                 ),
@@ -1712,10 +2058,10 @@ class _GameplayScreenState extends State<GameplayScreen>
                       fontSize: 9 * scaleFactor,
                       fontWeight: FontWeight.w400,
                       letterSpacing: 0.2,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
+                ],
+              ),
             ],
           ),
         ],
@@ -1745,7 +2091,8 @@ class _GameplayScreenState extends State<GameplayScreen>
       // Correct: Card sweeps DOWNWARD (matching phone tilt down gesture)
       translateY = 500 * exitProgress; // Positive = down
       rotation = -0.12 * exitProgress; // Slight tilt as it falls
-      scale = 1.0 + (0.08 * exitProgress) - (0.25 * exitProgress * exitProgress);
+      scale =
+          1.0 + (0.08 * exitProgress) - (0.25 * exitProgress * exitProgress);
       opacity = 1.0 - (exitProgress * 0.9);
     } else if (_isPassAction && _cardExitController.isAnimating) {
       // Pass: Card sweeps UPWARD (matching phone tilt up gesture)
@@ -1756,17 +2103,20 @@ class _GameplayScreenState extends State<GameplayScreen>
     }
 
     // Enter animation for new card - comes from opposite direction
-    if (_cardEnterController.isAnimating && !_isCorrectAction && !_isPassAction) {
+    if (_cardEnterController.isAnimating &&
+        !_isCorrectAction &&
+        !_isPassAction) {
       final enterY = -50 * (1 - enterProgress); // Subtle slide in from above
       scale = 0.85 + (0.15 * enterProgress);
       opacity = enterProgress;
-      
+
       return Transform(
         alignment: Alignment.center,
-        transform: Matrix4.identity()
-          ..setEntry(3, 2, 0.001)
-          ..translate(0.0, enterY)
-          ..scale(scale),
+        transform:
+            Matrix4.identity()
+              ..setEntry(3, 2, 0.001)
+              ..translate(0.0, enterY)
+              ..scale(scale),
         child: Opacity(
           opacity: opacity.clamp(0.0, 1.0),
           child: _buildCardFront(currentCard),
@@ -1776,11 +2126,12 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     return Transform(
       alignment: Alignment.center,
-      transform: Matrix4.identity()
-        ..setEntry(3, 2, 0.001)
-        ..translate(0.0, translateY)
-        ..rotateZ(rotation)
-        ..scale(scale),
+      transform:
+          Matrix4.identity()
+            ..setEntry(3, 2, 0.001)
+            ..translate(0.0, translateY)
+            ..rotateZ(rotation)
+            ..scale(scale),
       child: Opacity(
         opacity: opacity.clamp(0.0, 1.0),
         child: _buildCardFront(currentCard),
@@ -1799,16 +2150,18 @@ class _GameplayScreenState extends State<GameplayScreen>
         final progress = _feedbackBurstController.value;
         if (progress == 0) return const SizedBox.shrink();
 
-        final color = _isCorrectAction ? AppTheme.successColor : AppTheme.warningColor;
+        final color =
+            _isCorrectAction ? AppTheme.successColor : AppTheme.warningColor;
         final burstScale = Curves.easeOutQuart.transform(progress);
         final fadeOut = 1.0 - Curves.easeInQuart.transform(progress);
-        
+
         // Direction multiplier: positive for down (correct), negative for up (pass)
         final directionY = _isCorrectAction ? 1.0 : -1.0;
-        
+
         // Icon follows card direction
-        final iconOffsetY = directionY * 150 * Curves.easeOutQuart.transform(progress);
-        
+        final iconOffsetY =
+            directionY * 150 * Curves.easeOutQuart.transform(progress);
+
         // Full screen flash opacity - quick flash in, slower fade out
         double flashOpacity;
         if (progress < 0.1) {
@@ -1816,7 +2169,8 @@ class _GameplayScreenState extends State<GameplayScreen>
           flashOpacity = Curves.easeOut.transform(progress / 0.1);
         } else {
           // Slower fade out
-          flashOpacity = 1.0 - Curves.easeInQuad.transform((progress - 0.1) / 0.9);
+          flashOpacity =
+              1.0 - Curves.easeInQuad.transform((progress - 0.1) / 0.9);
         }
 
         return Stack(
@@ -1824,12 +2178,10 @@ class _GameplayScreenState extends State<GameplayScreen>
             // FULL SCREEN solid color flash overlay - covers everything
             Positioned.fill(
               child: IgnorePointer(
-                child: Container(
-                  color: color.withOpacity(0.5 * flashOpacity),
-                ),
+                child: Container(color: color.withOpacity(0.5 * flashOpacity)),
               ),
             ),
-            
+
             // Bright white flash layer for extra impact
             if (progress < 0.2)
               Positioned.fill(
@@ -1892,9 +2244,12 @@ class _GameplayScreenState extends State<GameplayScreen>
               child: Transform.translate(
                 offset: Offset(0, iconOffsetY),
                 child: Transform.scale(
-                  scale: progress < 0.25
-                      ? Curves.elasticOut.transform((progress / 0.25).clamp(0.0, 1.0))
-                      : 1.0 - ((progress - 0.25) / 0.75 * 0.4),
+                  scale:
+                      progress < 0.25
+                          ? Curves.elasticOut.transform(
+                            (progress / 0.25).clamp(0.0, 1.0),
+                          )
+                          : 1.0 - ((progress - 0.25) / 0.75 * 0.4),
                   child: Opacity(
                     opacity: fadeOut,
                     child: Container(
@@ -1912,8 +2267,8 @@ class _GameplayScreenState extends State<GameplayScreen>
                         ],
                       ),
                       child: Icon(
-                        _isCorrectAction 
-                            ? Icons.keyboard_arrow_down_rounded 
+                        _isCorrectAction
+                            ? Icons.keyboard_arrow_down_rounded
                             : Icons.keyboard_arrow_up_rounded,
                         color: Colors.white,
                         size: 55,
@@ -1929,11 +2284,15 @@ class _GameplayScreenState extends State<GameplayScreen>
               child: Transform.translate(
                 offset: Offset(0, iconOffsetY + (directionY * 70)),
                 child: Opacity(
-                  opacity: progress < 0.15
-                      ? (progress / 0.15).clamp(0.0, 1.0)
-                      : 1.0 - ((progress - 0.4) / 0.6).clamp(0.0, 1.0),
+                  opacity:
+                      progress < 0.15
+                          ? (progress / 0.15).clamp(0.0, 1.0)
+                          : 1.0 - ((progress - 0.4) / 0.6).clamp(0.0, 1.0),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: color.withOpacity(0.9),
                       borderRadius: BorderRadius.circular(25),
@@ -1966,18 +2325,24 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   /// Generate directional burst particles for feedback animation
   /// Particles flow in the direction of the card movement
-  List<Widget> _buildDirectionalBurstParticles(double progress, Color color, double directionY) {
+  List<Widget> _buildDirectionalBurstParticles(
+    double progress,
+    Color color,
+    double directionY,
+  ) {
     final particles = <Widget>[];
     final particleCount = _isCorrectAction ? 12 : 8;
     final fadeOut = 1.0 - Curves.easeInQuad.transform(progress);
-    
+
     // Main directional particles - spread in a cone shape
     for (int i = 0; i < particleCount; i++) {
       // Angle spread: particles mostly go in the direction but with some spread
-      final spreadAngle = (i / particleCount - 0.5) * math.pi * 0.8; // Cone spread
-      final baseAngle = directionY > 0 ? math.pi / 2 : -math.pi / 2; // Down or Up
+      final spreadAngle =
+          (i / particleCount - 0.5) * math.pi * 0.8; // Cone spread
+      final baseAngle =
+          directionY > 0 ? math.pi / 2 : -math.pi / 2; // Down or Up
       final angle = baseAngle + spreadAngle;
-      
+
       final distance = 60 + (progress * 200);
       final sizeVariation = 1.0 + (math.sin(i * 1.5) * 0.4);
       final speedVariation = 0.8 + (math.cos(i * 2.0) * 0.4);
@@ -2001,7 +2366,9 @@ class _GameplayScreenState extends State<GameplayScreen>
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: (i % 2 == 0 ? color : Colors.white).withOpacity(0.5),
+                        color: (i % 2 == 0 ? color : Colors.white).withOpacity(
+                          0.5,
+                        ),
                         blurRadius: 6,
                         spreadRadius: 1,
                       ),
@@ -2011,18 +2378,18 @@ class _GameplayScreenState extends State<GameplayScreen>
               ),
             ),
           ),
-      ),
-    );
-  }
+        ),
+      );
+    }
 
     // Trail particles that follow the main direction
     for (int i = 0; i < 6; i++) {
       final trailProgress = (progress - (i * 0.05)).clamp(0.0, 1.0);
       if (trailProgress <= 0) continue;
-      
+
       final trailDistance = 40 + (trailProgress * 120);
       final xOffset = (i - 2.5) * 25; // Spread horizontally
-      
+
       particles.add(
         Center(
           child: Transform.translate(
@@ -2036,10 +2403,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                   color: Colors.white.withOpacity(0.8),
                   borderRadius: BorderRadius.circular(3),
                   boxShadow: [
-                    BoxShadow(
-                      color: color.withOpacity(0.4),
-                      blurRadius: 8,
-                    ),
+                    BoxShadow(color: color.withOpacity(0.4), blurRadius: 8),
                   ],
                 ),
               ),
@@ -2057,7 +2421,7 @@ class _GameplayScreenState extends State<GameplayScreen>
         final sparkleDistance = 100 + (progress * 150);
         final sparkleDelay = i * 0.08;
         final sparkleProgress = (progress - sparkleDelay).clamp(0.0, 1.0);
-        
+
         if (sparkleProgress > 0) {
           particles.add(
             Center(
@@ -2146,7 +2510,6 @@ class _GameplayScreenState extends State<GameplayScreen>
       ),
     );
   }
-
 
   Widget _buildGameplay() {
     final gameProvider = context.watch<GameProvider>();
@@ -2280,8 +2643,8 @@ class _GameplayScreenState extends State<GameplayScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            isUnlimited 
-                                ? Icons.all_inclusive_rounded 
+                            isUnlimited
+                                ? Icons.all_inclusive_rounded
                                 : Icons.timer_outlined,
                             color: Colors.white,
                             size: 20,
@@ -2608,14 +2971,16 @@ class _GameplayScreenState extends State<GameplayScreen>
         onTap: () {
           setState(() {
             _useManualControls = !_useManualControls;
-            // Reset state when switching control modes
-            _isInNeutralPosition = true;
-            _hasTriggeredAction = false;
-            _lastActionTime = null;
-            _actionLocked = false;
 
-            if (!_useManualControls && !_isCalibrated) {
-              _calibrateAccelerometer();
+            if (!_useManualControls) {
+              // Initialize sensors when switching to tilt mode
+              _initializeSensors(isRecalibration: true);
+            } else {
+              // Stop sensor subscriptions when using manual controls
+              _gyroscopeSubscription?.cancel();
+              _gyroscopeSubscription = null;
+              _accelerometerSubscription?.cancel();
+              _accelerometerSubscription = null;
             }
           });
           SharedPreferences.getInstance().then((prefs) {
@@ -2626,7 +2991,7 @@ class _GameplayScreenState extends State<GameplayScreen>
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(12.s),
+            borderRadius: BorderRadius.circular(12.s),
             border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
           ),
           child: Icon(
@@ -2705,21 +3070,24 @@ class _GameplayScreenState extends State<GameplayScreen>
 
         // Premium curve for smooth fade
         final progress = _feedbackController.value;
-        final opacity = progress < 0.5
-            ? Curves.easeOut.transform(progress * 2)
-            : Curves.easeIn.transform(1.0 - (progress - 0.5) * 2);
+        final opacity =
+            progress < 0.5
+                ? Curves.easeOut.transform(progress * 2)
+                : Curves.easeIn.transform(1.0 - (progress - 0.5) * 2);
 
         return Positioned.fill(
           child: IgnorePointer(
-                child: Container(
-                  decoration: BoxDecoration(
+            child: Container(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: _feedbackColor == AppTheme.successColor
-                      ? Alignment.topCenter
-                      : Alignment.centerRight,
-                  end: _feedbackColor == AppTheme.successColor
-                      ? Alignment.bottomCenter
-                      : Alignment.centerLeft,
+                  begin:
+                      _feedbackColor == AppTheme.successColor
+                          ? Alignment.topCenter
+                          : Alignment.centerRight,
+                  end:
+                      _feedbackColor == AppTheme.successColor
+                          ? Alignment.bottomCenter
+                          : Alignment.centerLeft,
                   colors: [
                     _feedbackColor.withOpacity(0.15 * opacity),
                     Colors.transparent,
@@ -2732,7 +3100,6 @@ class _GameplayScreenState extends State<GameplayScreen>
       },
     );
   }
-
 }
 
 // Custom painter for modern background

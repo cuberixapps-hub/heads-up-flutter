@@ -43,11 +43,60 @@ class PurchasesService {
       StreamController<bool>.broadcast();
   Stream<bool> get premiumStatusStream => _premiumStatusController.stream;
 
+  // ============================================
+  // 🧪 DEBUG MODE - For Testing Only
+  // ============================================
+  /// DEBUG ONLY: Simulate premium purchase for testing UI/UX
+  /// This does NOT actually grant premium - only for UI testing
+  /// Can ONLY be toggled via Settings screen debug controls
+  static bool _debugSimulatePremium = false;
+
+  /// Enable simulated premium status (DEBUG ONLY)
+  /// Call this ONLY from Settings screen debug toggle
+  static void debugEnablePremium() {
+    if (kDebugMode) {
+      _debugSimulatePremium = true;
+      debugPrint('🧪 DEBUG: Simulating premium status via Settings toggle');
+      PurchasesService()._premiumStatusController.add(true);
+    }
+  }
+
+  /// Disable simulated premium status (DEBUG ONLY)
+  /// Call this ONLY from Settings screen debug toggle
+  static void debugDisablePremium() {
+    if (kDebugMode) {
+      _debugSimulatePremium = false;
+      debugPrint('🧪 DEBUG: Disabling simulated premium via Settings toggle');
+      PurchasesService()._premiumStatusController.add(false);
+    }
+  }
+
+  /// Check if debug simulation is active (DEBUG ONLY)
+  static bool get isDebugPremiumActive => kDebugMode && _debugSimulatePremium;
+
   /// Check if RevenueCat is initialized
   static bool get isInitialized => _initialized;
 
   /// Check if user has premium access
-  bool get isPremium => _isPremium;
+  /// Returns true ONLY if:
+  /// 1. Debug simulation is enabled via Settings toggle (debug mode only), OR
+  /// 2. RevenueCat confirms user has active premium entitlement
+  /// 
+  /// IMPORTANT: Returns FALSE by default for all users until proven otherwise
+  bool get isPremium {
+    // Debug simulation - ONLY works if explicitly enabled via Settings toggle
+    if (kDebugMode && _debugSimulatePremium) {
+      return true;
+    }
+    
+    // If RevenueCat not properly initialized, user is FREE (show ads)
+    if (!_initialized) {
+      return false;
+    }
+    
+    // Return actual premium status from RevenueCat
+    return _isPremium;
+  }
 
   /// Get current offerings (products available for purchase)
   Offerings? get offerings => _offerings;
@@ -63,11 +112,18 @@ class PurchasesService {
       return;
     }
 
+    // Check if API keys are configured
+    final apiKey = Platform.isIOS ? _iosApiKey : _androidApiKey;
+    if (apiKey.startsWith('YOUR_')) {
+      debugPrint('⚠️ RevenueCat: Using placeholder API key - treating all users as FREE');
+      debugPrint('📝 To enable purchases, replace API keys in purchases_service.dart');
+      // Don't set _initialized to true - this ensures isPremium returns false
+      return;
+    }
+
     try {
       // Configure RevenueCat
-      final configuration = PurchasesConfiguration(
-        Platform.isIOS ? _iosApiKey : _androidApiKey,
-      );
+      final configuration = PurchasesConfiguration(apiKey);
 
       await Purchases.configure(configuration);
 
@@ -84,6 +140,8 @@ class PurchasesService {
       final instance = PurchasesService();
       await instance._fetchCustomerInfo();
       await instance._fetchOfferings();
+      
+      debugPrint('📊 Initial premium status: ${instance._isPremium}');
 
       // Set up listener for customer info updates
       Purchases.addCustomerInfoUpdateListener((customerInfo) {
@@ -91,7 +149,9 @@ class PurchasesService {
       });
     } catch (e, stackTrace) {
       debugPrint('❌ RevenueCat initialization failed: $e');
+      debugPrint('📝 Users will be treated as FREE until RevenueCat is properly configured');
       FirebaseService.logError(e, stackTrace);
+      // Don't set _initialized to true on failure
     }
   }
 
@@ -295,6 +355,28 @@ class PurchasesService {
   String? get activeProductId {
     final entitlement = _customerInfo?.entitlements.active[entitlementId];
     return entitlement?.productIdentifier;
+  }
+
+  /// Get the active plan name for display
+  String get activePlanName {
+    if (kDebugMode && _debugSimulatePremium) {
+      return 'Debug Premium';
+    }
+    
+    final productId = activeProductId;
+    if (productId == null) return 'Free';
+    
+    if (productId.contains('lifetime')) return 'Lifetime';
+    if (productId.contains('yearly') || productId.contains('annual')) return 'Annual';
+    if (productId.contains('monthly')) return 'Monthly';
+    
+    return 'Premium';
+  }
+
+  /// Check if subscription is lifetime (non-expiring)
+  bool get isLifetime {
+    final productId = activeProductId;
+    return productId?.contains('lifetime') ?? false;
   }
 
   /// Identify user (call after user logs in)

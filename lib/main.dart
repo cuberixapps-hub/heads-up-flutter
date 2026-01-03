@@ -54,52 +54,13 @@ void main() async {
   debugPrint('🎮 HEADS UP GAME STARTING...');
   debugPrint('========================================');
 
-  // IMPORTANT: Initialize Firebase FIRST (includes Remote Config)
-  final firebaseService = FirebaseService();
-  await firebaseService.initialize();
-  
-  // Register FCM background message handler
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  
-  // Initialize AdMob (will use Firebase Remote Config to determine ad type)
-  await AdService.initialize();
-  
-  // Initialize RevenueCat for in-app purchases
-  await PurchasesService.initialize();
-  
-  // Initialize Push Notifications
-  await NotificationService.initialize();
-  
-  // Initialize Deep Link Service for sharing
-  await DeepLinkService.initialize();
-
-  // Try to sign in anonymously, but don't block app startup if it fails
-  try {
-    await firebaseService.signInAnonymously().timeout(
-      const Duration(seconds: 5),
-      onTimeout: () {
-        debugPrint('📱 Starting in OFFLINE MODE (no internet connection)');
-        debugPrint(
-          'ℹ️ Note: Firebase warnings below are NORMAL and expected when offline',
-        );
-        return null;
-      },
-    );
-    debugPrint('✅ Connected to Firebase successfully');
-  } catch (e) {
-    debugPrint('📱 Starting in OFFLINE MODE');
-    debugPrint(
-      'ℹ️ Note: Firebase warnings below are NORMAL and expected when offline',
-    );
-  }
-
-  // Set preferred orientations
+  // Set preferred orientations (fast, essential)
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // Set system UI overlay style
+  // Set system UI overlay style (fast, essential)
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -109,7 +70,72 @@ void main() async {
     ),
   );
 
+  // Register FCM background message handler (sync, fast)
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // Start the app IMMEDIATELY - initialize services in background
   runApp(const MyApp());
+
+  // Initialize all services in the background AFTER app is running
+  // This prevents blocking the splash screen
+  _initializeServicesInBackground();
+}
+
+/// Initialize all services in the background after app UI is shown
+/// This dramatically improves app startup time
+Future<void> _initializeServicesInBackground() async {
+  debugPrint('🔄 Starting background service initialization...');
+  final stopwatch = Stopwatch()..start();
+
+  try {
+    // Initialize Firebase first (required by other services)
+    // Use a short timeout to avoid blocking
+    final firebaseService = FirebaseService();
+    await firebaseService.initialize().timeout(
+      const Duration(seconds: 3),
+      onTimeout: () {
+        debugPrint('⚠️ Firebase init timeout - continuing anyway');
+      },
+    );
+
+    // Run remaining initializations in PARALLEL for speed
+    await Future.wait([
+      // AdMob - don't wait too long
+      AdService.initialize().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {
+          debugPrint('⚠️ AdMob init timeout - will retry later');
+        },
+      ),
+      // RevenueCat - don't wait too long  
+      PurchasesService.initialize().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {
+          debugPrint('⚠️ RevenueCat init timeout - will retry later');
+        },
+      ),
+      // Notifications
+      NotificationService.initialize().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {
+          debugPrint('⚠️ Notification init timeout - will retry later');
+        },
+      ),
+      // Deep Links
+      DeepLinkService.initialize().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {
+          debugPrint('⚠️ DeepLink init timeout - will retry later');
+        },
+      ),
+    ], eagerError: false);
+
+    stopwatch.stop();
+    debugPrint('✅ Background services initialized in ${stopwatch.elapsedMilliseconds}ms');
+  } catch (e) {
+    debugPrint('⚠️ Background initialization error: $e');
+    debugPrint('📱 App will continue with limited functionality');
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -127,11 +153,23 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _setupDeepLinkListener() {
-    // Listen for incoming deep links
-    DeepLinkService().onDeepLink.listen((linkData) {
-      debugPrint('🔗 Handling deep link: $linkData');
+    final deepLinkService = DeepLinkService();
+    
+    // Check for pending deep link from cold start (handles race condition)
+    // Use post-frame callback to ensure router is ready
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final pendingLink = deepLinkService.consumePendingDeepLink();
+      if (pendingLink != null && pendingLink.type != DeepLinkType.home) {
+        debugPrint('🔗 Processing pending deep link from cold start: $pendingLink');
+        deepLinkService.handleDeepLinkNavigation(AppRouter.router, pendingLink);
+      }
+    });
+    
+    // Listen for incoming deep links while app is running
+    deepLinkService.onDeepLink.listen((linkData) {
+      debugPrint('🔗 Handling deep link from stream: $linkData');
       // Navigate using the router
-      DeepLinkService().handleDeepLinkNavigation(AppRouter.router, linkData);
+      deepLinkService.handleDeepLinkNavigation(AppRouter.router, linkData);
     });
   }
 

@@ -10,6 +10,7 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import '../models/deck.dart';
 import '../providers/deck_provider.dart';
 import '../services/ad_service.dart';
+import '../services/firebase_service.dart';
 import '../services/haptic_service.dart';
 import '../services/purchases_service.dart';
 import '../utils/responsive.dart';
@@ -96,6 +97,16 @@ class _PaywallScreenState extends State<PaywallScreen>
       _initializeSparkles();
       _loadOfferings();
     });
+    
+    // Log paywall viewed event
+    FirebaseService().logEvent(
+      'paywall_viewed',
+      parameters: {
+        'deck_id': widget.selectedDeck.id,
+        'deck_name': widget.selectedDeck.name,
+        'is_premium_deck': widget.selectedDeck.isPremium,
+      },
+    );
   }
 
   /// Load RevenueCat offerings
@@ -345,6 +356,17 @@ class _PaywallScreenState extends State<PaywallScreen>
 
     _hapticService.mediumImpact();
     setState(() => _isLoadingPurchase = true);
+    
+    // Log purchase started event
+    FirebaseService().logEvent(
+      'purchase_started',
+      parameters: {
+        'product_id': _selectedPackage!.storeProduct.identifier,
+        'package_type': _selectedPackage!.packageType.name,
+        'price': _selectedPackage!.storeProduct.price,
+        'currency': _selectedPackage!.storeProduct.currencyCode,
+      },
+    );
 
     try {
       final result = await _purchasesService.purchasePackage(_selectedPackage!);
@@ -361,6 +383,14 @@ class _PaywallScreenState extends State<PaywallScreen>
 
         case PurchaseResult.cancelled:
           // User cancelled, no need to show message
+          // Log purchase cancelled event
+          FirebaseService().logEvent(
+            'purchase_cancelled',
+            parameters: {
+              'product_id': _selectedPackage!.storeProduct.identifier,
+              'package_type': _selectedPackage!.packageType.name,
+            },
+          );
           break;
 
         case PurchaseResult.alreadyOwned:
@@ -373,10 +403,29 @@ class _PaywallScreenState extends State<PaywallScreen>
           break;
 
         default:
+          // Log purchase failed event
+          FirebaseService().logEvent(
+            'purchase_failed',
+            parameters: {
+              'product_id': _selectedPackage!.storeProduct.identifier,
+              'package_type': _selectedPackage!.packageType.name,
+              'error_type': result.name,
+            },
+          );
           _showErrorSnackBar(result.message);
       }
     } catch (e) {
       debugPrint('❌ Purchase error: $e');
+      // Log purchase failed event
+      FirebaseService().logEvent(
+        'purchase_failed',
+        parameters: {
+          'product_id': _selectedPackage!.storeProduct.identifier,
+          'package_type': _selectedPackage!.packageType.name,
+          'error_type': 'exception',
+          'error_message': e.toString().substring(0, min(100, e.toString().length)),
+        },
+      );
       _showErrorSnackBar('Purchase failed. Please try again.');
     } finally {
       if (mounted) {
@@ -389,6 +438,9 @@ class _PaywallScreenState extends State<PaywallScreen>
   Future<void> _restorePurchases() async {
     _hapticService.lightImpact();
     setState(() => _isLoadingPurchase = true);
+    
+    // Log restore started event
+    FirebaseService().logEvent('restore_started');
 
     try {
       final result = await _purchasesService.restorePurchases();
@@ -399,18 +451,31 @@ class _PaywallScreenState extends State<PaywallScreen>
         case RestoreResult.success:
           _hapticService.mediumImpact();
           _showSuccessSnackBar(result.message);
+          // Log restore completed event (success already logged in PurchasesService)
           widget.onPurchasePremium();
           break;
 
         case RestoreResult.noPurchases:
           _showInfoSnackBar(result.message);
+          FirebaseService().logEvent(
+            'restore_completed',
+            parameters: {'result': 'no_purchases'},
+          );
           break;
 
         default:
+          FirebaseService().logEvent(
+            'restore_completed',
+            parameters: {'result': 'error', 'error_type': result.name},
+          );
           _showErrorSnackBar(result.message);
       }
     } catch (e) {
       debugPrint('❌ Restore error: $e');
+      FirebaseService().logEvent(
+        'restore_completed',
+        parameters: {'result': 'exception'},
+      );
       _showErrorSnackBar('Failed to restore purchases.');
     } finally {
       if (mounted) {

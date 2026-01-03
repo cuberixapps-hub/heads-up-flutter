@@ -15,13 +15,15 @@ import '../utils/video_utils.dart';
 import 'video_with_overlay.dart';
 
 class VideoSection extends StatefulWidget {
-  const VideoSection({super.key});
+  final VoidCallback? onNavigateAway;
+  
+  const VideoSection({super.key, this.onNavigateAway});
 
   @override
-  State<VideoSection> createState() => _VideoSectionState();
+  State<VideoSection> createState() => VideoSectionState();
 }
 
-class _VideoSectionState extends State<VideoSection>
+class VideoSectionState extends State<VideoSection>
     with SingleTickerProviderStateMixin {
   final _hapticService = HapticService();
 
@@ -36,6 +38,15 @@ class _VideoSectionState extends State<VideoSection>
   // Progress tracking for FFmpeg
   final _progressController = StreamController<double>.broadcast();
   Stream<double> get _progressStream => _progressController.stream;
+  
+  // Cancellation flag for video processing
+  bool _isCancelled = false;
+  
+  // Public method to cancel video processing
+  void cancelVideoProcessing() {
+    _isCancelled = true;
+    debugPrint('Video processing cancellation requested');
+  }
 
   @override
   void initState() {
@@ -91,6 +102,12 @@ class _VideoSectionState extends State<VideoSection>
     });
 
     try {
+      // Check if cancelled before starting
+      if (_isCancelled) {
+        debugPrint('Video processing cancelled before start');
+        return;
+      }
+
       final gameProvider = context.read<GameProvider>();
       final session = gameProvider.currentSession;
 
@@ -102,6 +119,12 @@ class _VideoSectionState extends State<VideoSection>
       debugPrint('Recording duration: ${_recordingResult!.duration}');
       debugPrint('Total events: ${_recordingResult!.events.length}');
 
+      // Check if cancelled before generating frames
+      if (_isCancelled) {
+        debugPrint('Video processing cancelled before frame generation');
+        return;
+      }
+
       // Pre-generate all game replay frames to ensure smooth playback
       debugPrint('Pre-generating game replay frames...');
       final frames = await GameReplayRenderer.generateGameReplayFrames(
@@ -109,6 +132,20 @@ class _VideoSectionState extends State<VideoSection>
         deckColor: _getDeckColor(),
         gameDuration: _recordingResult!.duration,
       );
+
+      // Check if cancelled after generating frames
+      if (_isCancelled) {
+        debugPrint('Video processing cancelled after frame generation - cleaning up frames');
+        // Clean up generated frames
+        for (final frame in frames) {
+          try {
+            File(frame).deleteSync();
+          } catch (e) {
+            debugPrint('Error deleting frame during cancellation: $e');
+          }
+        }
+        return;
+      }
 
       if (frames.isEmpty) {
         debugPrint('Warning: No game replay frames generated');
@@ -131,10 +168,22 @@ class _VideoSectionState extends State<VideoSection>
       final fileSize = await videoFile.length();
       debugPrint('Video file size: ${fileSize / 1024 / 1024} MB');
 
+      // Check if cancelled before generating thumbnail
+      if (_isCancelled) {
+        debugPrint('Video processing cancelled before thumbnail generation');
+        return;
+      }
+
       // Try to generate thumbnail
       _thumbnailPath = await VideoComposer.generateThumbnail(
         _recordingResult!.videoPath,
       );
+
+      // Check if cancelled before updating state
+      if (_isCancelled) {
+        debugPrint('Video processing cancelled before final state update');
+        return;
+      }
 
       setState(() {
         _isProcessingVideo = false;
@@ -143,20 +192,27 @@ class _VideoSectionState extends State<VideoSection>
       debugPrint('=== VIDEO PROCESSING COMPLETE ===');
     } catch (e) {
       debugPrint('Video processing error: $e');
-      setState(() {
-        _isProcessingVideo = false;
-        _videoProcessingFailed = true;
-      });
+      if (!_isCancelled && mounted) {
+        setState(() {
+          _isProcessingVideo = false;
+          _videoProcessingFailed = true;
+        });
+      }
     }
   }
 
   @override
   void dispose() {
+    // Cancel any ongoing video processing
+    _isCancelled = true;
+    debugPrint('VideoSection dispose - cancelling video processing');
+    
     _videoSectionController.dispose();
     _progressController.close();
 
     // Clean up generated frames
     if (_generatedFrames.isNotEmpty) {
+      debugPrint('VideoSection dispose - cleaning up ${_generatedFrames.length} frames');
       for (final frame in _generatedFrames) {
         try {
           File(frame).deleteSync();

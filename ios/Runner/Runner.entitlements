@@ -4,11 +4,12 @@
 <dict>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
-		<string>applinks:headsupgame.page.link</string>
-		<string>applinks:headsupgame.app</string>
+		<string>applinks:heads-up-game-48f14.web.app</string>
 	</array>
 </dict>
 </plist>
+
+
 
 
 

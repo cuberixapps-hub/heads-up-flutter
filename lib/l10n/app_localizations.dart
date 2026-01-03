@@ -428,6 +428,42 @@ abstract class AppLocalizations {
   /// **'My Favorites'**
   String get myFavorites;
 
+  /// No description provided for @addToFavorites.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to Favorites'**
+  String get addToFavorites;
+
+  /// No description provided for @removeFromFavorites.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from Favorites'**
+  String get removeFromFavorites;
+
+  /// No description provided for @addedToFavorites.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to favorites'**
+  String get addedToFavorites;
+
+  /// No description provided for @removedFromFavorites.
+  ///
+  /// In en, this message translates to:
+  /// **'Removed from favorites'**
+  String get removedFromFavorites;
+
+  /// No description provided for @removeFromRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from Recent'**
+  String get removeFromRecent;
+
+  /// No description provided for @removedFromRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Removed from recently played'**
+  String get removedFromRecent;
+
   /// No description provided for @allDecks.
   ///
   /// In en, this message translates to:
@@ -1915,6 +1951,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Share with Friends'**
   String get shareWithFriends;
+
+  /// No description provided for @clearAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear All'**
+  String get clearAll;
+
+  /// No description provided for @popularThisWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'Popular This Week'**
+  String get popularThisWeek;
+
+  /// No description provided for @newReleases.
+  ///
+  /// In en, this message translates to:
+  /// **'New Releases'**
+  String get newReleases;
+
+  /// No description provided for @premiumCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Premium Collection'**
+  String get premiumCollection;
+
+  /// No description provided for @familyFun.
+  ///
+  /// In en, this message translates to:
+  /// **'Family Fun'**
+  String get familyFun;
+
+  /// No description provided for @partyGames.
+  ///
+  /// In en, this message translates to:
+  /// **'Party Games'**
+  String get partyGames;
+
+  /// No description provided for @seeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See All'**
+  String get seeAll;
+
+  /// No description provided for @noDecksInCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'There are no decks in this category yet.'**
+  String get noDecksInCategory;
+
+  /// No description provided for @tryDifferentKeywords.
+  ///
+  /// In en, this message translates to:
+  /// **'Try searching with different keywords.'**
+  String get tryDifferentKeywords;
+
+  /// No description provided for @cardsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} cards'**
+  String cardsCount(int count);
 }
 
 class _AppLocalizationsDelegate
