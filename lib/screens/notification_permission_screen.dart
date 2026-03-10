@@ -78,7 +78,7 @@ class _NotificationPermissionScreenState
               backgroundColor: const Color(0xFF10B981),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(12.s),
               ),
               duration: const Duration(seconds: 2),
             ),
@@ -140,45 +140,61 @@ class _NotificationPermissionScreenState
           SafeArea(
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.s),
-              child: Column(
-                children: [
-                  SizedBox(height: 16.s),
-                  
-                  // Skip button
-                  _buildSkipButton(l10n),
-                  
-                  const Spacer(flex: 1),
-                  
-                  // Bell illustration
-                  _buildBellIllustration(),
-                  
-                  SizedBox(height: 48.s),
-                  
-                  // Title
-                  _buildTitle(l10n),
-                  
-                  SizedBox(height: 12.s),
-                  
-                  // Subtitle
-                  _buildSubtitle(l10n),
-                  
-                  SizedBox(height: 40.s),
-                  
-                  // Benefits list
-                  _buildBenefitsList(l10n),
-                  
-                  const Spacer(flex: 2),
-                  
-                  // Enable button
-                  _buildEnableButton(l10n),
-                  
-                  SizedBox(height: 16.s),
-                  
-                  // Privacy note
-                  _buildPrivacyNote(l10n),
-                  
-                  SizedBox(height: 40.s),
-                ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: IntrinsicHeight(
+                        child: Column(
+                          children: [
+                            SizedBox(height: 16.s),
+                            
+                            // Skip button
+                            _buildSkipButton(l10n),
+                            
+                            SizedBox(height: 24.s),
+                            
+                            // Bell illustration
+                            _buildBellIllustration(),
+                            
+                            SizedBox(height: 32.s),
+                            
+                            // Title
+                            _buildTitle(l10n),
+                            
+                            SizedBox(height: 10.s),
+                            
+                            // Subtitle
+                            _buildSubtitle(l10n),
+                            
+                            SizedBox(height: 28.s),
+                            
+                            // Benefits list
+                            _buildBenefitsList(l10n),
+                            
+                            const Spacer(),
+                            
+                            SizedBox(height: 24.s),
+                            
+                            // Enable button
+                            _buildEnableButton(l10n),
+                            
+                            SizedBox(height: 12.s),
+                            
+                            // Privacy note
+                            _buildPrivacyNote(l10n),
+                            
+                            SizedBox(height: 24.s),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -267,28 +283,28 @@ class _NotificationPermissionScreenState
         final glowIntensity = 0.4 + (_glowController.value * 0.3);
         
         return SizedBox(
-          width: 180.s,
-          height: 180.s,
+          width: 160.s,
+          height: 160.s,
           child: Stack(
             alignment: Alignment.center,
             children: [
               // Outer glow ring
               Container(
-                width: 160.s,
-                height: 160.s,
+                width: 145.s,
+                height: 145.s,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: _primaryBlue.withOpacity(0.15),
-                    width: 1,
+                    width: 1.s,
                   ),
                 ),
               ),
               
               // Inner gradient circle
               Container(
-                width: 130.s,
-                height: 130.s,
+                width: 115.s,
+                height: 115.s,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
@@ -302,8 +318,8 @@ class _NotificationPermissionScreenState
                   boxShadow: [
                     BoxShadow(
                       color: _primaryBlue.withOpacity(glowIntensity * 0.4),
-                      blurRadius: 50,
-                      spreadRadius: 10,
+                      blurRadius: 50.s,
+                      spreadRadius: 10.s,
                     ),
                   ],
                 ),
@@ -312,17 +328,17 @@ class _NotificationPermissionScreenState
               // Bell icon
               Icon(
                 Icons.notifications_rounded,
-                size: 56.s,
+                size: 48.s,
                 color: Colors.white,
               ),
               
               // Notification badge
               Positioned(
-                top: 35.s,
-                right: 35.s,
+                top: 28.s,
+                right: 28.s,
                 child: Container(
-                  width: 28.s,
-                  height: 28.s,
+                  width: 26.s,
+                  height: 26.s,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: const LinearGradient(
@@ -336,8 +352,8 @@ class _NotificationPermissionScreenState
                     boxShadow: [
                       BoxShadow(
                         color: const Color(0xFFEF4444).withOpacity(0.5),
-                        blurRadius: 12,
-                        spreadRadius: 2,
+                        blurRadius: 12.s,
+                        spreadRadius: 2.s,
                       ),
                     ],
                   ),
@@ -423,7 +439,7 @@ class _NotificationPermissionScreenState
         final index = entry.key;
         final benefit = entry.value;
         return Padding(
-          padding: EdgeInsets.only(bottom: 16.s),
+          padding: EdgeInsets.only(bottom: 12.s),
           child: _buildBenefitCard(benefit)
               .animate()
               .fadeIn(duration: 500.ms, delay: Duration(milliseconds: 700 + (index * 100)))
@@ -439,21 +455,21 @@ class _NotificationPermissionScreenState
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          padding: EdgeInsets.all(16.s),
+          padding: EdgeInsets.symmetric(horizontal: 16.s, vertical: 14.s),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(16.s),
             border: Border.all(
               color: Colors.white.withOpacity(0.08),
-              width: 1,
+              width: 1.s,
             ),
           ),
           child: Row(
             children: [
               // Icon container
               Container(
-                width: 48.s,
-                height: 48.s,
+                width: 44.s,
+                height: 44.s,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12.s),
                   gradient: LinearGradient(
@@ -464,7 +480,7 @@ class _NotificationPermissionScreenState
                   boxShadow: [
                     BoxShadow(
                       color: benefit.gradient[0].withOpacity(0.3),
-                      blurRadius: 12,
+                      blurRadius: 12.s,
                       spreadRadius: 0,
                     ),
                   ],
@@ -472,10 +488,10 @@ class _NotificationPermissionScreenState
                 child: Icon(
                   benefit.icon,
                   color: Colors.white,
-                  size: 24.s,
+                  size: 22.s,
                 ),
               ),
-              SizedBox(width: 16.s),
+              SizedBox(width: 14.s),
               // Text content
               Expanded(
                 child: Column(
@@ -535,8 +551,8 @@ class _NotificationPermissionScreenState
               : [
                   BoxShadow(
                     color: _primaryBlue.withOpacity(0.4),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+                    blurRadius: 20.s,
+                    offset: Offset(0, 8.s),
                   ),
                 ],
         ),
@@ -550,9 +566,9 @@ class _NotificationPermissionScreenState
                   ? SizedBox(
                       width: 24.s,
                       height: 24.s,
-                      child: const CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5.s,
+                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
                   : Row(

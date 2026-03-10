@@ -52,8 +52,6 @@ class DefaultFirebaseOptions {
     }
   }
 
-  // TODO: Replace these with your actual Firebase configuration
-
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyA1C_hCbUz0fAf0HjnZcfw1yN5cmkNPflM',
     appId: '1:169350826692:android:cc2daaa406b9ebc32fd791',

@@ -1,21 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../constants/app_theme.dart';
+import '../services/haptic_service.dart';
+import '../utils/responsive.dart';
 
 class IconPickerDialog extends StatefulWidget {
   final IconData selectedIcon;
+  final Color? accentColor;
 
-  const IconPickerDialog({super.key, required this.selectedIcon});
+  const IconPickerDialog({
+    super.key,
+    required this.selectedIcon,
+    this.accentColor,
+  });
 
   @override
   State<IconPickerDialog> createState() => _IconPickerDialogState();
 }
 
-class _IconPickerDialogState extends State<IconPickerDialog> {
+class _IconPickerDialogState extends State<IconPickerDialog>
+    with SingleTickerProviderStateMixin {
   late IconData _selectedIcon;
   String _searchQuery = '';
   String _selectedCategory = 'All';
+  final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
+  final _hapticService = HapticService();
+
+  // Tap states for interactive animations
+  bool _selectButtonPressed = false;
+  bool _closeButtonPressed = false;
+
+  late Color _accentColor;
 
   final Map<String, List<IconData>> _iconCategories = {
     'All': [],
@@ -136,18 +153,6 @@ class _IconPickerDialogState extends State<IconPickerDialog> {
       Icons.phone_android_rounded,
       Icons.smart_toy_rounded,
     ],
-    'Education': [
-      FontAwesomeIcons.book,
-      FontAwesomeIcons.graduationCap,
-      FontAwesomeIcons.pencil,
-      FontAwesomeIcons.ruler,
-      FontAwesomeIcons.calculator,
-      FontAwesomeIcons.microscope,
-      FontAwesomeIcons.atom,
-      Icons.school_rounded,
-      Icons.science_rounded,
-      Icons.psychology_rounded,
-    ],
     'Travel': [
       FontAwesomeIcons.plane,
       FontAwesomeIcons.car,
@@ -160,24 +165,6 @@ class _IconPickerDialogState extends State<IconPickerDialog> {
       Icons.flight_rounded,
       Icons.directions_car_rounded,
       Icons.directions_boat_rounded,
-    ],
-    'Misc': [
-      FontAwesomeIcons.flag,
-      FontAwesomeIcons.mapPin,
-      FontAwesomeIcons.globe,
-      FontAwesomeIcons.language,
-      FontAwesomeIcons.palette,
-      FontAwesomeIcons.brush,
-      FontAwesomeIcons.camera,
-      FontAwesomeIcons.image,
-      FontAwesomeIcons.wandMagicSparkles,
-      FontAwesomeIcons.bolt,
-      FontAwesomeIcons.fire,
-      FontAwesomeIcons.snowman,
-      Icons.flag_rounded,
-      Icons.public_rounded,
-      Icons.palette_rounded,
-      Icons.auto_awesome_rounded,
     ],
   };
 
@@ -201,8 +188,6 @@ class _IconPickerDialogState extends State<IconPickerDialog> {
     if (_searchQuery.isEmpty) {
       return icons;
     }
-
-    // Simple search by icon name (would need more sophisticated search in production)
     return icons;
   }
 
@@ -210,243 +195,520 @@ class _IconPickerDialogState extends State<IconPickerDialog> {
   void initState() {
     super.initState();
     _selectedIcon = widget.selectedIcon;
+    _accentColor = widget.accentColor ?? const Color(0xFF6366F1);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-          backgroundColor: AppTheme.backgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.9,
-            height: MediaQuery.of(context).size.height * 0.7,
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                // Header
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Choose Icon',
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Search Bar
-                TextField(
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value;
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Search icons...',
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    filled: true,
-                    fillColor: AppTheme.surfaceColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Category Chips
-                SizedBox(
-                  height: 40,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children:
-                        _iconCategories.keys.map((category) {
-                          final isSelected = _selectedCategory == category;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                                  label: Text(category),
-                                  selected: isSelected,
-                                  onSelected: (selected) {
-                                    setState(() {
-                                      _selectedCategory = category;
-                                    });
-                                  },
-                                  selectedColor: AppTheme.primaryColor,
-                                  backgroundColor: AppTheme.surfaceColor,
-                                  labelStyle: TextStyle(
-                                    color:
-                                        isSelected
-                                            ? Colors.white
-                                            : AppTheme.textPrimary,
-                                    fontWeight:
-                                        isSelected
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                  ),
-                                )
-                                .animate()
-                                .fadeIn(delay: (50).ms)
-                                .scale(begin: const Offset(0.8, 0.8)),
-                          );
-                        }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Icons Grid
-                Expanded(
-                  child: GridView.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 5,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                        ),
-                    itemCount: _filteredIcons.length,
-                    itemBuilder: (context, index) {
-                      final icon = _filteredIcons[index];
-                      final isSelected = icon == _selectedIcon;
-
-                      return GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _selectedIcon = icon;
-                          });
-                        },
-                        child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              decoration: BoxDecoration(
-                                color:
-                                    isSelected
-                                        ? AppTheme.primaryColor
-                                        : AppTheme.surfaceColor,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color:
-                                      isSelected
-                                          ? AppTheme.primaryColor
-                                          : AppTheme.dividerColor,
-                                  width: isSelected ? 2 : 1,
-                                ),
-                                boxShadow:
-                                    isSelected
-                                        ? [
-                                          BoxShadow(
-                                            color: AppTheme.primaryColor
-                                                .withOpacity(0.3),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                        ]
-                                        : [],
-                              ),
-                              child: Center(
-                                child: FaIcon(
-                                  icon,
-                                  color:
-                                      isSelected
-                                          ? Colors.white
-                                          : AppTheme.textSecondary,
-                                  size: 24,
-                                ),
-                              ),
-                            )
-                            .animate()
-                            .fadeIn(delay: (index * 10).ms)
-                            .scale(begin: const Offset(0.8, 0.8)),
-                      );
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Preview and Confirm
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceColor,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppTheme.dividerColor),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppTheme.primaryColor.withOpacity(0.3),
-                            width: 2,
-                          ),
-                        ),
-                        child: Center(
-                          child: FaIcon(
-                            _selectedIcon,
-                            color: AppTheme.primaryColor,
-                            size: 28,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Selected Icon',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppTheme.textSecondary),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Preview',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(context, _selectedIcon);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'Select',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: EdgeInsets.symmetric(horizontal: 16.s, vertical: 40.s),
+      child: Container(
+            constraints: BoxConstraints(maxWidth: 400.s, maxHeight: 620.s),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D0D0D),
+              borderRadius: BorderRadius.circular(24.s),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.08),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.5),
+                  blurRadius: 40.s,
+                  offset: Offset(0, 20.s),
+                  spreadRadius: 0,
                 ),
               ],
             ),
+            child: Column(
+              children: [
+                _buildHeader(),
+                _buildSearchBar(),
+                _buildCategoryChips(),
+                Expanded(child: _buildIconsGrid()),
+                _buildPreviewSection(),
+              ],
+            ),
+          )
+          .animate()
+          .fadeIn(duration: 300.ms, curve: Curves.easeOutCubic)
+          .scale(begin: const Offset(0.92, 0.92), curve: Curves.easeOutCubic),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: EdgeInsets.fromLTRB(22.s, 20.s, 16.s, 16.s),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withOpacity(0.06), width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Choose Icon',
+              style: TextStyle(
+                fontSize: 20.sp,
+                fontWeight: FontWeight.w700,
+                color: Colors.white.withOpacity(0.95),
+                letterSpacing: -0.5,
+              ),
+            ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.02, end: 0),
+          ),
+          GestureDetector(
+            onTapDown: (_) => setState(() => _closeButtonPressed = true),
+            onTapUp: (_) => setState(() => _closeButtonPressed = false),
+            onTapCancel: () => setState(() => _closeButtonPressed = false),
+            onTap: () {
+              _hapticService.lightImpact();
+              Navigator.pop(context);
+            },
+            child: AnimatedScale(
+                  scale: _closeButtonPressed ? 0.9 : 1.0,
+                  duration: const Duration(milliseconds: 100),
+                  child: Container(
+                    width: 36.s,
+                    height: 36.s,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(10.s),
+                    ),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 18.s,
+                      color: Colors.white.withOpacity(0.6),
+                    ),
+                  ),
+                )
+                .animate()
+                .fadeIn(delay: 100.ms, duration: 400.ms)
+                .scale(
+                  begin: const Offset(0.8, 0.8),
+                  curve: Curves.easeOutBack,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(18.s, 14.s, 18.s, 12.s),
+      child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12.s),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.08),
+                width: 1,
+              ),
+            ),
+            child: TextField(
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+              style: TextStyle(
+                fontSize: 14.sp,
+                color: Colors.white.withOpacity(0.9),
+                fontWeight: FontWeight.w400,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search icons...',
+                hintStyle: TextStyle(
+                  color: Colors.white.withOpacity(0.3),
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w400,
+                ),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  size: 20.s,
+                  color: Colors.white.withOpacity(0.4),
+                ),
+                filled: false,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 14.s,
+                  vertical: 12.s,
+                ),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+              ),
+              onTapOutside:
+                  (_) => FocusManager.instance.primaryFocus?.unfocus(),
+            ),
+          )
+          .animate()
+          .fadeIn(delay: 150.ms, duration: 400.ms)
+          .slideY(begin: 0.03, end: 0),
+    );
+  }
+
+  Widget _buildCategoryChips() {
+    final categories = _iconCategories.keys.toList();
+
+    return SizedBox(
+      height: 38.s,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(horizontal: 18.s),
+        itemCount: categories.length,
+        itemBuilder: (context, index) {
+          final category = categories[index];
+          final isSelected = _selectedCategory == category;
+
+          return Padding(
+            padding: EdgeInsets.only(right: 8.s),
+            child: GestureDetector(
+                  onTap: () {
+                    _hapticService.lightImpact();
+                    setState(() {
+                      _selectedCategory = category;
+                    });
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 14.s,
+                      vertical: 8.s,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient:
+                          isSelected
+                              ? LinearGradient(
+                                colors: [
+                                  _accentColor,
+                                  _accentColor.withOpacity(0.8),
+                                ],
+                              )
+                              : null,
+                      color: isSelected ? null : Colors.white.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(10.s),
+                      border: Border.all(
+                        color:
+                            isSelected
+                                ? Colors.transparent
+                                : Colors.white.withOpacity(0.08),
+                        width: 1,
+                      ),
+                      boxShadow:
+                          isSelected
+                              ? [
+                                BoxShadow(
+                                  color: _accentColor.withOpacity(0.3),
+                                  blurRadius: 12.s,
+                                  offset: Offset(0, 4.s),
+                                ),
+                              ]
+                              : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isSelected)
+                          Padding(
+                            padding: EdgeInsets.only(right: 6.s),
+                            child: Icon(
+                                  Icons.check_rounded,
+                                  size: 14.s,
+                                  color: Colors.white.withOpacity(0.9),
+                                )
+                                .animate(key: ValueKey('check_$category'))
+                                .fadeIn(duration: 200.ms)
+                                .scale(
+                                  begin: const Offset(0.5, 0.5),
+                                  curve: Curves.easeOutBack,
+                                ),
+                          ),
+                        Text(
+                          category,
+                          style: TextStyle(
+                            fontSize: 13.sp,
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.w500,
+                            color:
+                                isSelected
+                                    ? Colors.white.withOpacity(0.95)
+                                    : Colors.white.withOpacity(0.55),
+                            letterSpacing: -0.1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .animate()
+                .fadeIn(
+                  delay: (200 + index * 30).ms,
+                  duration: 350.ms,
+                  curve: Curves.easeOutCubic,
+                )
+                .slideX(begin: 0.05, curve: Curves.easeOutCubic),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildIconsGrid() {
+    final icons = _filteredIcons;
+
+    return GridView.builder(
+      padding: EdgeInsets.all(18.s),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 5,
+        crossAxisSpacing: 10.s,
+        mainAxisSpacing: 10.s,
+      ),
+      itemCount: icons.length,
+      itemBuilder: (context, index) {
+        final icon = icons[index];
+        final isSelected = icon == _selectedIcon;
+
+        return _IconCell(
+          icon: icon,
+          isSelected: isSelected,
+          accentColor: _accentColor,
+          onTap: () {
+            _hapticService.lightImpact();
+            setState(() {
+              _selectedIcon = icon;
+            });
+          },
+          animationDelay: (index * 15).ms,
+        );
+      },
+    );
+  }
+
+  Widget _buildPreviewSection() {
+    return Container(
+          padding: EdgeInsets.fromLTRB(18.s, 14.s, 18.s, 18.s),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.03),
+            border: Border(
+              top: BorderSide(color: Colors.white.withOpacity(0.06), width: 1),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Preview icon container
+              Container(
+                width: 56.s,
+                height: 56.s,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      _accentColor.withOpacity(0.15),
+                      _accentColor.withOpacity(0.08),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(14.s),
+                  border: Border.all(
+                    color: _accentColor.withOpacity(0.3),
+                    width: 1.5,
+                  ),
+                ),
+                child: Center(
+                  child: FaIcon(_selectedIcon, color: _accentColor, size: 24.s)
+                      .animate(key: ValueKey(_selectedIcon))
+                      .fadeIn(duration: 200.ms)
+                      .scale(
+                        begin: const Offset(0.6, 0.6),
+                        curve: Curves.easeOutBack,
+                      ),
+                ),
+              ),
+              SizedBox(width: 14.s),
+              // Preview text
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Selected Icon',
+                      style: TextStyle(
+                        fontSize: 11.sp,
+                        color: Colors.white.withOpacity(0.4),
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    SizedBox(height: 3.s),
+                    Text(
+                      'Preview',
+                      style: TextStyle(
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withOpacity(0.9),
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Select button
+              GestureDetector(
+                onTapDown: (_) => setState(() => _selectButtonPressed = true),
+                onTapUp: (_) => setState(() => _selectButtonPressed = false),
+                onTapCancel: () => setState(() => _selectButtonPressed = false),
+                onTap: () {
+                  _hapticService.mediumImpact();
+                  Navigator.pop(context, _selectedIcon);
+                },
+                child: AnimatedScale(
+                      scale: _selectButtonPressed ? 0.95 : 1.0,
+                      duration: const Duration(milliseconds: 100),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 24.s,
+                          vertical: 12.s,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              _accentColor,
+                              _accentColor.withOpacity(0.85),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(12.s),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _accentColor.withOpacity(0.35),
+                              blurRadius: 16.s,
+                              offset: Offset(0, 6.s),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          'Select',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withOpacity(0.95),
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ),
+                    )
+                    .animate()
+                    .fadeIn(delay: 400.ms, duration: 400.ms)
+                    .slideX(begin: 0.1, end: 0, curve: Curves.easeOutCubic),
+              ),
+            ],
           ),
         )
         .animate()
-        .fadeIn(duration: 300.ms)
-        .scale(begin: const Offset(0.9, 0.9), curve: Curves.easeOutBack);
+        .fadeIn(delay: 350.ms, duration: 400.ms)
+        .slideY(begin: 0.05, end: 0, curve: Curves.easeOutCubic);
+  }
+}
+
+/// Individual icon cell with tap animation
+class _IconCell extends StatefulWidget {
+  final IconData icon;
+  final bool isSelected;
+  final Color accentColor;
+  final VoidCallback onTap;
+  final Duration animationDelay;
+
+  const _IconCell({
+    required this.icon,
+    required this.isSelected,
+    required this.accentColor,
+    required this.onTap,
+    required this.animationDelay,
+  });
+
+  @override
+  State<_IconCell> createState() => _IconCellState();
+}
+
+class _IconCellState extends State<_IconCell> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+            scale: _isPressed ? 0.9 : 1.0,
+            duration: const Duration(milliseconds: 100),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              decoration: BoxDecoration(
+                gradient:
+                    widget.isSelected
+                        ? LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            widget.accentColor,
+                            widget.accentColor.withOpacity(0.8),
+                          ],
+                        )
+                        : null,
+                color:
+                    widget.isSelected ? null : Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12.s),
+                border: Border.all(
+                  color:
+                      widget.isSelected
+                          ? Colors.transparent
+                          : Colors.white.withOpacity(0.08),
+                  width: 1,
+                ),
+                boxShadow:
+                    widget.isSelected
+                        ? [
+                          BoxShadow(
+                            color: widget.accentColor.withOpacity(0.35),
+                            blurRadius: 12.s,
+                            offset: Offset(0, 4.s),
+                          ),
+                        ]
+                        : null,
+              ),
+              child: Center(
+                child: FaIcon(
+                  widget.icon,
+                  color:
+                      widget.isSelected
+                          ? Colors.white.withOpacity(0.95)
+                          : Colors.white.withOpacity(0.5),
+                  size: 20.s,
+                ),
+              ),
+            ),
+          )
+          .animate()
+          .fadeIn(delay: widget.animationDelay, duration: 250.ms)
+          .scale(begin: const Offset(0.8, 0.8), curve: Curves.easeOutCubic),
+    );
   }
 }

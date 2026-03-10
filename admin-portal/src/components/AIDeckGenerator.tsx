@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { createDeck } from '../services/supabaseDeckService';
 import { generateDeckContent } from '../services/aiContentService';
 import { generateDeckImage } from '../services/aiImageService';
 import { validateAPIKeys } from '../services/aiConfig';
@@ -96,17 +95,16 @@ export const AIDeckGenerator: React.FC = () => {
         colorValue: generatedDeck.colorSuggestion || 0xFF9C27B0,
         imageUrl: generatedDeck.imageUrl || null,
         isPremium: false,
-        country: generatedDeck.country,
-        tags: generatedDeck.suggestedTags,
-        priority: 0,
         isActive: true,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        country: generatedDeck.country,
+        countries: [generatedDeck.country || 'UNIVERSAL'],
+        tags: generatedDeck.suggestedTags || [],
+        priority: 0,
         generatedByAI: true,
         generationTopic: topic
       };
 
-      await addDoc(collection(db, 'decks'), deckData);
+      await createDeck(deckData);
       
       // Reset form
       setTopic('');

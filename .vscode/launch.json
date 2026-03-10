@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "UAT (Debug) - Test Ads",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define",
+        "ENVIRONMENT=uat"
+      ]
+    },
+    {
+      "name": "UAT (Debug) - Chandan's iPhone",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define",
+        "ENVIRONMENT=uat"
+      ],
+      "deviceId": "00008110-000C4DD01E98401E"
+    }
+  ]
+}

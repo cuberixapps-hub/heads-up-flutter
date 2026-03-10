@@ -172,10 +172,8 @@ class DeckImportExport {
     }
   }
 
-  // Generate shareable link (for future implementation with deep linking)
   static String generateShareableLink(String deckId) {
-    // This would be implemented with Firebase Dynamic Links or similar
-    return 'https://headsup.app/deck/$deckId';
+    return 'https://heads-up-game-48f14.web.app/deck/$deckId';
   }
 
   // Format deck for display

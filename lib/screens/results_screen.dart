@@ -1,8 +1,10 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:confetti/confetti.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../constants/app_theme.dart';
 import '../models/game_session.dart';
 import '../providers/game_provider.dart';
@@ -10,9 +12,11 @@ import '../services/haptic_service.dart';
 import '../services/audio_service.dart';
 import '../services/ad_service.dart';
 import '../services/share_service.dart';
+import '../services/video_processing_manager.dart';
+import '../utils/responsive.dart';
 import '../widgets/banner_ad_widget.dart';
 import '../widgets/video_section.dart';
-import 'category_selection_screen.dart';
+import 'deck_details_screen.dart';
 
 class ResultsScreen extends StatefulWidget {
   const ResultsScreen({super.key});
@@ -97,7 +101,6 @@ class _ResultsScreenState extends State<ResultsScreen>
     VoidCallback onComplete, {
     required String location,
   }) async {
-    // Show loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -108,33 +111,35 @@ class _ResultsScreenState extends State<ResultsScreen>
               elevation: 0,
               backgroundColor: Colors.transparent,
               child: Container(
-                padding: const EdgeInsets.all(24),
+                padding: EdgeInsets.all(28.s),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      spreadRadius: 5,
-                    ),
-                  ],
+                  color: const Color(0xFF1C1C1E),
+                  borderRadius: BorderRadius.circular(20.s),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.06),
+                    width: 1,
+                  ),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppTheme.primaryColor,
+                    SizedBox(
+                      width: 36.s,
+                      height: 36.s,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.white.withOpacity(0.9),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20.s),
                     Text(
                       'Loading...',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
+                      style: GoogleFonts.inter(
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withOpacity(0.9),
                       ),
                     ),
                   ],
@@ -169,18 +174,26 @@ class _ResultsScreenState extends State<ResultsScreen>
         if (!didPop) {
           // Cancel video processing before navigating
           _videoSectionKey.currentState?.cancelVideoProcessing();
+          VideoProcessingManager.instance.cancelCurrentProcessing(
+            reason: 'Back button pressed on results screen',
+          );
           Navigator.of(context).popUntil((route) => route.isFirst);
         }
       },
       child: BottomBannerAd(
         widgetKey: 'results_screen',
         child: Scaffold(
-          backgroundColor: AppTheme.backgroundColor,
+          backgroundColor: const Color(0xFF0A0A0A),
           body: Consumer<GameProvider>(
             builder: (context, gameProvider, child) {
               final session = gameProvider.currentSession;
               if (session == null) {
-                return const Center(child: Text('No game data'));
+                return const Center(
+                  child: Text(
+                    'No game data',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                );
               }
 
               final isHighScore = _checkIfHighScore(session, gameProvider);
@@ -195,52 +208,28 @@ class _ResultsScreenState extends State<ResultsScreen>
 
               // Format time to show only integer seconds
               final timeInSeconds = session.roundDuration.inSeconds;
+              final size = MediaQuery.of(context).size;
 
               return Stack(
                 children: [
-                  // Elegant gradient background with subtle mesh
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          AppTheme.backgroundColor,
-                          AppTheme.backgroundColor.withBlue(
-                            (AppTheme.backgroundColor.blue * 0.98).round(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // Subtle wave pattern at top
+                  // Premium dark gradient background
                   Positioned(
                     top: 0,
                     left: 0,
                     right: 0,
+                    height: size.height * 0.55,
                     child: Container(
-                      height: 300,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
+                        gradient: RadialGradient(
+                          center: Alignment.topCenter,
+                          radius: 1.0,
                           colors: [
-                            session.deck.color.withOpacity(0.06),
-                            session.deck.color.withOpacity(0.02),
+                            session.deck.color.withOpacity(0.35),
+                            session.deck.color.withOpacity(0.12),
                             Colors.transparent,
                           ],
                           stops: const [0.0, 0.5, 1.0],
                         ),
-                      ),
-                    ),
-                  ),
-
-                  // Subtle grid pattern overlay
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _SubtlePatternPainter(
-                        color: session.deck.color.withOpacity(0.02),
                       ),
                     ),
                   ),
@@ -272,35 +261,32 @@ class _ResultsScreenState extends State<ResultsScreen>
                   SafeArea(
                     child: Column(
                       children: [
-                        // Modern header
                         _buildModernHeader(session),
 
-                        // Scrollable content
                         Expanded(
                           child: SingleChildScrollView(
                             controller: _scrollController,
                             physics: const BouncingScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            padding: EdgeInsets.symmetric(horizontal: 24.s),
                             child: Column(
                               children: [
-                                const SizedBox(height: 24),
+                                SizedBox(height: 28.s),
                                 _buildScoreSection(
                                   session,
                                   points,
                                   accuracy,
                                   isHighScore,
                                 ),
-                                const SizedBox(height: 16),
+                                SizedBox(height: 16.s),
                                 if (!_hasDoubledScore)
                                   _buildDoubleScoreButton(session),
-                                const SizedBox(height: 24),
-                                // Add video section with key
+                                SizedBox(height: 28.s),
                                 VideoSection(key: _videoSectionKey),
-                                const SizedBox(height: 24),
+                                SizedBox(height: 28.s),
                                 _buildStatsGrid(session, timeInSeconds),
-                                const SizedBox(height: 24),
+                                SizedBox(height: 28.s),
                                 _buildWordsSection(session),
-                                const SizedBox(height: 100),
+                                SizedBox(height: 88.s),
                               ],
                             ),
                           ),
@@ -321,103 +307,107 @@ class _ResultsScreenState extends State<ResultsScreen>
   }
 
   Widget _buildModernHeader(GameSession session) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-      child: Row(
-        children: [
-          // Back button
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  // Cancel video processing before navigating
-                  _videoSectionKey.currentState?.cancelVideoProcessing();
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Icon(
-                  Icons.close_rounded,
-                  color: AppTheme.textPrimary,
-                  size: 22,
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 20.s, vertical: 16.s),
+          child: Row(
+            children: [
+              GestureDetector(
+                    onTap: () {
+                      _videoSectionKey.currentState?.cancelVideoProcessing();
+                      VideoProcessingManager.instance.cancelCurrentProcessing(
+                        reason: 'Close button pressed on results screen',
+                      );
+                      Navigator.of(context).popUntil((route) => route.isFirst);
+                    },
+                    child: Container(
+                      width: 40.s,
+                      height: 40.s,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.05),
+                          width: 1,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                        size: 20.s,
+                      ),
+                    ),
+                  )
+                  .animate()
+                  .fadeIn(duration: 400.ms)
+                  .scale(
+                    begin: const Offset(0.8, 0.8),
+                    end: const Offset(1, 1),
+                    curve: Curves.easeOutBack,
+                  ),
+              SizedBox(width: 16.s),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'GAME COMPLETE',
+                      style: GoogleFonts.inter(
+                        fontSize: 10.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withOpacity(0.5),
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    SizedBox(height: 2.s),
+                    Text(
+                      session.deck.name,
+                      style: GoogleFonts.poppins(
+                        fontSize: 17.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                        letterSpacing: -0.3,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ),
-
-          const SizedBox(width: 16),
-
-          // Title
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'GAME COMPLETE',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.textTertiary,
-                    letterSpacing: 1.5,
+              GestureDetector(
+                    onTap: () => _shareResults(session),
+                    child: Container(
+                      width: 40.s,
+                      height: 40.s,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.05),
+                          width: 1,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.share_rounded,
+                        color: Colors.white,
+                        size: 20.s,
+                      ),
+                    ),
+                  )
+                  .animate()
+                  .fadeIn(duration: 400.ms, delay: 80.ms)
+                  .scale(
+                    begin: const Offset(0.8, 0.8),
+                    end: const Offset(1, 1),
+                    curve: Curves.easeOutBack,
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  session.deck.name,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
-
-          // Share button
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => _shareResults(session),
-                borderRadius: BorderRadius.circular(12),
-                child: Icon(
-                  Icons.share_rounded,
-                  color: AppTheme.textPrimary,
-                  size: 20,
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
-    ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1, end: 0);
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.08, end: 0);
   }
 
   Widget _buildScoreSection(
@@ -426,769 +416,674 @@ class _ResultsScreenState extends State<ResultsScreen>
     int accuracy,
     bool isHighScore,
   ) {
-    // Calculate additional stats
     final totalCards = session.correctCount + session.passCount;
     final avgTimePerCard =
         totalCards > 0
             ? (session.roundDuration.inSeconds / totalCards).toStringAsFixed(1)
             : '0';
     final streak = _calculateBestStreak(session);
+    final deckColor = session.deck.color;
 
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: session.deck.color.withOpacity(0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(24.s),
+            border: Border.all(color: Colors.white.withOpacity(0.06), width: 1),
           ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Main score section with colored background
-          Container(
-            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  session.deck.color.withOpacity(0.08),
-                  session.deck.color.withOpacity(0.04),
-                ],
-                stops: const [0.0, 1.0],
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(24),
-                topRight: Radius.circular(24),
-              ),
-            ),
-            child: Column(
-              children: [
-                // Modern Points Display Section
-                Stack(
-                  alignment: Alignment.center,
+          child: Column(
+            children: [
+              Container(
+                padding: EdgeInsets.fromLTRB(24.s, 32.s, 24.s, 28.s),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      deckColor.withOpacity(0.18),
+                      deckColor.withOpacity(0.06),
+                    ],
+                    stops: const [0.0, 1.0],
+                  ),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(24.s),
+                    topRight: Radius.circular(24.s),
+                  ),
+                ),
+                child: Column(
                   children: [
-                    // Animated background glow
-                    TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: 1),
-                      duration: const Duration(milliseconds: 1200),
-                      builder: (context, value, child) {
-                        return Container(
-                          width: 200 * value,
-                          height: 200 * value,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: RadialGradient(
-                              colors: [
-                                session.deck.color.withOpacity(0.1 * value),
-                                session.deck.color.withOpacity(0.05 * value),
-                                Colors.transparent,
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: 1),
+                          duration: const Duration(milliseconds: 1200),
+                          builder: (context, value, child) {
+                            return Container(
+                              width: 180.s * value,
+                              height: 180.s * value,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    deckColor.withOpacity(0.12 * value),
+                                    deckColor.withOpacity(0.04 * value),
+                                    Colors.transparent,
+                                  ],
+                                  stops: const [0.3, 0.6, 1.0],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        Column(
+                          children: [
+                            Container(
+                                  width: 56.s,
+                                  height: 56.s,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(16.s),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.08),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child:
+                                        isHighScore
+                                            ? TweenAnimationBuilder<double>(
+                                              tween: Tween(begin: 0, end: 1),
+                                              duration: const Duration(
+                                                milliseconds: 800,
+                                              ),
+                                              curve: Curves.elasticOut,
+                                              builder: (context, value, child) {
+                                                return Transform.scale(
+                                                  scale: value,
+                                                  child: Icon(
+                                                    FontAwesomeIcons.crown,
+                                                    color:
+                                                        Colors.amber.shade400,
+                                                    size: 26.s,
+                                                  ),
+                                                );
+                                              },
+                                            )
+                                            : Icon(
+                                              accuracy >= 80
+                                                  ? FontAwesomeIcons.star
+                                                  : accuracy >= 60
+                                                  ? FontAwesomeIcons.award
+                                                  : FontAwesomeIcons
+                                                      .certificate,
+                                              color: deckColor,
+                                              size: 26.s,
+                                            ),
+                                  ),
+                                )
+                                .animate()
+                                .fadeIn(delay: 200.ms, duration: 500.ms)
+                                .slideY(
+                                  begin: -0.2,
+                                  end: 0,
+                                  curve: Curves.easeOutQuart,
+                                ),
+                            SizedBox(height: 18.s),
+                            TweenAnimationBuilder<double>(
+                              tween: Tween(begin: 0, end: session.correctCount.toDouble()),
+                              duration: const Duration(milliseconds: 1800),
+                              curve: Curves.easeOutExpo,
+                              builder: (context, value, child) {
+                                return Column(
+                                  children: [
+                                    Text(
+                                      value.toInt().toString(),
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 64.sp,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                        height: 1,
+                                        letterSpacing: -2,
+                                      ),
+                                    ),
+                                    SizedBox(height: 10.s),
+                                    Container(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 16.s,
+                                            vertical: 8.s,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: deckColor.withOpacity(0.25),
+                                            borderRadius: BorderRadius.circular(
+                                              20.s,
+                                            ),
+                                            border: Border.all(
+                                              color: deckColor.withOpacity(0.4),
+                                              width: 1,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'CORRECT ANSWERS',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 10.sp,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white.withOpacity(
+                                                0.95,
+                                              ),
+                                              letterSpacing: 1.2,
+                                            ),
+                                          ),
+                                        )
+                                        .animate()
+                                        .fadeIn(
+                                          delay: 1000.ms,
+                                          duration: 500.ms,
+                                        )
+                                        .scale(
+                                          delay: 1000.ms,
+                                          begin: const Offset(0.9, 0.9),
+                                          end: const Offset(1, 1),
+                                          curve: Curves.easeOutBack,
+                                        ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    if (isHighScore) ...[
+                      SizedBox(height: 18.s),
+                      Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16.s,
+                              vertical: 8.s,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(16.s),
+                              border: Border.all(
+                                color: Colors.amber.withOpacity(0.4),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  FontAwesomeIcons.fire,
+                                  color: Colors.amber.shade300,
+                                  size: 14.s,
+                                ),
+                                SizedBox(width: 8.s),
+                                Text(
+                                  'NEW HIGH SCORE!',
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.amber.shade200,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12.sp,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
                               ],
-                              stops: const [0.3, 0.6, 1.0],
+                            ),
+                          )
+                          .animate()
+                          .fadeIn(delay: 800.ms)
+                          .scale(delay: 800.ms, curve: Curves.elasticOut),
+                    ],
+                  ],
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.all(20.s),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildQuickStat(
+                            icon: FontAwesomeIcons.bullseye,
+                            value: '$accuracy%',
+                            label: 'Accuracy',
+                            color: _getAccuracyColor(accuracy),
+                            delay: 100,
+                          ),
+                        ),
+                        SizedBox(width: 12.s),
+                        Expanded(
+                          child: _buildQuickStat(
+                            icon: FontAwesomeIcons.fire,
+                            value: streak.toString(),
+                            label: 'Best Streak',
+                            color: Colors.orange,
+                            delay: 200,
+                          ),
+                        ),
+                        SizedBox(width: 12.s),
+                        Expanded(
+                          child: _buildQuickStat(
+                            icon: FontAwesomeIcons.gauge,
+                            value: '${avgTimePerCard}s',
+                            label: 'Avg/Card',
+                            color: Colors.purple,
+                            delay: 300,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 18.s),
+                    _buildPerformanceBreakdown(session),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        )
+        .animate()
+        .fadeIn(duration: 500.ms)
+        .slideY(begin: 0.06, end: 0, curve: Curves.easeOutCubic);
+  }
+
+  Widget _buildPerformanceBreakdown(GameSession session) {
+    final total = session.correctCount + session.passCount;
+    final correctPct =
+        total > 0 ? (session.correctCount / total * 100).toInt() : 0;
+    final passPct = total > 0 ? (session.passCount / total * 100).toInt() : 0;
+
+    return Container(
+          padding: EdgeInsets.all(18.s),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.03),
+            borderRadius: BorderRadius.circular(18.s),
+            border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36.s,
+                    height: 36.s,
+                    decoration: BoxDecoration(
+                      color: session.deck.color.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10.s),
+                    ),
+                    child: Icon(
+                      FontAwesomeIcons.chartSimple,
+                      size: 16.s,
+                      color: session.deck.color,
+                    ),
+                  ),
+                  SizedBox(width: 12.s),
+                  Text(
+                    'Performance',
+                    style: GoogleFonts.poppins(
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 18.s),
+              Container(
+                height: 44.s,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(22.s),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(22.s),
+                  child: Row(
+                    children: [
+                      if (session.correctCount > 0)
+                        Expanded(
+                          flex: session.correctCount,
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0, end: 1),
+                            duration: const Duration(milliseconds: 1200),
+                            curve: Curves.easeOutExpo,
+                            builder: (context, value, child) {
+                              return Transform.scale(
+                                scaleX: value,
+                                alignment: Alignment.centerLeft,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        AppTheme.successColor,
+                                        AppTheme.successColor.withOpacity(0.85),
+                                      ],
+                                    ),
+                                    borderRadius:
+                                        session.passCount == 0
+                                            ? BorderRadius.circular(22.s)
+                                            : const BorderRadius.only(
+                                              topLeft: Radius.circular(22),
+                                              bottomLeft: Radius.circular(22),
+                                              topRight: Radius.circular(6),
+                                              bottomRight: Radius.circular(6),
+                                            ),
+                                  ),
+                                  child: Center(
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          FontAwesomeIcons.circleCheck,
+                                          color: Colors.white,
+                                          size: 14.s,
+                                        ),
+                                        SizedBox(width: 6.s),
+                                        Text(
+                                          '${session.correctCount}',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 13.sp,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      if (session.passCount > 0)
+                        Expanded(
+                          flex: session.passCount,
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0, end: 1),
+                            duration: const Duration(milliseconds: 1400),
+                            curve: Curves.easeOutExpo,
+                            builder: (context, value, child) {
+                              return Transform.scale(
+                                scaleX: value,
+                                alignment: Alignment.centerRight,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        AppTheme.warningColor,
+                                        AppTheme.warningColor.withOpacity(0.85),
+                                      ],
+                                    ),
+                                    borderRadius:
+                                        session.correctCount == 0
+                                            ? BorderRadius.circular(22.s)
+                                            : const BorderRadius.only(
+                                              topRight: Radius.circular(22),
+                                              bottomRight: Radius.circular(22),
+                                              topLeft: Radius.circular(6),
+                                              bottomLeft: Radius.circular(6),
+                                            ),
+                                  ),
+                                  child: Center(
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          FontAwesomeIcons.forward,
+                                          color: Colors.white,
+                                          size: 14.s,
+                                        ),
+                                        SizedBox(width: 6.s),
+                                        Text(
+                                          '${session.passCount}',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 13.sp,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              if (session.correctCards.isNotEmpty || session.passedCards.isNotEmpty) ...[
+                SizedBox(height: 16.s),
+                _buildPerformanceWords(session),
+              ],
+              SizedBox(height: 14.s),
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                          padding: EdgeInsets.all(12.s),
+                          decoration: BoxDecoration(
+                            color: AppTheme.successColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12.s),
+                            border: Border.all(
+                              color: AppTheme.successColor.withOpacity(0.2),
+                              width: 1,
                             ),
                           ),
-                        );
-                      },
-                    ),
-
-                    // Main points container
-                    Column(
-                      children: [
-                        // Icon above points
-                        Container(
-                              width: 56,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: session.deck.color.withOpacity(0.15),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 8),
-                                    spreadRadius: -2,
-                                  ),
-                                ],
+                          child: Row(
+                            children: [
+                              Icon(
+                                FontAwesomeIcons.thumbsUp,
+                                color: AppTheme.successColor,
+                                size: 16.s,
                               ),
-                              child: Center(
-                                child:
-                                    isHighScore
-                                        ? TweenAnimationBuilder<double>(
-                                          tween: Tween(begin: 0, end: 1),
-                                          duration: const Duration(
-                                            milliseconds: 800,
-                                          ),
-                                          curve: Curves.elasticOut,
-                                          builder: (context, value, child) {
-                                            return Transform.scale(
-                                              scale: value,
-                                              child: Stack(
-                                                alignment: Alignment.center,
-                                                children: [
-                                                  Icon(
-                                                    FontAwesomeIcons.crown,
-                                                    color: Colors.amber[600],
-                                                    size: 28,
-                                                  ),
-                                                  Positioned(
-                                                    bottom: -2,
-                                                    child: Container(
-                                                      width: 24,
-                                                      height: 2,
-                                                      decoration: BoxDecoration(
-                                                        gradient: LinearGradient(
-                                                          colors: [
-                                                            Colors.amber[400]!
-                                                                .withOpacity(0),
-                                                            Colors.amber[400]!,
-                                                            Colors.amber[400]!
-                                                                .withOpacity(0),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          },
-                                        )
-                                        : Icon(
-                                          accuracy >= 80
-                                              ? FontAwesomeIcons.star
-                                              : accuracy >= 60
-                                              ? FontAwesomeIcons.award
-                                              : FontAwesomeIcons.certificate,
-                                          color: session.deck.color,
-                                          size: 26,
-                                        ),
-                              ),
-                            )
-                            .animate()
-                            .fadeIn(delay: 200.ms, duration: 600.ms)
-                            .slideY(
-                              begin: -0.2,
-                              end: 0,
-                              curve: Curves.easeOutQuart,
-                            ),
-
-                        const SizedBox(height: 16),
-
-                        // Points number with animation
-                        TweenAnimationBuilder<double>(
-                          tween: Tween(begin: 0, end: points.toDouble()),
-                          duration: const Duration(milliseconds: 1800),
-                          curve: Curves.easeOutExpo,
-                          builder: (context, value, child) {
-                            return Column(
-                              children: [
-                                // Points value
-                                Stack(
-                                  alignment: Alignment.center,
+                              SizedBox(width: 10.s),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Shadow text for depth
                                     Text(
-                                      value.toInt().toString(),
-                                      style: TextStyle(
-                                        fontSize: 72,
-                                        fontWeight: FontWeight.w900,
-                                        color: session.deck.color.withOpacity(
-                                          0.1,
-                                        ),
-                                        height: 1,
+                                      'Correct',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11.sp,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.white.withOpacity(0.7),
                                       ),
-                                    ).animate().blur(
-                                      begin: const Offset(0, 0),
-                                      end: const Offset(8, 8),
                                     ),
-                                    // Main text
                                     Text(
-                                      value.toInt().toString(),
-                                      style: TextStyle(
-                                        fontSize: 72,
-                                        fontWeight: FontWeight.w900,
-                                        color: session.deck.color,
-                                        height: 1,
+                                      '$correctPct%',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 15.sp,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.successColor,
                                       ),
                                     ),
                                   ],
                                 ),
-
-                                const SizedBox(height: 8),
-
-                                // Points label with subtle animation
-                                Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: session.deck.color.withOpacity(
-                                          0.08,
-                                        ),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                                width: 4,
-                                                height: 4,
-                                                decoration: BoxDecoration(
-                                                  color: session.deck.color,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                              )
-                                              .animate(
-                                                onPlay:
-                                                    (controller) =>
-                                                        controller.repeat(),
-                                              )
-                                              .scale(
-                                                begin: const Offset(0.8, 0.8),
-                                                end: const Offset(1.2, 1.2),
-                                                duration: 2000.ms,
-                                              )
-                                              .fade(
-                                                begin: 1,
-                                                end: 0.3,
-                                                duration: 2000.ms,
-                                              ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'POINTS EARNED',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w800,
-                                              color: session.deck.color
-                                                  .withOpacity(0.8),
-                                              letterSpacing: 1.5,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Container(
-                                                width: 4,
-                                                height: 4,
-                                                decoration: BoxDecoration(
-                                                  color: session.deck.color,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                              )
-                                              .animate(
-                                                onPlay:
-                                                    (controller) =>
-                                                        controller.repeat(),
-                                              )
-                                              .scale(
-                                                begin: const Offset(1.2, 1.2),
-                                                end: const Offset(0.8, 0.8),
-                                                duration: 2000.ms,
-                                              )
-                                              .fade(
-                                                begin: 1,
-                                                end: 0.3,
-                                                duration: 2000.ms,
-                                              ),
-                                        ],
-                                      ),
-                                    )
-                                    .animate()
-                                    .fadeIn(delay: 1000.ms, duration: 600.ms)
-                                    .scale(
-                                      delay: 1000.ms,
-                                      begin: const Offset(0.9, 0.9),
-                                      end: const Offset(1, 1),
-                                      curve: Curves.easeOutBack,
-                                    ),
-                              ],
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-
-                if (isHighScore) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.amber[50],
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.amber[200]!,
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              FontAwesomeIcons.fire,
-                              color: Colors.amber[700],
-                              size: 14,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'NEW HIGH SCORE!',
-                              style: TextStyle(
-                                color: Colors.amber[700],
-                                fontWeight: FontWeight.w700,
-                                fontSize: 11,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                      .animate()
-                      .fadeIn(delay: 800.ms)
-                      .scale(delay: 800.ms, curve: Curves.elasticOut),
-                ],
-              ],
-            ),
-          ),
-
-          // Stats grid
-          Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                // Quick stats row
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildQuickStat(
-                        icon: FontAwesomeIcons.bullseye,
-                        value: '$accuracy%',
-                        label: 'Accuracy',
-                        color: _getAccuracyColor(accuracy),
-                        delay: 100,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildQuickStat(
-                        icon: FontAwesomeIcons.fire,
-                        value: streak.toString(),
-                        label: 'Best Streak',
-                        color: Colors.orange,
-                        delay: 200,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildQuickStat(
-                        icon: FontAwesomeIcons.gauge,
-                        value: '${avgTimePerCard}s',
-                        label: 'Avg/Card',
-                        color: Colors.purple,
-                        delay: 300,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                // Enhanced Performance Breakdown
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.primaryColor.withOpacity(0.08),
-                        blurRadius: 24,
-                        offset: const Offset(0, 8),
-                        spreadRadius: -4,
-                      ),
-                    ],
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Header with icon
-                        Row(
-                          children: [
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: AppTheme.primaryColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                FontAwesomeIcons.chartSimple,
-                                size: 16,
-                                color: AppTheme.primaryColor,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Performance Breakdown',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.textPrimary,
-                                letterSpacing: -0.2,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Visual progress bar
-                        Container(
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                          child: Stack(
-                            children: [
-                              // Background track
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[100],
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                              ),
-                              // Progress fill
-                              Row(
-                                children: [
-                                  // Correct portion
-                                  if (session.correctCount > 0)
-                                    Expanded(
-                                      flex: session.correctCount,
-                                      child: TweenAnimationBuilder<double>(
-                                        tween: Tween(begin: 0, end: 1),
-                                        duration: const Duration(
-                                          milliseconds: 1200,
-                                        ),
-                                        curve: Curves.easeOutExpo,
-                                        builder: (context, value, child) {
-                                          return Transform.scale(
-                                            scaleX: value,
-                                            alignment: Alignment.centerLeft,
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                  begin: Alignment.topLeft,
-                                                  end: Alignment.bottomRight,
-                                                  colors: [
-                                                    AppTheme.successColor,
-                                                    AppTheme.successColor
-                                                        .withOpacity(0.8),
-                                                  ],
-                                                ),
-                                                borderRadius: BorderRadius.only(
-                                                  topLeft:
-                                                      const Radius.circular(24),
-                                                  bottomLeft:
-                                                      const Radius.circular(24),
-                                                  topRight:
-                                                      session.passCount == 0
-                                                          ? const Radius.circular(
-                                                            24,
-                                                          )
-                                                          : const Radius.circular(
-                                                            4,
-                                                          ),
-                                                  bottomRight:
-                                                      session.passCount == 0
-                                                          ? const Radius.circular(
-                                                            24,
-                                                          )
-                                                          : const Radius.circular(
-                                                            4,
-                                                          ),
-                                                ),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: AppTheme.successColor
-                                                        .withOpacity(0.3),
-                                                    blurRadius: 8,
-                                                    offset: const Offset(0, 2),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: Center(
-                                                child: Row(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment.center,
-                                                  children: [
-                                                    Icon(
-                                                      FontAwesomeIcons
-                                                          .circleCheck,
-                                                      color: Colors.white,
-                                                      size: 14,
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Text(
-                                                      '${session.correctCount}',
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 14,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  // Passed portion
-                                  if (session.passCount > 0)
-                                    Expanded(
-                                      flex: session.passCount,
-                                      child: TweenAnimationBuilder<double>(
-                                        tween: Tween(begin: 0, end: 1),
-                                        duration: const Duration(
-                                          milliseconds: 1400,
-                                        ),
-                                        curve: Curves.easeOutExpo,
-                                        builder: (context, value, child) {
-                                          return Transform.scale(
-                                            scaleX: value,
-                                            alignment: Alignment.centerRight,
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                  begin: Alignment.topLeft,
-                                                  end: Alignment.bottomRight,
-                                                  colors: [
-                                                    AppTheme.warningColor,
-                                                    AppTheme.warningColor
-                                                        .withOpacity(0.8),
-                                                  ],
-                                                ),
-                                                borderRadius: BorderRadius.only(
-                                                  topRight:
-                                                      const Radius.circular(24),
-                                                  bottomRight:
-                                                      const Radius.circular(24),
-                                                  topLeft:
-                                                      session.correctCount == 0
-                                                          ? const Radius.circular(
-                                                            24,
-                                                          )
-                                                          : const Radius.circular(
-                                                            4,
-                                                          ),
-                                                  bottomLeft:
-                                                      session.correctCount == 0
-                                                          ? const Radius.circular(
-                                                            24,
-                                                          )
-                                                          : const Radius.circular(
-                                                            4,
-                                                          ),
-                                                ),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: AppTheme.warningColor
-                                                        .withOpacity(0.3),
-                                                    blurRadius: 8,
-                                                    offset: const Offset(0, 2),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: Center(
-                                                child: Row(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment.center,
-                                                  children: [
-                                                    Icon(
-                                                      FontAwesomeIcons.forward,
-                                                      color: Colors.white,
-                                                      size: 14,
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Text(
-                                                      '${session.passCount}',
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 14,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                ],
                               ),
                             ],
                           ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Stats legend with percentages
-                        Row(
-                          children: [
-                            // Correct stat
-                            Expanded(
-                              child: Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.successColor.withOpacity(
-                                        0.08,
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 36,
-                                          height: 36,
-                                          decoration: BoxDecoration(
-                                            color: AppTheme.successColor
-                                                .withOpacity(0.15),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            FontAwesomeIcons.thumbsUp,
-                                            color: AppTheme.successColor,
-                                            size: 16,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Correct',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: AppTheme.successColor
-                                                      .withOpacity(0.8),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                '${(session.correctCount + session.passCount) > 0 ? ((session.correctCount / (session.correctCount + session.passCount)) * 100).toInt() : 0}%',
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: AppTheme.successColor,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                  .animate()
-                                  .fadeIn(delay: 800.ms, duration: 400.ms)
-                                  .slideX(begin: -0.05, end: 0),
+                        )
+                        .animate()
+                        .fadeIn(delay: 800.ms)
+                        .slideX(begin: -0.05, end: 0),
+                  ),
+                  SizedBox(width: 12.s),
+                  Expanded(
+                    child: Container(
+                          padding: EdgeInsets.all(12.s),
+                          decoration: BoxDecoration(
+                            color: AppTheme.warningColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12.s),
+                            border: Border.all(
+                              color: AppTheme.warningColor.withOpacity(0.2),
+                              width: 1,
                             ),
-                            const SizedBox(width: 12),
-                            // Passed stat
-                            Expanded(
-                              child: Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.warningColor.withOpacity(
-                                        0.08,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                FontAwesomeIcons.arrowRight,
+                                color: AppTheme.warningColor,
+                                size: 16.s,
+                              ),
+                              SizedBox(width: 10.s),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Passed',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11.sp,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.white.withOpacity(0.7),
                                       ),
-                                      borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 36,
-                                          height: 36,
-                                          decoration: BoxDecoration(
-                                            color: AppTheme.warningColor
-                                                .withOpacity(0.15),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            FontAwesomeIcons.arrowRight,
-                                            color: AppTheme.warningColor,
-                                            size: 16,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Passed',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: AppTheme.warningColor
-                                                      .withOpacity(0.8),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                '${(session.correctCount + session.passCount) > 0 ? ((session.passCount / (session.correctCount + session.passCount)) * 100).toInt() : 0}%',
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: AppTheme.warningColor,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
+                                    Text(
+                                      '$passPct%',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 15.sp,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.warningColor,
+                                      ),
                                     ),
-                                  )
-                                  .animate()
-                                  .fadeIn(delay: 900.ms, duration: 400.ms)
-                                  .slideX(begin: 0.05, end: 0),
-                            ),
-                          ],
-                        ),
-                      ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                        .animate()
+                        .fadeIn(delay: 900.ms)
+                        .slideX(begin: 0.05, end: 0),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        )
+        .animate()
+        .fadeIn(delay: 600.ms, duration: 500.ms)
+        .slideY(begin: 0.06, end: 0, curve: Curves.easeOutQuart);
+  }
+
+  /// Words answered (correct + passed) shown inside the Performance section.
+  Widget _buildPerformanceWords(GameSession session) {
+    final correctWords = session.correctCards.map((c) => c.word).toList();
+    final passedWords = session.passedCards.map((c) => c.word).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (correctWords.isNotEmpty) ...[
+          Row(
+            children: [
+              Icon(
+                FontAwesomeIcons.circleCheck,
+                size: 12.s,
+                color: AppTheme.successColor,
+              ),
+              SizedBox(width: 6.s),
+              Text(
+                'Correct',
+                style: GoogleFonts.inter(
+                  fontSize: 11.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.successColor.withOpacity(0.95),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8.s),
+          Wrap(
+            spacing: 6.s,
+            runSpacing: 6.s,
+            children: correctWords
+                .map(
+                  (word) => Container(
+                    padding: EdgeInsets.symmetric(horizontal: 10.s, vertical: 6.s),
+                    decoration: BoxDecoration(
+                      color: AppTheme.successColor.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10.s),
+                      border: Border.all(
+                        color: AppTheme.successColor.withOpacity(0.4),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      word,
+                      style: GoogleFonts.inter(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                ).animate().fadeIn(delay: 600.ms, duration: 600.ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOutQuart),
-              ],
-            ),
+                )
+                .toList(),
+          ),
+          SizedBox(height: 12.s),
+        ],
+        if (passedWords.isNotEmpty) ...[
+          Row(
+            children: [
+              Icon(
+                FontAwesomeIcons.forward,
+                size: 12.s,
+                color: AppTheme.warningColor,
+              ),
+              SizedBox(width: 6.s),
+              Text(
+                'Passed',
+                style: GoogleFonts.inter(
+                  fontSize: 11.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.warningColor.withOpacity(0.95),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8.s),
+          Wrap(
+            spacing: 6.s,
+            runSpacing: 6.s,
+            children: passedWords
+                .map(
+                  (word) => Container(
+                    padding: EdgeInsets.symmetric(horizontal: 10.s, vertical: 6.s),
+                    decoration: BoxDecoration(
+                      color: AppTheme.warningColor.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10.s),
+                      border: Border.all(
+                        color: AppTheme.warningColor.withOpacity(0.4),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      word,
+                      style: GoogleFonts.inter(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
           ),
         ],
-      ),
-    ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.05, end: 0);
+      ],
+    ).animate().fadeIn(delay: 700.ms, duration: 400.ms).slideY(begin: 0.04, end: 0);
   }
 
   Widget _buildQuickStat({
@@ -1199,71 +1094,43 @@ class _ResultsScreenState extends State<ResultsScreen>
     required int delay,
   }) {
     return Container(
+          padding: EdgeInsets.symmetric(vertical: 14.s, horizontal: 10.s),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(0.25),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-                spreadRadius: -4,
+            color: color.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(16.s),
+            border: Border.all(color: color.withOpacity(0.25), width: 1),
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 36.s,
+                height: 36.s,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.3),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: color.withOpacity(0.4), width: 1),
+                ),
+                child: Icon(icon, color: Colors.white, size: 18.s),
               ),
-              BoxShadow(
-                color: color.withOpacity(0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
+              SizedBox(height: 10.s),
+              Text(
+                value,
+                style: GoogleFonts.poppins(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              SizedBox(height: 2.s),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 11.sp,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white.withOpacity(0.65),
+                ),
               ),
             ],
-          ),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withOpacity(0.1), width: 1),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [color, color.withOpacity(0.7)],
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withOpacity(0.4),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Icon(icon, color: Colors.white, size: 18),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.textTertiary,
-                  ),
-                ),
-              ],
-            ),
           ),
         )
         .animate()
@@ -1296,13 +1163,13 @@ class _ResultsScreenState extends State<ResultsScreen>
       children: [
         Text(
           'Game Statistics',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textPrimary,
+          style: GoogleFonts.poppins(
+            fontSize: 18.sp,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
           ),
-        ),
-        const SizedBox(height: 16),
+        ).animate().fadeIn(duration: 400.ms),
+        SizedBox(height: 16.s),
         Row(
           children: [
             Expanded(
@@ -1314,7 +1181,7 @@ class _ResultsScreenState extends State<ResultsScreen>
                 delay: 100,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12.s),
             Expanded(
               child: _buildStatCard(
                 icon: FontAwesomeIcons.forward,
@@ -1324,7 +1191,7 @@ class _ResultsScreenState extends State<ResultsScreen>
                 delay: 200,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12.s),
             Expanded(
               child: _buildStatCard(
                 icon: FontAwesomeIcons.clock,
@@ -1347,96 +1214,62 @@ class _ResultsScreenState extends State<ResultsScreen>
     required String label,
     required int delay,
   }) {
+    final numValue =
+        double.tryParse(value.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
     return Container(
+          padding: EdgeInsets.symmetric(vertical: 20.s, horizontal: 12.s),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: iconColor.withOpacity(0.2),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-                spreadRadius: -5,
+            color: iconColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(18.s),
+            border: Border.all(color: iconColor.withOpacity(0.2), width: 1),
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 44.s,
+                height: 44.s,
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(12.s),
+                  border: Border.all(
+                    color: iconColor.withOpacity(0.35),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(icon, color: Colors.white, size: 20.s),
               ),
-              BoxShadow(
-                color: iconColor.withOpacity(0.08),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+              SizedBox(height: 12.s),
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: numValue),
+                duration: Duration(milliseconds: 1000 + delay),
+                curve: Curves.easeOutCubic,
+                builder: (context, animValue, child) {
+                  return Text(
+                    value.contains('s')
+                        ? '${animValue.toInt()}s'
+                        : animValue.toInt().toString(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 22.sp,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  );
+                },
+              ),
+              SizedBox(height: 4.s),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white.withOpacity(0.7),
+                ),
               ),
             ],
           ),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: iconColor.withOpacity(0.08), width: 1),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [iconColor.withOpacity(0.8), iconColor],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: iconColor.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Icon(icon, color: Colors.white, size: 22),
-                ),
-                const SizedBox(height: 12),
-                TweenAnimationBuilder<double>(
-                  tween: Tween(
-                    begin: 0,
-                    end: double.parse(value.replaceAll('s', '')),
-                  ),
-                  duration: Duration(milliseconds: 1000 + delay),
-                  curve: Curves.easeOutCubic,
-                  builder: (context, animValue, child) {
-                    return ShaderMask(
-                      shaderCallback:
-                          (bounds) => LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [iconColor, iconColor.withOpacity(0.8)],
-                          ).createShader(bounds),
-                      child: Text(
-                        value.contains('s')
-                            ? '${animValue.toInt()}s'
-                            : animValue.toInt().toString(),
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: iconColor.withOpacity(0.7),
-                  ),
-                ),
-              ],
-            ),
-          ),
         )
         .animate()
-        .fadeIn(delay: (400 + delay).ms, duration: 600.ms)
+        .fadeIn(delay: (400 + delay).ms, duration: 500.ms)
         .scale(
           delay: (400 + delay).ms,
           duration: 400.ms,
@@ -1454,29 +1287,21 @@ class _ResultsScreenState extends State<ResultsScreen>
 
     return Container(
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(20.s),
+            border: Border.all(color: Colors.white.withOpacity(0.06), width: 1),
           ),
           child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(20.s),
             child: InkWell(
               onTap: () {
-                setState(() {
-                  _showDetails = !_showDetails;
-                });
+                setState(() => _showDetails = !_showDetails);
                 _hapticService.lightImpact();
               },
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(20.s),
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(20.s),
                 child: Column(
                   children: [
                     Row(
@@ -1485,25 +1310,25 @@ class _ResultsScreenState extends State<ResultsScreen>
                         Row(
                           children: [
                             Container(
-                              width: 40,
-                              height: 40,
+                              width: 40.s,
+                              height: 40.s,
                               decoration: BoxDecoration(
-                                color: AppTheme.primaryColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(10),
+                                color: session.deck.color.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12.s),
                               ),
                               child: Icon(
                                 FontAwesomeIcons.rectangleList,
-                                color: AppTheme.primaryColor,
-                                size: 18,
+                                color: session.deck.color,
+                                size: 18.s,
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            SizedBox(width: 12.s),
                             Text(
                               'Word Details',
-                              style: TextStyle(
-                                fontSize: 16,
+                              style: GoogleFonts.poppins(
+                                fontSize: 16.sp,
                                 fontWeight: FontWeight.w600,
-                                color: AppTheme.textPrimary,
+                                color: Colors.white,
                               ),
                             ),
                           ],
@@ -1512,16 +1337,16 @@ class _ResultsScreenState extends State<ResultsScreen>
                           turns: _showDetails ? 0.5 : 0,
                           duration: const Duration(milliseconds: 300),
                           child: Container(
-                            width: 32,
-                            height: 32,
+                            width: 34.s,
+                            height: 34.s,
                             decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(8),
+                              color: Colors.white.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(10.s),
                             ),
                             child: Icon(
                               Icons.expand_more_rounded,
-                              color: AppTheme.textSecondary,
-                              size: 20,
+                              color: Colors.white.withOpacity(0.8),
+                              size: 20.s,
                             ),
                           ),
                         ),
@@ -1531,16 +1356,16 @@ class _ResultsScreenState extends State<ResultsScreen>
                       firstChild: const SizedBox.shrink(),
                       secondChild: Column(
                         children: [
-                          const SizedBox(height: 20),
+                          SizedBox(height: 20.s),
                           if (correctWords.isNotEmpty) ...[
                             _buildWordsList(
                               'Correct Words',
                               correctWords,
                               AppTheme.successColor,
                               FontAwesomeIcons.circleCheck,
+                              session.deck.color,
                             ),
-                            if (passedWords.isNotEmpty)
-                              const SizedBox(height: 16),
+                            if (passedWords.isNotEmpty) SizedBox(height: 16.s),
                           ],
                           if (passedWords.isNotEmpty)
                             _buildWordsList(
@@ -1548,6 +1373,7 @@ class _ResultsScreenState extends State<ResultsScreen>
                               passedWords,
                               AppTheme.warningColor,
                               FontAwesomeIcons.forward,
+                              session.deck.color,
                             ),
                         ],
                       ),
@@ -1564,7 +1390,7 @@ class _ResultsScreenState extends State<ResultsScreen>
           ),
         )
         .animate()
-        .fadeIn(delay: 600.ms, duration: 600.ms)
+        .fadeIn(delay: 600.ms, duration: 500.ms)
         .slideY(begin: 0.05, end: 0);
   }
 
@@ -1573,6 +1399,7 @@ class _ResultsScreenState extends State<ResultsScreen>
     List<String> words,
     Color color,
     IconData icon,
+    Color deckColor,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1580,64 +1407,68 @@ class _ResultsScreenState extends State<ResultsScreen>
         Row(
           children: [
             Container(
-              width: 32,
-              height: 32,
+              width: 32.s,
+              height: 32.s,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+                color: color.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(10.s),
               ),
-              child: Icon(icon, color: color, size: 16),
+              child: Icon(icon, color: color, size: 16.s),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10.s),
             Text(
               title,
-              style: TextStyle(
-                fontSize: 14,
+              style: GoogleFonts.poppins(
+                fontSize: 14.sp,
                 fontWeight: FontWeight.w600,
-                color: AppTheme.textPrimary,
+                color: Colors.white,
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8.s),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: EdgeInsets.symmetric(horizontal: 10.s, vertical: 4.s),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: color.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12.s),
+                border: Border.all(color: color.withOpacity(0.3), width: 1),
               ),
               child: Text(
                 '${words.length}',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                style: GoogleFonts.poppins(
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w600,
                   color: color,
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12.s),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 8.s,
+          runSpacing: 8.s,
           children:
               words
                   .map(
                     (word) => Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 14.s,
+                        vertical: 8.s,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.grey[200]!, width: 1),
+                        color: Colors.white.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(12.s),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.08),
+                          width: 1,
+                        ),
                       ),
                       child: Text(
                         word,
-                        style: TextStyle(
-                          fontSize: 13,
+                        style: GoogleFonts.inter(
+                          fontSize: 13.sp,
                           fontWeight: FontWeight.w500,
-                          color: AppTheme.textPrimary,
+                          color: Colors.white.withOpacity(0.9),
                         ),
                       ),
                     ),
@@ -1649,149 +1480,171 @@ class _ResultsScreenState extends State<ResultsScreen>
   }
 
   Widget _buildFloatingActions(GameSession session) {
+    final deckColor = session.deck.color;
     return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      child: Container(
-            padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: 20,
-              bottom: MediaQuery.of(context).padding.bottom + 20,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(24),
-                topRight: Radius.circular(24),
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: ClipRRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: EdgeInsets.fromLTRB(
+                  24.s,
+                  14.s,
+                  24.s,
+                  2.0,
+                ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.0),
+                      Colors.black.withOpacity(0.85),
+                    ],
+                  ),
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () async {
+                              _hapticService.lightImpact();
+                              _videoSectionKey.currentState
+                                  ?.cancelVideoProcessing();
+                              VideoProcessingManager.instance
+                                  .cancelCurrentProcessing(
+                                    reason:
+                                        'Home button pressed on results screen',
+                                  );
+                              await _showInterstitialWithLoader(() {
+                                Navigator.of(
+                                  context,
+                                ).popUntil((route) => route.isFirst);
+                              }, location: 'results_home_button');
+                            },
+                            borderRadius: BorderRadius.circular(16.s),
+                            child: Container(
+                              height: 56.s,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(16.s),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.08),
+                                  width: 1,
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    FontAwesomeIcons.house,
+                                    color: Colors.white.withOpacity(0.9),
+                                    size: 20.s,
+                                  ),
+                                  SizedBox(width: 10.s),
+                                  Text(
+                                    'Home',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 15.sp,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white.withOpacity(0.9),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12.s),
+                      Expanded(
+                        flex: 2,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () async {
+                              _hapticService.lightImpact();
+                              _videoSectionKey.currentState
+                                  ?.cancelVideoProcessing();
+                              VideoProcessingManager.instance
+                                  .cancelCurrentProcessing(
+                                    reason:
+                                        'Play Again button pressed on results screen',
+                                  );
+                              await _showInterstitialWithLoader(() {
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) =>
+                                            DeckDetailsScreen(
+                                              deck: session.deck,
+                                            ),
+                                  ),
+                                );
+                              }, location: 'results_play_again_button');
+                            },
+                            borderRadius: BorderRadius.circular(16.s),
+                            child: Container(
+                              height: 56.s,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    deckColor,
+                                    deckColor.withOpacity(0.85),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(16.s),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: deckColor.withOpacity(0.4),
+                                    blurRadius: 20.s,
+                                    offset: Offset(0, 8.s),
+                                  ),
+                                ],
+                              ),
+                              alignment: Alignment.center,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    FontAwesomeIcons.arrowRotateRight,
+                                    color: Colors.white,
+                                    size: 20.s,
+                                  ),
+                                  SizedBox(width: 10.s),
+                                  Text(
+                                    'Play Again',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 16.sp,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 20,
-                  offset: const Offset(0, -5),
-                ),
-              ],
             ),
-            child: Row(
-              children: [
-                // Home button
-                Expanded(
-                  child: Container(
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () async {
-                          _hapticService.lightImpact();
-                          // Cancel video processing before navigating
-                          _videoSectionKey.currentState?.cancelVideoProcessing();
-                          await _showInterstitialWithLoader(() {
-                            Navigator.of(
-                              context,
-                            ).popUntil((route) => route.isFirst);
-                          }, location: 'results_home_button');
-                        },
-                        borderRadius: BorderRadius.circular(16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              FontAwesomeIcons.house,
-                              color: AppTheme.textSecondary,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Home',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Play again button
-                Expanded(
-                  flex: 2,
-                  child: Container(
-                    height: 56,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          session.deck.color,
-                          session.deck.color.withOpacity(0.8),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: session.deck.color.withOpacity(0.3),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () async {
-                          _hapticService.lightImpact();
-                          // Cancel video processing before navigating
-                          _videoSectionKey.currentState?.cancelVideoProcessing();
-                          await _showInterstitialWithLoader(() {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (context) =>
-                                        const CategorySelectionScreen(),
-                              ),
-                            );
-                          }, location: 'results_play_again_button');
-                        },
-                        borderRadius: BorderRadius.circular(16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              FontAwesomeIcons.arrowRotateRight,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 10),
-                            const Text(
-                              'Play Again',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          )
-          .animate()
-          .fadeIn(delay: 800.ms, duration: 600.ms)
-          .slideY(begin: 0.1, end: 0),
-    );
+          ),
+        )
+        .animate()
+        .fadeIn(delay: 800.ms, duration: 500.ms)
+        .slideY(begin: 0.12, end: 0, curve: Curves.easeOutCubic);
   }
 
   void _shareResults(GameSession session) {
@@ -1807,17 +1660,18 @@ class _ResultsScreenState extends State<ResultsScreen>
   Widget _buildDoubleScoreButton(GameSession session) {
     return Container(
           width: double.infinity,
-          height: 56,
+          height: 56.s,
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [Colors.amber.shade600, Colors.amber.shade700],
             ),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16.s),
+            border: Border.all(color: Colors.amber.withOpacity(0.4), width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.amber.withOpacity(0.3),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
+                color: Colors.amber.withOpacity(0.35),
+                blurRadius: 20.s,
+                offset: Offset(0, 8.s),
               ),
             ],
           ),
@@ -1826,76 +1680,73 @@ class _ResultsScreenState extends State<ResultsScreen>
             child: InkWell(
               onTap: () async {
                 _hapticService.mediumImpact();
-
-                // Show rewarded ad
                 await _adService.showRewardedAd(
                   rewardType: 'double_score',
                   onUserEarnedReward: (amount) {
-                    setState(() {
-                      _hasDoubledScore = true;
-                    });
-
-                    // Double the score in the game provider
+                    setState(() => _hasDoubledScore = true);
                     final gameProvider = context.read<GameProvider>();
                     gameProvider.doubleLastGameScore();
-
                     _hapticService.success();
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Row(
                           children: [
                             Icon(Icons.star_rounded, color: Colors.white),
-                            const SizedBox(width: 8),
+                            SizedBox(width: 8.s),
                             Text(
                               'Score doubled! +${session.correctCount * 10} bonus points',
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ],
                         ),
-                        backgroundColor: Colors.amber.shade700,
+                        backgroundColor: const Color(0xFF1C1C1E),
                         behavior: SnackBarBehavior.floating,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(12.s),
                         ),
                       ),
                     );
                   },
                 );
               },
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+              borderRadius: BorderRadius.circular(16.s),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20.s),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.play_circle_filled,
+                      Icons.play_circle_filled_rounded,
                       color: Colors.white,
-                      size: 24,
+                      size: 24.s,
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12.s),
                     Text(
                       'Watch Ad to Double Score',
-                      style: TextStyle(
+                      style: GoogleFonts.poppins(
                         color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 15.sp,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 10.s),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 10.s,
+                        vertical: 4.s,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.white.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(8.s),
                       ),
                       child: Text(
                         '2x',
-                        style: TextStyle(
+                        style: GoogleFonts.poppins(
                           color: Colors.white,
-                          fontSize: 12,
+                          fontSize: 12.sp,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -1907,39 +1758,12 @@ class _ResultsScreenState extends State<ResultsScreen>
           ),
         )
         .animate()
-        .fadeIn(delay: 1000.ms, duration: 600.ms)
-        .slideY(begin: 0.2, end: 0)
+        .fadeIn(delay: 1000.ms, duration: 500.ms)
+        .slideY(begin: 0.15, end: 0, curve: Curves.easeOutCubic)
         .shimmer(
           delay: 1600.ms,
           duration: 1500.ms,
-          color: Colors.white.withOpacity(0.3),
+          color: Colors.white.withOpacity(0.25),
         );
   }
-}
-
-// Custom painter for subtle pattern background
-class _SubtlePatternPainter extends CustomPainter {
-  final Color color;
-
-  _SubtlePatternPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = color
-          ..strokeWidth = 0.5
-          ..style = PaintingStyle.stroke;
-
-    // Draw subtle dot grid pattern
-    const spacing = 30.0;
-    for (double x = 0; x < size.width; x += spacing) {
-      for (double y = 0; y < size.height; y += spacing) {
-        canvas.drawCircle(Offset(x, y), 1, paint..style = PaintingStyle.fill);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

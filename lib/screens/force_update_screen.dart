@@ -19,7 +19,9 @@ class ForceUpdateScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
@@ -145,8 +147,8 @@ class ForceUpdateScreen extends StatelessWidget {
 
                   // Description
                   Text(
-                        versionInfo.updateMessage.isNotEmpty
-                            ? versionInfo.updateMessage
+                        versionInfo.forceUpdateMessage.isNotEmpty
+                            ? versionInfo.forceUpdateMessage
                             : (l10n?.updateRequiredDescription ??
                                 'Please update to the latest version to continue using the app.'),
                         style: GoogleFonts.inter(
@@ -194,7 +196,7 @@ class ForceUpdateScreen extends StatelessWidget {
                             ),
                             _buildVersionBadge(
                               label: l10n?.requiredVersion ?? 'Required',
-                              version: versionInfo.minRequiredVersion,
+                              version: versionInfo.minimumVersion,
                               color: Colors.green.shade400,
                             ),
                           ],
@@ -280,6 +282,7 @@ class ForceUpdateScreen extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -490,8 +493,8 @@ class SoftUpdateDialog extends StatelessWidget {
 
                 // Description
                 Text(
-                  versionInfo.updateMessage.isNotEmpty
-                      ? versionInfo.updateMessage
+                  versionInfo.forceUpdateMessage.isNotEmpty
+                      ? versionInfo.forceUpdateMessage
                       : (l10n?.updateAvailableDescription ??
                           'A new version is available with exciting features and improvements!'),
                   style: GoogleFonts.inter(

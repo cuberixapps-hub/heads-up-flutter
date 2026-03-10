@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -8,17 +9,19 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'dart:io';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../constants/app_theme.dart';
 import '../models/deck.dart';
 import '../providers/game_provider.dart';
 import '../services/haptic_service.dart';
 import '../services/audio_service.dart';
-import '../widgets/tutorial_hint_overlay.dart';
+import '../services/video_processing_manager.dart';
 import 'results_screen.dart';
 import 'team_results_screen.dart';
 import '../services/camera_recording_service.dart';
 import '../models/video_recording_result.dart';
 import '../utils/responsive.dart';
+import '../config/environment.dart';
 
 class GameplayScreen extends StatefulWidget {
   final Deck deck;
@@ -44,6 +47,55 @@ class _GameplayScreenState extends State<GameplayScreen>
   final _audioService = AudioService();
   final _hapticService = HapticService();
 
+  /// Helper to get a contrasted text color for yellow colors on light backgrounds.
+  /// Yellow colors have poor visibility on white/light backgrounds, so we darken them.
+  Color _getContrastedTextColor(Color color) {
+    // Check if the color is in the yellow range
+    // Yellow hue is approximately 40-70 degrees in HSL
+    final hslColor = HSLColor.fromColor(color);
+    final hue = hslColor.hue;
+    final saturation = hslColor.saturation;
+
+    // Detect yellow colors (hue 40-70)
+    final isYellow = hue >= 40 && hue <= 70;
+
+    if (isYellow) {
+      // Return a much darker version of yellow for text visibility
+      // Use a dark brown/amber color that maintains the yellow feel
+      return HSLColor.fromAHSL(
+        1.0,
+        hue,
+        saturation.clamp(0.6, 1.0), // Keep saturation high
+        0.25, // Very dark lightness for strong contrast on white
+      ).toColor();
+    }
+
+    // For non-yellow colors, return as-is
+    return color;
+  }
+
+  /// Get a contrasted color for decorative elements (badges, borders) for yellow
+  Color _getContrastedDecorationColor(Color color) {
+    final hslColor = HSLColor.fromColor(color);
+    final hue = hslColor.hue;
+    final saturation = hslColor.saturation;
+
+    // Detect yellow colors
+    final isYellow = hue >= 40 && hue <= 70;
+
+    if (isYellow) {
+      // Return a moderately darker version for decorations
+      return HSLColor.fromAHSL(
+        1.0,
+        hue,
+        saturation.clamp(0.7, 1.0),
+        0.35, // Darker but not as dark as text
+      ).toColor();
+    }
+
+    return color;
+  }
+
   // Animations
   late AnimationController _countdownController;
   late AnimationController _countdownPulseController;
@@ -58,57 +110,63 @@ class _GameplayScreenState extends State<GameplayScreen>
   late AnimationController _backgroundAnimController;
   late AnimationController _glowController;
 
-  // Sensors - use gyroscope as primary, accelerometer as fallback
-  StreamSubscription<GyroscopeEvent>? _gyroscopeSubscription;
-  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
-  bool _canDetectTilt = false;
-  bool _hasTriggeredAction = false;
-  bool _useGyroscope = true; // Prefer gyroscope for rotation detection
+  // ── Sensor-based tilt detection (ΔZ for CORRECT/PASS, ΔY as orientation guard) ──
+  StreamSubscription<AccelerometerEvent>? _sensorSubscription;
+  StreamSubscription<AccelerometerEvent>? _calibrationSubscription;
+  StreamSubscription<GyroscopeEvent>? _gyroSubscription;
 
-  // Calibration values (for accelerometer fallback)
-  double _calibrationX = 0.0;
-  double _calibrationY = 0.0;
-  double _calibrationZ = 0.0;
+  static const _sensorSamplingPeriod = Duration(milliseconds: 20);
+
+  // ── Thresholds ──
+  static const _smoothingAlpha =
+      0.15; // EMA smoothing factor (lower = smoother)
+  static const _tiltTriggerThreshold =
+      5.0; // ΔZ must exceed this for CORRECT/PASS
+  static const _returnThreshold =
+      2.5; // ΔZ must be within this to count as "neutral"
+  static const _orientationGuardThreshold =
+      5.0; // if |ΔY| > this, phone is NOT in landscape → ignore
+  static const _cooldownMs = 400; // minimum ms between two actions
+  static const _returnStableSamplesRequired =
+      8; // consecutive neutral samples before unlocking
+  static const _waitingTimeoutMs =
+      2000; // watchdog: force-clear waitingForReturn after this
+  static const _calibrationStableThreshold =
+      3.0; // |rawY| must be below this for calibration to accept samples
+  static const _calibrationVerticalThreshold =
+      5.0; // |rawX| must exceed this — ensures phone is upright, not flat
+  static const _baselineDriftAlpha =
+      0.005; // very slow EMA to correct persistent sensor bias in _calZ
+  static const _baselineDriftZone =
+      3.0; // only drift-correct when |smoothedΔZ| is within this zone
+
+  // Raw accelerometer values (for debug overlay)
+  double _accelX = 0.0, _accelY = 0.0, _accelZ = 0.0;
+
+  // Raw gyroscope values (for debug overlay)
+  double _gyroX = 0.0, _gyroY = 0.0, _gyroZ = 0.0;
+
+  // Computed values (for debug overlay)
+  double _gravityMag = 0.0;
+
+  // Calibration baseline
+  double _calX = 0.0, _calY = 0.0, _calZ = 0.0;
   bool _isCalibrated = false;
 
-  // Integrated angle from gyroscope (degrees)
-  double _integratedAngle = 0.0;
-  DateTime? _lastGyroTime;
+  // Smoothed ΔZ for trigger detection
+  double _smoothedDeltaZ = 0.0;
 
-  // Smoothing for sensor data
-  double _smoothedTiltAngle = 0.0;
-  double _smoothedAngularVelocity = 0.0;
-  static const _smoothingFactor = 0.4; // For accelerometer smoothing
-
-  // Neutral position tracking
-  bool _isInNeutralPosition = true;
-  bool _isSettled = true; // Must be still AND in neutral to allow new action
+  // State machine
+  bool _waitingForReturn = false;
+  bool _actionLocked = false;
   DateTime? _lastActionTime;
-  DateTime? _neutralEntryTime; // When we entered neutral zone
-  static const _minTimeBetweenActions = Duration(
-    milliseconds: 700,
-  ); // Responsive timing
-  static const _settlingTime = Duration(
-    milliseconds: 400,
-  ); // Time to stay still in neutral before new action allowed
+  int _returnStableCount = 0;
+  bool _animationComplete = false;
+  bool _returnComplete = false;
+  DateTime? _waitingStartTime;
 
-  // Thresholds for gyroscope-based detection
-  static const _neutralVelocityThreshold = 0.25; // rad/s - considered "still"
-  static const _neutralAngleThreshold = 8.0; // degrees - return to neutral zone
-
-  // Action thresholds for accelerometer fallback
-  static const _actionThreshold = 25.0; // Degrees - threshold to trigger action
-  static const _confirmThreshold = 30.0; // Degrees - confirmation threshold
-  static const _neutralThreshold = 15.0; // Degrees - neutral zone
-  bool _actionLocked = false; // Prevent any action during cooldown
-
-  // Auto-recalibration
-  int _failedAttempts = 0;
-  static const _maxFailedAttempts = 3;
-  DateTime? _lastCalibrationTime;
-
-  // Debug flag - set to true to see sensor values
-  static const _debugSensors = false;
+  // Debug status string for overlay
+  String _sensorState = 'INIT';
 
   // Game state
   bool _isCountingDown = true;
@@ -122,13 +180,8 @@ class _GameplayScreenState extends State<GameplayScreen>
   bool _isCorrectAction = false;
   bool _isPassAction = false;
 
-  // Tutorial hints
-  bool _showTutorialHints = false;
-  int _gamesPlayed = 0;
-
   // Control mode
   bool _useManualControls = false;
-  bool _isLandscapeMode = true; // Always true - gameplay is always in landscape
 
   // Camera recording
   final _cameraRecording = CameraRecordingService.instance;
@@ -136,18 +189,34 @@ class _GameplayScreenState extends State<GameplayScreen>
   bool _isRecordingVideo = false;
   bool _isNavigating = false;
 
+  // Streak tracking for premium haptics
+  int _currentStreak = 0;
+  static const _streakThreshold = 3; // Trigger bonus haptic after 3 corrects
+
+  // Time warning haptic tracking
+  bool _hasTriggeredTimeWarning = false;
+  int _lastRemainingTime = -1;
+
   @override
   void initState() {
     super.initState();
 
-    // Force landscape mode immediately - this must be synchronous
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    // Cancel any previous video processing from a previous game session
+    // This ensures video generation doesn't continue when starting a new game
+    VideoProcessingManager.instance.cancelCurrentProcessing(
+      reason: 'New game started',
+    );
+
+    // Lock to a SINGLE landscape direction for the entire gameplay session.
+    // Allowing both landscapeLeft + landscapeRight causes iOS/Android to jitter
+    // between the two on small physical movements, triggering rebuilds and
+    // recalibration at bad moments, which breaks sensor consistency.
+    SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft]);
+
+    // Keep screen awake during gameplay — user doesn't touch the screen (hands-free)
+    WakelockPlus.enable();
 
     _initializeAnimations();
-    _checkTutorialHints();
     _checkPreferredOrientation();
     _checkCameraPreference();
     _startCountdown();
@@ -165,9 +234,7 @@ class _GameplayScreenState extends State<GameplayScreen>
     if (!gameProvider.isGameActive &&
         !_isNavigating &&
         _countdownController.isCompleted) {
-      debugPrint('=== GAME STATE CHANGE DETECTED ===');
-      debugPrint('Game ended via timer/provider, navigating to results...');
-      debugPrint('Is recording: $_isRecordingVideo');
+      // Game ended via timer/provider
 
       // Delay slightly to ensure proper cleanup
       Future.delayed(const Duration(milliseconds: 100), () async {
@@ -180,51 +247,27 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   Future<void> _checkPreferredOrientation() async {
     final prefs = await SharedPreferences.getInstance();
-    // Always use landscape mode for gameplay - accelerometer logic depends on this
-    _isLandscapeMode = true;
     _useManualControls = prefs.getBool('use_manual_controls') ?? false;
 
-    // Ensure landscape orientation is set (reinforcement in case initState wasn't enough)
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-  }
-
-  Future<void> _checkTutorialHints() async {
-    final prefs = await SharedPreferences.getInstance();
-    _gamesPlayed = prefs.getInt('games_played') ?? 0;
-
-    // Show hints for first 3 games
-    if (_gamesPlayed < 3) {
-      setState(() {
-        _showTutorialHints = true;
-      });
-    }
-
-    // Increment games played
-    await prefs.setInt('games_played', _gamesPlayed + 1);
+    // Reinforce single-landscape lock (in case initState wasn't enough)
+    SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft]);
   }
 
   Future<void> _checkCameraPreference() async {
-    debugPrint('Checking camera preference...');
     final prefs = await SharedPreferences.getInstance();
     _isCameraEnabled = prefs.getBool('enable_reaction_recording') ?? true;
-    debugPrint('Camera enabled preference: $_isCameraEnabled');
 
-    // Debug: Check all preferences
-    final allKeys = prefs.getKeys();
-    debugPrint('All preference keys: $allKeys');
-    for (final key in allKeys) {
-      if (key.contains('reaction') ||
-          key.contains('camera') ||
-          key.contains('record')) {
-        debugPrint('Preference $key = ${prefs.get(key)}');
-      }
+    // Pre-initialize camera during countdown so it's ready when game starts.
+    // This eliminates the delay between game start and recording start,
+    // keeping the camera video and game overlay in sync.
+    // Permissions are handled by GameplayPermissionsScreen before reaching here.
+    if (_isCameraEnabled) {
+      _cameraRecording.initialize().then((success) {
+        if (!success && mounted) {
+          _isCameraEnabled = false;
+        }
+      });
     }
-
-    // Don't initialize camera here - wait until game starts
-    // This ensures permissions are requested when app is fully active
   }
 
   void _initializeAnimations() {
@@ -330,48 +373,50 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _startGame() async {
-    if (!_useManualControls) {
-      _initializeSensors();
-    }
     _audioService.playClick();
     _hapticService.mediumImpact();
 
-    // Initialize camera first, then start recording
+    // Start camera recording BEFORE sensors so the video captures everything
+    // from the moment gameplay begins. Camera should already be pre-initialized
+    // during the countdown via _checkCameraPreference().
     if (_isCameraEnabled) {
-      debugPrint('=== CAMERA RECORDING START ===');
-      debugPrint('Game starting - initializing camera...');
-      debugPrint('Camera preference enabled: $_isCameraEnabled');
-
-      // The camera package will automatically request permissions
-      final initialized = await _cameraRecording.initialize();
-      debugPrint('Camera initialization result: $initialized');
-
-      if (initialized) {
-        debugPrint('Camera initialized during game start');
-        final recordingStarted = await _startVideoRecording();
-        debugPrint('Recording started result: $recordingStarted');
-      } else {
-        debugPrint('Camera initialization failed during game start');
-        _isCameraEnabled = false;
+      if (!_cameraRecording.isInitialized) {
+        // Fallback: initialize now if pre-init didn't finish in time
+        final initialized = await _cameraRecording.initialize();
+        if (!initialized) {
+          _isCameraEnabled = false;
+        }
       }
-    } else {
-      debugPrint('=== CAMERA DISABLED ===');
-      debugPrint('Camera recording disabled by user preference');
+
+      if (_isCameraEnabled) {
+        await _startVideoRecording();
+
+        // Log the first word immediately so the game overlay is in sync
+        // with the camera. Without this, the overlay shows "Get Ready!"
+        // for the entire duration of the first card.
+        final gameProvider = context.read<GameProvider>();
+        final currentWord = gameProvider.currentSession?.currentCard ?? '';
+        if (_isRecordingVideo && currentWord.isNotEmpty) {
+          _cameraRecording.logGameEvent(
+            type: 'word_shown',
+            word: currentWord,
+            score: gameProvider.currentSession?.correctCount ?? 0,
+            remainingTime: gameProvider.remainingTime,
+          );
+        }
+      }
+    }
+
+    // Start sensors AFTER recording so the user can only interact
+    // (tilt to correct/pass) once the camera is actively recording.
+    // This keeps camera video and game overlay perfectly in sync.
+    if (!_useManualControls) {
+      _initializeSensors();
     }
   }
 
   Future<bool> _startVideoRecording() async {
-    debugPrint(
-      '_startVideoRecording called. Camera enabled: $_isCameraEnabled',
-    );
-    if (!_isCameraEnabled) {
-      debugPrint('Camera not enabled, skipping recording');
-      return false;
-    }
-
-    debugPrint('Starting video recording...');
-    debugPrint('Deck name: ${widget.deck.name}');
-    debugPrint('Deck color: ${widget.deck.color.toString()}');
+    if (!_isCameraEnabled) return false;
 
     final success = await _cameraRecording.startRecording(
       widget.deck.name,
@@ -382,470 +427,319 @@ class _GameplayScreenState extends State<GameplayScreen>
       setState(() {
         _isRecordingVideo = true;
       });
-      debugPrint('Video recording started successfully');
-      debugPrint('_isRecordingVideo set to: $_isRecordingVideo');
-    } else {
-      debugPrint('Failed to start video recording');
     }
 
     return success;
   }
 
   void _initializeSensors({bool isRecalibration = false}) {
-    // Reset state
-    _isInNeutralPosition = true;
-    _isSettled = true; // Start as settled so first action can trigger
-    _hasTriggeredAction = false;
-    _lastActionTime = null;
-    _neutralEntryTime = null;
+    _calibrationSubscription?.cancel();
+    _calibrationSubscription = null;
+    _sensorSubscription?.cancel();
+    _sensorSubscription = null;
+    _gyroSubscription?.cancel();
+    _gyroSubscription = null;
+
+    _smoothedDeltaZ = 0.0;
+    _waitingForReturn = false;
     _actionLocked = false;
-    _smoothedTiltAngle = 0.0;
-    _smoothedAngularVelocity = 0.0;
-    _integratedAngle = 0.0;
-    _lastGyroTime = null;
-    _failedAttempts = 0;
+    _isCalibrated = false;
+    _returnStableCount = 0;
+    _animationComplete = false;
+    _returnComplete = false;
+    _waitingStartTime = null;
+    _sensorState = 'CALIBRATING';
+    if (!isRecalibration) {
+      _lastActionTime = null;
+    }
 
-    // For recalibration, don't wait
     final delay = isRecalibration ? 50 : 200;
-
     Future.delayed(Duration(milliseconds: delay), () {
       if (!mounted) return;
-
-      // Try to use gyroscope first (much better for rotation detection)
-      _tryStartGyroscope().then((gyroAvailable) {
-        if (gyroAvailable) {
-          _useGyroscope = true;
-          _canDetectTilt = true;
-          _isCalibrated = true;
-          _lastCalibrationTime = DateTime.now();
-          if (_debugSensors) {
-            debugPrint('Using GYROSCOPE for tilt detection (more accurate)');
-          }
-        } else {
-          // Fall back to accelerometer
-          _useGyroscope = false;
-          _calibrateAccelerometer(isRecalibration: isRecalibration);
-          if (_debugSensors) {
-            debugPrint(
-              'Gyroscope not available, falling back to ACCELEROMETER',
-            );
-          }
-        }
-      });
+      _calibrateSensor();
     });
   }
 
-  Future<bool> _tryStartGyroscope() async {
-    try {
-      // Test if gyroscope is available by trying to get one event
-      final testEvent = await gyroscopeEventStream().first.timeout(
-        const Duration(milliseconds: 500),
-        onTimeout: () => throw Exception('Gyroscope timeout'),
+  /// Calibrates baseline accelerometer values only when the phone is in the
+  /// correct "heads-up" position (vertical landscape on forehead).
+  /// Rejects samples where |Y| is large (portrait) or |X| is small (phone flat).
+  void _calibrateSensor() {
+    _calibrationSubscription?.cancel();
+
+    int totalCount = 0;
+    int usedCount = 0;
+    double sumX = 0, sumY = 0, sumZ = 0;
+    const discardSamples = 5;
+    const requiredSamples = 25;
+    bool calibrationDone = false;
+
+    _sensorState = 'CALIBRATING...';
+
+    _calibrationSubscription = accelerometerEventStream(
+      samplingPeriod: _sensorSamplingPeriod,
+    ).listen((event) {
+      if (calibrationDone) return;
+
+      // Update raw values for debug overlay even during calibration
+      _accelX = event.x;
+      _accelY = event.y;
+      _accelZ = event.z;
+      _gravityMag = math.sqrt(
+        event.x * event.x + event.y * event.y + event.z * event.z,
       );
 
-      if (_debugSensors) {
-        debugPrint(
-          'Gyroscope test event: x=${testEvent.x}, y=${testEvent.y}, z=${testEvent.z}',
-        );
+      totalCount++;
+      if (totalCount <= discardSamples) return;
+
+      // ORIENTATION GATE: Only accept calibration samples when phone is
+      // in the "heads-up" position (vertical landscape on forehead).
+      //
+      // In this position:
+      //   |X| ≈ 9.8 (gravity along short axis — phone is vertical)
+      //   |Y| ≈ 0   (landscape — long axis is horizontal)
+      //   |Z| ≈ 0   (screen faces outward, perpendicular to gravity)
+      //
+      // Reject if |Y| is large (portrait / transitioning).
+      if (event.y.abs() > _calibrationStableThreshold) {
+        _sensorState =
+            'WAITING FOR LANDSCAPE (Y=${event.y.toStringAsFixed(1)})';
+        usedCount = 0;
+        sumX = 0;
+        sumY = 0;
+        sumZ = 0;
+        return;
       }
 
-      // Gyroscope is available, start listening
-      _startGyroscope();
-      return true;
-    } catch (e) {
-      debugPrint('Gyroscope not available: $e');
-      return false;
-    }
+      // Reject if |X| is too small — phone is flat (e.g. lying on a table/bed)
+      // instead of vertical on the forehead. When flat, X ≈ 0 and Z ≈ 9.8.
+      if (event.x.abs() < _calibrationVerticalThreshold) {
+        _sensorState = 'HOLD ON FOREHEAD (X=${event.x.toStringAsFixed(1)})';
+        usedCount = 0;
+        sumX = 0;
+        sumY = 0;
+        sumZ = 0;
+        return;
+      }
+
+      sumX += event.x;
+      sumY += event.y;
+      sumZ += event.z;
+      usedCount++;
+
+      _sensorState = 'CALIBRATING ($usedCount/$requiredSamples)';
+
+      if (usedCount >= requiredSamples) {
+        calibrationDone = true;
+        _calibrationSubscription?.cancel();
+        _calibrationSubscription = null;
+
+        _calX = sumX / usedCount;
+        _calY = sumY / usedCount;
+        _calZ = sumZ / usedCount;
+        _isCalibrated = true;
+        _sensorState = 'READY';
+        _startSensorListener();
+      }
+    });
+
+    // Timeout fallback: if we can't get good samples in 5 seconds, use what we have
+    Future.delayed(const Duration(seconds: 5), () {
+      if (calibrationDone || !mounted) return;
+      calibrationDone = true;
+      _calibrationSubscription?.cancel();
+      _calibrationSubscription = null;
+      _calX = usedCount > 0 ? sumX / usedCount : 9.8;
+      _calY = usedCount > 0 ? sumY / usedCount : 0.0;
+      _calZ = usedCount > 0 ? sumZ / usedCount : 0.0;
+      _isCalibrated = true;
+      _sensorState = 'READY (timeout cal)';
+      _startSensorListener();
+    });
   }
 
-  void _startGyroscope() {
-    _gyroscopeSubscription?.cancel();
-    _gyroscopeSubscription = gyroscopeEventStream().listen((event) {
-      if (!_canDetectTilt || !mounted) return;
+  /// Main sensor listener — ΔZ-based CORRECT/PASS detection with ΔY orientation guard.
+  ///
+  /// State machine:
+  ///   READY → (ΔZ crosses threshold) → WAITING_FOR_RETURN → (N consecutive neutral samples) → READY
+  ///
+  /// Guards:
+  ///   - |ΔY| > orientationGuardThreshold → phone is not in landscape → ignore
+  ///   - |gravity| < 7.0 → sensor is unreliable → ignore
+  ///   - _actionLocked → animation not done yet → don't trigger new action
+  ///   - cooldown → too soon after last action → don't trigger
+  void _startSensorListener() {
+    // Accelerometer stream — main detection + debug display
+    _sensorSubscription?.cancel();
+    _sensorSubscription = accelerometerEventStream(
+      samplingPeriod: _sensorSamplingPeriod,
+    ).listen((event) {
+      if (!mounted || !_isCalibrated) return;
 
-      final now = DateTime.now();
+      // Update raw values for debug overlay
+      _accelX = event.x;
+      _accelY = event.y;
+      _accelZ = event.z;
+      _gravityMag = math.sqrt(
+        event.x * event.x + event.y * event.y + event.z * event.z,
+      );
 
-      // When phone is on forehead in landscape mode:
-      // The tilt (nodding) creates rotation that can appear on different axes
-      // depending on exact phone orientation and which landscape mode (left/right)
-      //
-      // We check multiple axes to be robust:
-      // - event.x: rotation around X-axis
-      // - event.y: rotation around Y-axis
-      // - event.z: rotation around Z-axis (twisting, usually ignored)
-      //
-      // The primary tilt axis depends on orientation, so we use the axis
-      // with the largest magnitude as our signal
+      // ── Guard 1: Gravity magnitude check ──
+      // If total gravity is too low, sensor data is unreliable (e.g. free-fall or sensor glitch)
+      if (_gravityMag < 7.0) {
+        _sensorState = 'BAD GRAVITY (${_gravityMag.toStringAsFixed(1)})';
+        return;
+      }
 
-      double angularVelocity;
-      if (_isLandscapeMode) {
-        // Use the dominant rotation axis (X or Y) for tilt detection
-        // This handles both landscape-left and landscape-right orientations
-        if (event.x.abs() > event.y.abs()) {
-          angularVelocity = event.x;
+      // Compute deltas from calibrated baseline
+      final deltaY = event.y - _calY;
+      final rawDeltaZ = event.z - _calZ;
+
+      // ── Guard 2: Orientation guard using ΔY ──
+      // In landscape, Y should be near calibrated value (small ΔY).
+      // Large |ΔY| means phone is portrait or transitioning → ignore all sensor input.
+      if (deltaY.abs() > _orientationGuardThreshold) {
+        _sensorState = 'NOT LANDSCAPE (ΔY=${deltaY.toStringAsFixed(1)})';
+        // Don't reset smoothedDeltaZ — we'll let it naturally decay or stabilize
+        // when the phone returns to landscape
+        return;
+      }
+
+      // ── Smooth ΔZ using EMA ──
+      _smoothedDeltaZ =
+          _smoothedDeltaZ * (1 - _smoothingAlpha) + rawDeltaZ * _smoothingAlpha;
+
+      // ── Baseline drift correction ──
+      // When the phone is near neutral (user isn't tilting), slowly nudge _calZ
+      // toward the actual current Z reading. This eliminates persistent bias
+      // from sensor offset or slight head angle without affecting tilt detection.
+      if (!_waitingForReturn &&
+          !_actionLocked &&
+          _smoothedDeltaZ.abs() < _baselineDriftZone) {
+        _calZ += (_smoothedDeltaZ) * _baselineDriftAlpha;
+      }
+
+      // ── State: WAITING FOR RETURN TO NEUTRAL ──
+      if (_waitingForReturn) {
+        // Check if phone has returned to neutral position
+        // Require BOTH smoothed AND raw to be near zero (prevents EMA from falsely declaring neutral)
+        if (_smoothedDeltaZ.abs() < _returnThreshold &&
+            rawDeltaZ.abs() < _returnThreshold) {
+          _returnStableCount++;
+          _sensorState =
+              'RETURNING (${_returnStableCount}/$_returnStableSamplesRequired)';
+          if (_returnStableCount >= _returnStableSamplesRequired) {
+            _waitingForReturn = false;
+            _returnStableCount = 0;
+            _waitingStartTime = null;
+            _returnComplete = true;
+            _sensorState = _actionLocked ? 'WAITING ANIM' : 'READY';
+            _maybeUnlockAfterAction();
+          }
         } else {
-          angularVelocity = event.y;
+          // Not neutral yet — reset consecutive counter
+          _returnStableCount = 0;
+          _sensorState =
+              'WAIT NEUTRAL (ΔZ=${_smoothedDeltaZ.toStringAsFixed(1)})';
         }
 
-        // If both are significant, combine them
-        if (event.x.abs() > 0.3 && event.y.abs() > 0.3) {
-          // Use the one that matches the dominant direction
-          angularVelocity = (event.x.abs() > event.y.abs()) ? event.x : event.y;
-        }
-      } else {
-        // In portrait mode, X-axis is primary
-        angularVelocity = event.x;
-      }
-
-      // Apply lighter smoothing to preserve quick movements
-      _smoothedAngularVelocity =
-          _smoothedAngularVelocity * 0.4 + angularVelocity * 0.6;
-
-      // Integrate angular velocity to get angle change
-      if (_lastGyroTime != null) {
-        final dt = now.difference(_lastGyroTime!).inMicroseconds / 1000000.0;
-        if (dt > 0 && dt < 0.1) {
-          // Convert rad/s to degrees and integrate
-          final angleChange = _smoothedAngularVelocity * dt * (180 / math.pi);
-          _integratedAngle += angleChange;
-
-          // Light decay to prevent excessive drift
-          _integratedAngle *= 0.995;
-        }
-      }
-      _lastGyroTime = now;
-
-      if (_debugSensors) {
-        debugPrint(
-          'Gyro: x=${event.x.toStringAsFixed(2)}, y=${event.y.toStringAsFixed(2)}, z=${event.z.toStringAsFixed(2)} | '
-          'vel=${angularVelocity.toStringAsFixed(2)}, smoothed=${_smoothedAngularVelocity.toStringAsFixed(2)}, '
-          'angle=${_integratedAngle.toStringAsFixed(1)}°',
-        );
-      }
-
-      // Detect actions
-      _processGyroscopeData(angularVelocity);
-    });
-  }
-
-  void _processGyroscopeData(double rawVelocity) {
-    final velocity = _smoothedAngularVelocity;
-    final angle = _integratedAngle;
-    final now = DateTime.now();
-
-    // Check if we're in neutral position (both still AND near center)
-    final isStill = velocity.abs() < _neutralVelocityThreshold;
-    final isNearCenter = angle.abs() < _neutralAngleThreshold;
-
-    if (isStill && isNearCenter) {
-      // We're in the neutral zone
-      if (!_isInNeutralPosition) {
-        // Just entered neutral - start settling timer
-        _isInNeutralPosition = true;
-        _neutralEntryTime = now;
-        _isSettled = false; // Not settled yet, still need to wait
-        _integratedAngle = 0.0; // Reset angle drift
-
-        if (_debugSensors) {
-          debugPrint('Entered neutral zone, waiting to settle...');
-        }
-      } else if (!_isSettled && _neutralEntryTime != null) {
-        // Already in neutral, check if we've been still long enough
-        final timeInNeutral = now.difference(_neutralEntryTime!);
-        if (timeInNeutral >= _settlingTime) {
-          // We've been still in neutral long enough - now ready for new action
-          _isSettled = true;
-          _hasTriggeredAction = false;
-          _failedAttempts = 0;
-
-          if (_debugSensors) {
-            debugPrint('Settled in neutral - ready for new action');
+        // Watchdog: if stuck in waitingForReturn too long AND close to neutral, force-clear
+        if (_waitingForReturn && _waitingStartTime != null) {
+          final elapsed =
+              DateTime.now().difference(_waitingStartTime!).inMilliseconds;
+          if (elapsed > _waitingTimeoutMs &&
+              _smoothedDeltaZ.abs() < _returnThreshold * 1.5) {
+            _waitingForReturn = false;
+            _returnStableCount = 0;
+            _waitingStartTime = null;
+            _returnComplete = true;
+            _sensorState = 'READY (watchdog)';
+            _maybeUnlockAfterAction();
           }
         }
-      }
-      return; // Don't process actions while in neutral
-    } else {
-      // We're outside neutral zone
-      if (_isInNeutralPosition && !_isSettled) {
-        // We left neutral before settling - this is return motion, ignore it
-        // Reset the neutral entry time so we have to settle again
-        _neutralEntryTime = null;
-      }
-      _isInNeutralPosition = false;
-    }
 
-    // Check cooldown
-    if (_lastActionTime != null) {
-      final timeSinceLastAction = now.difference(_lastActionTime!);
-      if (timeSinceLastAction < _minTimeBetweenActions) {
-        return;
-      }
-    }
-
-    // Don't trigger if already triggered or not settled
-    if (_actionLocked || _hasTriggeredAction || !_isSettled) {
-      return;
-    }
-
-    // Detect tilt based on velocity magnitude AND direction
-    final velocityMagnitude = velocity.abs();
-    final angleMagnitude = angle.abs();
-
-    // Thresholds for triggering
-    const velocityTrigger = 0.8; // rad/s
-    const angleTrigger = 15.0; // degrees
-
-    bool shouldTrigger =
-        velocityMagnitude > velocityTrigger || angleMagnitude > angleTrigger;
-
-    if (shouldTrigger) {
-      // Determine direction - use velocity if significant, otherwise angle
-      double directionSignal;
-      if (velocityMagnitude > 0.5) {
-        directionSignal = velocity;
-      } else if (rawVelocity.abs() > 0.4) {
-        directionSignal = rawVelocity;
-      } else {
-        directionSignal = angle;
-      }
-
-      if (_debugSensors) {
-        debugPrint(
-          'Trigger: vel=${velocity.toStringAsFixed(2)}, angle=${angle.toStringAsFixed(1)}, dir=${directionSignal.toStringAsFixed(2)}',
-        );
-      }
-
-      // Direction mapping:
-      // Negative = CORRECT (tilt forward/down)
-      // Positive = PASS (tilt backward/up)
-
-      if (directionSignal < -0.4) {
-        _triggerAction(isCorrect: true);
-      } else if (directionSignal > 0.4) {
-        _triggerAction(isCorrect: false);
-      }
-    }
-  }
-
-  void _calibrateAccelerometer({bool isRecalibration = false}) {
-    // Reset state before calibration
-    _isInNeutralPosition = true;
-    _hasTriggeredAction = false;
-    _lastActionTime = null;
-    _actionLocked = false;
-    _smoothedTiltAngle = 0.0;
-    _failedAttempts = 0;
-
-    // For recalibration, don't wait - do it immediately
-    final delay = isRecalibration ? 100 : 300;
-
-    // Wait a moment for the user to position the phone, then calibrate
-    Future.delayed(Duration(milliseconds: delay), () {
-      if (!mounted) return;
-
-      // Take multiple samples for more accurate calibration
-      int sampleCount = 0;
-      double sumX = 0, sumY = 0, sumZ = 0;
-      const requiredSamples = 5;
-
-      StreamSubscription<AccelerometerEvent>? calibrationSub;
-      calibrationSub = accelerometerEventStream().listen((event) {
-        sumX += event.x;
-        sumY += event.y;
-        sumZ += event.z;
-        sampleCount++;
-
-        if (sampleCount >= requiredSamples) {
-          calibrationSub?.cancel();
-
-          _calibrationX = sumX / requiredSamples;
-          _calibrationY = sumY / requiredSamples;
-          _calibrationZ = sumZ / requiredSamples;
-          _isCalibrated = true;
-          _canDetectTilt = true;
-          _lastCalibrationTime = DateTime.now();
-
-          if (_debugSensors) {
-            debugPrint(
-              'Calibration complete: X=${_calibrationX.toStringAsFixed(2)}, '
-              'Y=${_calibrationY.toStringAsFixed(2)}, Z=${_calibrationZ.toStringAsFixed(2)}',
-            );
-          }
-
-          // Only start accelerometer if not already running
-          if (_accelerometerSubscription == null) {
-            _startAccelerometer();
-          }
+        // Update debug overlay periodically
+        if (DateTime.now().millisecondsSinceEpoch % 100 < 25) {
+          setState(() {});
         }
-      });
-
-      // Timeout for calibration
-      Future.delayed(const Duration(seconds: 2), () {
-        if (sampleCount < requiredSamples) {
-          calibrationSub?.cancel();
-          debugPrint('Calibration timeout - using partial data');
-          if (sampleCount > 0) {
-            _calibrationX = sumX / sampleCount;
-            _calibrationY = sumY / sampleCount;
-            _calibrationZ = sumZ / sampleCount;
-            _isCalibrated = true;
-            _canDetectTilt = true;
-            _lastCalibrationTime = DateTime.now();
-            if (_accelerometerSubscription == null) {
-              _startAccelerometer();
-            }
-          }
-        }
-      });
-    });
-  }
-
-  void _startAccelerometer() {
-    _accelerometerSubscription?.cancel();
-    _accelerometerSubscription = accelerometerEventStream().listen((event) {
-      if (!_canDetectTilt || !_isCalibrated || !mounted) return;
-      // Skip accelerometer processing if using gyroscope
-      if (_useGyroscope && _gyroscopeSubscription != null) return;
-
-      // Calculate relative tilt from calibrated position
-      final deltaX = event.x - _calibrationX;
-      final deltaY = event.y - _calibrationY;
-      final deltaZ = event.z - _calibrationZ;
-
-      // Filter out excessive side-to-side rotation (not a valid tilt gesture)
-      if (deltaX.abs() > 6.0 && deltaZ.abs() < 2.0) {
-        // This is likely a rotation/twist rather than a tilt
         return;
       }
 
-      double rawTiltAngle;
-
-      if (_isLandscapeMode) {
-        // Combine Z and Y changes for robust detection
-        final combinedTilt = deltaZ * 6.0 + deltaY * 3.0;
-        rawTiltAngle = combinedTilt;
-
-        if (_debugSensors) {
-          debugPrint(
-            'Accel Landscape - DeltaZ: ${deltaZ.toStringAsFixed(2)}, DeltaY: ${deltaY.toStringAsFixed(2)} | '
-            'RawTilt: ${rawTiltAngle.toStringAsFixed(1)} | Smoothed: ${_smoothedTiltAngle.toStringAsFixed(1)}',
-          );
-        }
-      } else {
-        // In portrait mode
-        rawTiltAngle = deltaY * 8.0 + deltaZ * 4.0;
-
-        if (_debugSensors) {
-          debugPrint(
-            'Accel Portrait - DeltaY: ${deltaY.toStringAsFixed(2)}, DeltaZ: ${deltaZ.toStringAsFixed(2)} | '
-            'RawTilt: ${rawTiltAngle.toStringAsFixed(1)}',
-          );
-        }
-      }
-
-      // Apply exponential smoothing to reduce noise
-      _smoothedTiltAngle =
-          _smoothedTiltAngle * (1 - _smoothingFactor) +
-          rawTiltAngle * _smoothingFactor;
-
-      final tiltAngle = _smoothedTiltAngle;
-      final now = DateTime.now();
-
-      // Check if we're in neutral position (low tilt angle AND low rate of change)
-      final isNearNeutral = tiltAngle.abs() < _neutralThreshold;
-      final isStable =
-          (rawTiltAngle - _smoothedTiltAngle).abs() < 5.0; // Low change rate
-
-      if (isNearNeutral && isStable) {
-        if (!_isInNeutralPosition) {
-          // Just entered neutral - start settling
-          _isInNeutralPosition = true;
-          _neutralEntryTime = now;
-          _isSettled = false;
-
-          if (_debugSensors) {
-            debugPrint('Entered neutral (accel), waiting to settle...');
-          }
-        } else if (!_isSettled && _neutralEntryTime != null) {
-          // Check if settled long enough
-          final timeInNeutral = now.difference(_neutralEntryTime!);
-          if (timeInNeutral >= _settlingTime) {
-            _isSettled = true;
-            _hasTriggeredAction = false;
-            _failedAttempts = 0;
-
-            if (_debugSensors) {
-              debugPrint('Settled in neutral (accel) - ready for new action');
-            }
-          }
+      // ── Don't trigger if action is locked (animation in progress) ──
+      if (_actionLocked) {
+        _sensorState = 'LOCKED (anim)';
+        if (DateTime.now().millisecondsSinceEpoch % 100 < 25) {
+          setState(() {});
         }
         return;
-      } else {
-        // Outside neutral
-        if (_isInNeutralPosition && !_isSettled) {
-          _neutralEntryTime = null; // Reset settling
-        }
-        _isInNeutralPosition = false;
       }
 
-      // Check cooldown
+      // ── Cooldown check ──
       if (_lastActionTime != null) {
-        final timeSinceLastAction = now.difference(_lastActionTime!);
-        if (timeSinceLastAction < _minTimeBetweenActions) {
+        final elapsed =
+            DateTime.now().difference(_lastActionTime!).inMilliseconds;
+        if (elapsed < _cooldownMs) {
+          _sensorState = 'COOLDOWN (${_cooldownMs - elapsed}ms)';
+          if (DateTime.now().millisecondsSinceEpoch % 100 < 25) {
+            setState(() {});
+          }
           return;
         }
       }
 
-      // Don't trigger if locked, already triggered, or not settled
-      if (_actionLocked || _hasTriggeredAction || !_isSettled) {
-        // Track failed attempts for recalibration
-        if (!_isInNeutralPosition && tiltAngle.abs() > _confirmThreshold) {
-          _failedAttempts++;
-          if (_failedAttempts > _maxFailedAttempts &&
-              (_lastCalibrationTime == null ||
-                  now.difference(_lastCalibrationTime!).inSeconds > 5)) {
-            if (_debugSensors) {
-              debugPrint('Auto-recalibrating due to stuck sensor');
-            }
-            _initializeSensors(isRecalibration: true);
-          }
-        }
+      // ── Skip if counting down ──
+      if (_isCountingDown) {
+        _sensorState = 'COUNTDOWN';
         return;
       }
 
-      // Trigger actions
-      if (_isLandscapeMode) {
-        if (tiltAngle < -_actionThreshold &&
-            rawTiltAngle < -_confirmThreshold * 0.8) {
-          _triggerAction(isCorrect: true);
-        } else if (tiltAngle > _actionThreshold &&
-            rawTiltAngle > _confirmThreshold * 0.8) {
-          _triggerAction(isCorrect: false);
-        }
-      } else {
-        if (tiltAngle > _actionThreshold &&
-            rawTiltAngle > _confirmThreshold * 0.8) {
-          _triggerAction(isCorrect: false);
-        } else if (tiltAngle < -_actionThreshold &&
-            rawTiltAngle < -_confirmThreshold * 0.8) {
-          _triggerAction(isCorrect: true);
-        }
+      _sensorState = 'READY (ΔZ=${_smoothedDeltaZ.toStringAsFixed(1)})';
+
+      // ── Trigger detection ──
+      // CORRECT = tilt forward (nod down) → ΔZ goes NEGATIVE (phone face tilts toward floor)
+      // PASS = tilt backward (lean back) → ΔZ goes POSITIVE (phone face tilts toward ceiling)
+      if (_smoothedDeltaZ < -_tiltTriggerThreshold) {
+        _triggerAction(isCorrect: true);
+      } else if (_smoothedDeltaZ > _tiltTriggerThreshold) {
+        _triggerAction(isCorrect: false);
       }
+
+      // Update debug overlay periodically
+      if (DateTime.now().millisecondsSinceEpoch % 100 < 25) {
+        setState(() {});
+      }
+    });
+
+    // Gyroscope stream — for debug overlay only
+    _gyroSubscription?.cancel();
+    _gyroSubscription = gyroscopeEventStream(
+      samplingPeriod: _sensorSamplingPeriod,
+    ).listen((event) {
+      if (!mounted) return;
+      _gyroX = event.x;
+      _gyroY = event.y;
+      _gyroZ = event.z;
     });
   }
 
-  void _triggerAction({required bool isCorrect}) {
-    _isInNeutralPosition = false;
-    _isSettled = false; // Must settle again before next action
-    _hasTriggeredAction = true;
-    _lastActionTime = DateTime.now();
-    _neutralEntryTime = null; // Reset neutral entry time
-    _failedAttempts = 0;
+  // ── Stubs for compatibility (manual controls still call these) ──
 
-    if (_debugSensors) {
-      debugPrint('Action triggered: ${isCorrect ? "CORRECT" : "PASS"}');
+  void _maybeUnlockAfterAction() {
+    if (_animationComplete && _returnComplete) {
+      _actionLocked = false;
     }
+  }
 
+  void _triggerAction({required bool isCorrect}) {
+    _actionLocked = true;
+    _waitingForReturn = true;
+    _returnStableCount = 0;
+    _animationComplete = false;
+    _returnComplete = false;
+    _lastActionTime = DateTime.now();
+    _waitingStartTime = DateTime.now();
+    // NOTE: We do NOT reset _smoothedDeltaZ here! The phone is still tilted,
+    // and we need real sensor data to detect when it returns to neutral.
+    _sensorState = isCorrect ? 'TRIGGERED CORRECT' : 'TRIGGERED PASS';
     if (isCorrect) {
       _handleCorrect();
     } else {
@@ -854,15 +748,22 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _handleCorrect() {
-    if (_actionLocked) return; // Prevent duplicate actions
-    _actionLocked = true;
-
     // Get current word before marking correct
     final gameProvider = context.read<GameProvider>();
     final currentWord = gameProvider.currentSession?.currentCard ?? '';
 
     // Update game state
     gameProvider.markCorrect();
+
+    // Update streak counter
+    _currentStreak++;
+
+    // Haptics on every correct card (before any other feedback so it always runs)
+    if (_currentStreak >= _streakThreshold) {
+      _hapticService.streakBonus(); // 🔥 Extra celebration for hot streak!
+    } else {
+      _hapticService.correctAnswer(); // Celebratory haptic for every correct
+    }
 
     // Log video event
     if (_isRecordingVideo) {
@@ -884,29 +785,27 @@ class _GameplayScreenState extends State<GameplayScreen>
     _showFeedback('CORRECT!', AppTheme.successColor, Icons.check_circle);
     _feedbackBurstController.forward(from: 0);
 
-    // Play effects - premium haptic for correct answer
+    // Play audio
     _audioService.playCorrect();
-    _hapticService.correctAnswer();
 
-    // Premium card exit animation
+    // Premium card exit animation — unlock tied to BOTH animation + return-to-neutral.
     _cardExitController.forward(from: 0).then((_) {
+      if (!mounted) return;
       setState(() {
         _isCorrectAction = false;
       });
       _cardExitController.reset();
       _cardEnterController.forward(from: 0);
       _prepareNextCard();
-    });
-
-    // Unlock after cooldown
-    Future.delayed(_minTimeBetweenActions, () {
-      _actionLocked = false;
+      // Mark animation as done; actual unlock happens only when return is also complete
+      _animationComplete = true;
+      _maybeUnlockAfterAction();
     });
   }
 
   void _handlePass() {
-    if (_actionLocked) return; // Prevent duplicate actions
-    _actionLocked = true;
+    // Haptics on every pass card (first so it always runs)
+    _hapticService.passAnswer();
 
     // Get current word before marking pass
     final gameProvider = context.read<GameProvider>();
@@ -914,6 +813,9 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     // Update game state
     gameProvider.markPass();
+
+    // Reset streak on pass
+    _currentStreak = 0;
 
     // Log video event
     if (_isRecordingVideo) {
@@ -935,23 +837,21 @@ class _GameplayScreenState extends State<GameplayScreen>
     _showFeedback('PASS', AppTheme.warningColor, Icons.skip_next);
     _feedbackBurstController.forward(from: 0);
 
-    // Play effects - premium haptic for pass
+    // Play audio
     _audioService.playPass();
-    _hapticService.passAnswer();
 
-    // Premium card exit animation
+    // Premium card exit animation — unlock tied to BOTH animation + return-to-neutral.
     _cardExitController.forward(from: 0).then((_) {
+      if (!mounted) return;
       setState(() {
         _isPassAction = false;
       });
       _cardExitController.reset();
       _cardEnterController.forward(from: 0);
       _prepareNextCard();
-    });
-
-    // Unlock after cooldown
-    Future.delayed(_minTimeBetweenActions, () {
-      _actionLocked = false;
+      // Mark animation as done; actual unlock happens only when return is also complete
+      _animationComplete = true;
+      _maybeUnlockAfterAction();
     });
   }
 
@@ -974,7 +874,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       // Check if game is over
       if (!gameProvider.isGameActive ||
           gameProvider.currentSession?.isComplete == true) {
-        debugPrint('Game over detected in _prepareNextCard');
+        // Game over detected
         if (!_isNavigating) {
           _navigateToResults();
         }
@@ -990,45 +890,34 @@ class _GameplayScreenState extends State<GameplayScreen>
           );
         }
 
-        // Reset the smoothed angle gradually to help detect return to neutral
-        // This helps when user holds phone at an angle for too long
-        _smoothedTiltAngle *= 0.5;
+        // Decay smoothed delta toward neutral to prevent stuck state
+        _smoothedDeltaZ *= 0.5;
 
-        // The neutral position detection will handle resetting when phone returns to neutral
-        // This prevents the issue where holding the phone tilted causes continuous triggers
         setState(() {});
       }
     });
   }
 
   Future<void> _navigateToResults() async {
-    if (_isNavigating) {
-      debugPrint('Already navigating, skipping...');
-      return;
-    }
+    if (_isNavigating) return;
     _isNavigating = true;
 
-    debugPrint('_navigateToResults called');
-    _accelerometerSubscription?.cancel();
+    _calibrationSubscription?.cancel();
+    _sensorSubscription?.cancel();
+    _gyroSubscription?.cancel();
 
     // Stop video recording and get result
     if (_isRecordingVideo) {
-      debugPrint('Video is recording, stopping and navigating...');
       await _stopRecordingAndNavigate();
     } else {
-      debugPrint('No video recording, navigating directly...');
       _navigateToResultsScreen();
     }
   }
 
   Future<void> _stopRecordingAndNavigate() async {
-    debugPrint(
-      '_stopRecordingAndNavigate called. Is recording: $_isRecordingVideo',
-    );
     VideoRecordingResult? recordingResult;
 
     if (_isRecordingVideo) {
-      debugPrint('Stopping video recording...');
       setState(() {
         _isRecordingVideo = false; // Prevent multiple stops
       });
@@ -1040,36 +929,19 @@ class _GameplayScreenState extends State<GameplayScreen>
 
       // Store in game provider
       if (recordingResult != null) {
-        debugPrint(
-          'Recording result received. Video path: ${recordingResult.videoPath}',
-        );
-        debugPrint('Recording duration: ${recordingResult.duration}');
-        debugPrint('Recording events: ${recordingResult.events.length}');
-
         // Verify file exists before storing
         final videoFile = File(recordingResult.videoPath);
         final exists = await videoFile.exists();
-        debugPrint('Video file exists before storing: $exists');
 
-        if (!mounted) {
-          debugPrint('Widget not mounted, cannot store recording');
-          return;
+        if (!mounted) return;
+
+        if (exists) {
+          context.read<GameProvider>().setVideoRecording(recordingResult);
         }
-
-        context.read<GameProvider>().setVideoRecording(recordingResult);
-        debugPrint('Recording result stored in GameProvider');
-
-        // Verify it was stored
-        final storedRecording = context.read<GameProvider>().lastVideoRecording;
-        debugPrint('Verified storage: ${storedRecording != null}');
 
         // Small delay to ensure provider updates propagate
         await Future.delayed(const Duration(milliseconds: 100));
-      } else {
-        debugPrint('Recording result is null');
       }
-    } else {
-      debugPrint('Not recording video, skipping stop');
     }
 
     if (mounted) {
@@ -1078,14 +950,14 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _navigateToResultsScreen() {
-    debugPrint('=== NAVIGATING TO RESULTS ===');
     final gameProvider = context.read<GameProvider>();
-    final recording = gameProvider.lastVideoRecording;
-    debugPrint('Video recording in provider: ${recording != null}');
-    if (recording != null) {
-      debugPrint('Video path: ${recording.videoPath}');
-      debugPrint('Video duration: ${recording.duration}');
-    }
+
+    // Restore normal screen timeout and orientation before leaving gameplay
+    WakelockPlus.disable();
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
 
     if (widget.isTeamMode) {
       Navigator.pushReplacement(
@@ -1102,11 +974,17 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   void _handleManualCorrect() {
     if (_isCountingDown || _actionLocked) return;
+    _actionLocked = true;
+    _animationComplete = false;
+    _returnComplete = true; // No tilt return needed for manual tap
     _handleCorrect();
   }
 
   void _handleManualPass() {
     if (_isCountingDown || _actionLocked) return;
+    _actionLocked = true;
+    _animationComplete = false;
+    _returnComplete = true; // No tilt return needed for manual tap
     _handlePass();
   }
 
@@ -1245,7 +1123,7 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   void _pauseGame() {
     context.read<GameProvider>().togglePause();
-    _canDetectTilt = false;
+    _isCalibrated = false; // Disable sensors during pause
 
     showDialog(
       context: context,
@@ -1473,6 +1351,13 @@ class _GameplayScreenState extends State<GameplayScreen>
                                     // End the current game
                                     context.read<GameProvider>().endGame();
 
+                                    // Restore normal screen timeout and orientation
+                                    WakelockPlus.disable();
+                                    SystemChrome.setPreferredOrientations([
+                                      DeviceOrientation.portraitUp,
+                                      DeviceOrientation.portraitDown,
+                                    ]);
+
                                     // Navigate to results screen
                                     if (widget.isTeamMode) {
                                       Navigator.pushReplacement(
@@ -1555,14 +1440,17 @@ class _GameplayScreenState extends State<GameplayScreen>
     _backgroundAnimController.dispose();
     _glowController.dispose();
     _countdownTimer?.cancel();
-    _gyroscopeSubscription?.cancel();
-    _accelerometerSubscription?.cancel();
-    // Reset orientation to default
+    _calibrationSubscription?.cancel();
+    _sensorSubscription?.cancel();
+    _gyroSubscription?.cancel();
+    // Safety: always restore normal screen timeout on dispose
+    WakelockPlus.disable();
+    // Reset orientation to portrait only (not all orientations)
+    // This prevents the device from auto-rotating back to landscape
+    // when the user is still holding the device in landscape position
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
     ]);
 
     // Clean up camera if still recording
@@ -1580,6 +1468,147 @@ class _GameplayScreenState extends State<GameplayScreen>
     }
 
     super.dispose();
+  }
+
+  Widget _buildSensorDebugOverlay() {
+    final deltaY = _accelY - _calY;
+    final rawDeltaZ = _accelZ - _calZ;
+
+    // Determine trigger direction for display
+    String triggerDir = 'NEUTRAL';
+    Color triggerColor = Colors.white;
+    if (_smoothedDeltaZ < -_tiltTriggerThreshold) {
+      triggerDir =
+          '✅ CORRECT (ΔZ < -${_tiltTriggerThreshold.toStringAsFixed(0)})';
+      triggerColor = Colors.green;
+    } else if (_smoothedDeltaZ > _tiltTriggerThreshold) {
+      triggerDir = '⏭ PASS (ΔZ > ${_tiltTriggerThreshold.toStringAsFixed(0)})';
+      triggerColor = Colors.orange;
+    }
+
+    // Orientation guard status
+    final isLandscape = deltaY.abs() <= _orientationGuardThreshold;
+    final orientColor = isLandscape ? Colors.greenAccent : Colors.redAccent;
+
+    return Positioned(
+      top: 10,
+      left: 10,
+      child: IgnorePointer(
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.85),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.greenAccent, width: 1),
+          ),
+          child: DefaultTextStyle(
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: Colors.greenAccent,
+              height: 1.4,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // State machine status — most important info at top
+                Text(
+                  'STATE: $_sensorState',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color:
+                        _sensorState.contains('READY')
+                            ? Colors.greenAccent
+                            : _sensorState.contains('TRIGGERED')
+                            ? Colors.yellowAccent
+                            : _sensorState.contains('NOT LANDSCAPE')
+                            ? Colors.redAccent
+                            : Colors.cyan,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // ΔZ — the trigger signal
+                Text(
+                  '── ΔZ (TRIGGER SIGNAL) ──',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color:
+                        _smoothedDeltaZ.abs() > _tiltTriggerThreshold
+                            ? Colors.yellowAccent
+                            : Colors.greenAccent,
+                  ),
+                ),
+                Text(
+                  'smoothed: ${_smoothedDeltaZ.toStringAsFixed(2)}  raw: ${rawDeltaZ.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color:
+                        _smoothedDeltaZ.abs() > _tiltTriggerThreshold
+                            ? Colors.yellowAccent
+                            : Colors.greenAccent,
+                  ),
+                ),
+                Text(
+                  'threshold: ±${_tiltTriggerThreshold.toStringAsFixed(1)}  return: ±${_returnThreshold.toStringAsFixed(1)}',
+                ),
+                const SizedBox(height: 4),
+                // ΔY — orientation guard
+                Text(
+                  '── ΔY (ORIENT GUARD) ──',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    color: orientColor,
+                  ),
+                ),
+                Text(
+                  'ΔY: ${deltaY.toStringAsFixed(2)}  ${isLandscape ? "✓ LANDSCAPE" : "✗ NOT LANDSCAPE"}',
+                  style: TextStyle(color: orientColor),
+                ),
+                Text(
+                  'guard: ±${_orientationGuardThreshold.toStringAsFixed(1)}',
+                ),
+                const SizedBox(height: 4),
+                // Flags
+                const Text(
+                  '── FLAGS ──',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+                Text(
+                  'locked: $_actionLocked  waiting: $_waitingForReturn  stableN: $_returnStableCount',
+                ),
+                Text(
+                  'animDone: $_animationComplete  returnDone: $_returnComplete',
+                ),
+                const SizedBox(height: 4),
+                // Calibration
+                const Text(
+                  '── CALIBRATION ──',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+                Text(
+                  'cal X: ${_calX.toStringAsFixed(2)}  Y: ${_calY.toStringAsFixed(2)}  Z: ${_calZ.toStringAsFixed(2)}',
+                ),
+                const SizedBox(height: 6),
+                // Trigger direction
+                Text(
+                  triggerDir,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: triggerColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -1617,16 +1646,9 @@ class _GameplayScreenState extends State<GameplayScreen>
               // Feedback overlay
               _buildFeedbackOverlay(),
 
-              // Tutorial hints
-              if (_showTutorialHints && !_isCountingDown)
-                TutorialHintOverlay(
-                  showHints: true,
-                  onDismiss: () {
-                    setState(() {
-                      _showTutorialHints = false;
-                    });
-                  },
-                ),
+              // Sensor debug overlay (dev only - requires both debug mode AND development environment)
+              if (kDebugMode && EnvironmentConfig.isDevelopment)
+                _buildSensorDebugOverlay(),
             ],
           ),
         ),
@@ -1730,11 +1752,32 @@ class _GameplayScreenState extends State<GameplayScreen>
   Widget _buildCountdown() {
     final screenSize = MediaQuery.of(context).size;
     final isLandscape = screenSize.width > screenSize.height;
-    // Use the smaller dimension to ensure it fits in landscape
-    final minDimension = isLandscape ? screenSize.height : screenSize.width;
-    // Scale factor for landscape mode
-    final scaleFactor =
-        isLandscape ? (minDimension / 400).clamp(0.6, 1.0) : 1.0;
+
+    // iPhone 16 Pro Max reference dimensions (in logical pixels)
+    // This serves as the design baseline - all sizes are defined for this device
+    const double referenceWidth = 440.0;
+    const double referenceHeight = 956.0;
+
+    // Calculate responsive scale factor based on screen size
+    // This ensures consistent visual proportions across all iPhone models
+    // Elements will scale down proportionally on smaller devices
+    double scaleFactor;
+    if (isLandscape) {
+      // For landscape, use height as the constraining dimension
+      // Reference landscape height for iPhone 16 Pro Max
+      const double referenceLandscapeHeight = 440.0;
+      final heightScale = screenSize.height / referenceLandscapeHeight;
+      scaleFactor = heightScale.clamp(0.55, 1.0);
+    } else {
+      // For portrait, scale based on both width and height relative to iPhone 16 Pro Max
+      final widthScale = screenSize.width / referenceWidth;
+      final heightScale = screenSize.height / referenceHeight;
+      // Use the smaller scale to ensure content fits without overflow
+      scaleFactor = (widthScale < heightScale ? widthScale : heightScale).clamp(
+        0.7,
+        1.0,
+      );
+    }
 
     return AnimatedBuilder(
       animation: Listenable.merge([
@@ -1760,262 +1803,398 @@ class _GameplayScreenState extends State<GameplayScreen>
         final numberScale = 0.3 + (elasticValue * 0.7);
         final numberOpacity = (1.0 - (pulseValue * 0.15)).clamp(0.0, 1.0);
 
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Main countdown animation container
-              SizedBox(
-                width: 350 * scaleFactor,
-                height: 350 * scaleFactor,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Outermost expanding ring with fade
-                    _buildExpandingRing(
-                      ringValue,
-                      size: 350 * scaleFactor,
-                      startSize: 120 * scaleFactor,
-                      opacity: 0.15,
-                      strokeWidth: 1,
-                    ),
+        // =================================================================
+        // REFERENCE DIMENSIONS FOR IPHONE 16 PRO MAX (440 x 956 pts)
+        // All values below are designed for iPhone 16 Pro Max
+        // They will scale proportionally on smaller devices
+        // =================================================================
 
-                    // Second expanding ring
-                    _buildExpandingRing(
-                      ringValue,
-                      size: 300 * scaleFactor,
-                      startSize: 100 * scaleFactor,
-                      opacity: 0.25,
-                      strokeWidth: 1.5,
-                      delay: 0.1,
-                    ),
+        // Main countdown container size
+        const double refCountdownSize = 360.0;
 
-                    // Third expanding ring
-                    _buildExpandingRing(
-                      ringValue,
-                      size: 250 * scaleFactor,
-                      startSize: 80 * scaleFactor,
-                      opacity: 0.35,
-                      strokeWidth: 2,
-                      delay: 0.2,
-                    ),
+        // Typography
+        const double refFontSize = 128.0;
+        const double refLetterSpacing = -5.0;
 
-                    // Pulsing glow effect behind number
-                    Transform.scale(
-                      scale: 1.0 + (pulseValue * 0.3),
-                      child: Container(
-                        width: 200 * scaleFactor,
-                        height: 200 * scaleFactor,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              widget.deck.color.withOpacity(
-                                0.4 * (1 - pulseValue),
-                              ),
-                              widget.deck.color.withOpacity(
-                                0.2 * (1 - pulseValue),
-                              ),
-                              Colors.transparent,
-                            ],
-                            stops: const [0.0, 0.5, 1.0],
-                          ),
-                        ),
-                      ),
-                    ),
+        // Spacings
+        const double refSpacing = 20.0;
 
-                    // Inner glowing circle
-                    Container(
-                      width: 160 * scaleFactor,
-                      height: 160 * scaleFactor,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            Colors.white.withOpacity(0.2),
-                            Colors.white.withOpacity(0.1),
-                            Colors.white.withOpacity(0.05),
-                          ],
-                          stops: const [0.0, 0.6, 1.0],
-                        ),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(
-                            0.4 + (pulseValue * 0.2),
-                          ),
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.white.withOpacity(0.3),
-                            blurRadius: 30 + (pulseValue * 20),
-                            spreadRadius: 5,
-                          ),
-                          BoxShadow(
-                            color: widget.deck.color.withOpacity(0.4),
-                            blurRadius: 60,
-                            spreadRadius: 10,
-                          ),
-                        ],
-                      ),
-                    ),
+        // Glow and circle effects
+        const double refGlowSize = 220.0;
+        const double refInnerCircle = 170.0;
+        const double refArcSize = 190.0;
+        const double refBorderWidth = 2.5;
 
-                    // Animated progress arc
-                    SizedBox(
-                      width: 180 * scaleFactor,
-                      height: 180 * scaleFactor,
-                      child: CustomPaint(
-                        painter: _CountdownArcPainter(
-                          progress: 1.0 - ringValue,
-                          color: Colors.white,
-                          strokeWidth: 3,
-                        ),
-                      ),
-                    ),
+        // Expanding ring animations
+        const double refRingSize1 = 360.0;
+        const double refRingStart1 = 130.0;
+        const double refRingSize2 = 310.0;
+        const double refRingStart2 = 110.0;
+        const double refRingSize3 = 260.0;
+        const double refRingStart3 = 90.0;
 
-                    // Main number with dramatic animation
-                    Transform.scale(
-                      scale: numberScale,
-                      child: ImageFiltered(
-                        imageFilter: ImageFilter.blur(
-                          sigmaX: blurValue * 8,
-                          sigmaY: blurValue * 8,
-                        ),
-                        child: Opacity(
-                          opacity: numberOpacity * (1 - blurValue),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              // Shadow layer
-                              Text(
-                                _countdownValue.toString(),
-                                style: TextStyle(
-                                  color: widget.deck.color.withOpacity(0.5),
-                                  fontSize: 120 * scaleFactor,
-                                  fontWeight: FontWeight.w900,
-                                  height: 1,
-                                  letterSpacing: -4,
+        // Shadow and blur effects
+        const double refBlurRadius = 32.0;
+        const double refSpreadRadius = 6.0;
+        const double refShadowOffset = 12.0;
+
+        // =================================================================
+        // SCALED DIMENSIONS
+        // All values are multiplied by scaleFactor to maintain
+        // visual proportions on smaller devices
+        // =================================================================
+        final countdownSize = refCountdownSize * scaleFactor;
+        final fontSize = refFontSize * scaleFactor;
+        final letterSpacing = refLetterSpacing * scaleFactor;
+        final spacing = refSpacing * scaleFactor;
+        final glowSize = refGlowSize * scaleFactor;
+        final innerCircleSize = refInnerCircle * scaleFactor;
+        final arcSize = refArcSize * scaleFactor;
+        final borderWidth = refBorderWidth * scaleFactor;
+        final blurRadius = refBlurRadius * scaleFactor;
+        final spreadRadius = refSpreadRadius * scaleFactor;
+        final shadowOffset = refShadowOffset * scaleFactor;
+
+        return Stack(
+          children: [
+            // Main countdown content - centered with safe area
+            SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  physics: const NeverScrollableScrollPhysics(),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Main countdown animation container
+                      SizedBox(
+                        width: countdownSize,
+                        height: countdownSize,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // Outermost expanding ring with fade
+                            // Reference stroke width: 1.2pt for iPhone 16 Pro Max
+                            _buildExpandingRing(
+                              ringValue,
+                              size: refRingSize1 * scaleFactor,
+                              startSize: refRingStart1 * scaleFactor,
+                              opacity: 0.15,
+                              strokeWidth: 1.2 * scaleFactor,
+                            ),
+
+                            // Second expanding ring
+                            // Reference stroke width: 1.8pt for iPhone 16 Pro Max
+                            _buildExpandingRing(
+                              ringValue,
+                              size: refRingSize2 * scaleFactor,
+                              startSize: refRingStart2 * scaleFactor,
+                              opacity: 0.25,
+                              strokeWidth: 1.8 * scaleFactor,
+                              delay: 0.1,
+                            ),
+
+                            // Third expanding ring
+                            // Reference stroke width: 2.4pt for iPhone 16 Pro Max
+                            _buildExpandingRing(
+                              ringValue,
+                              size: refRingSize3 * scaleFactor,
+                              startSize: refRingStart3 * scaleFactor,
+                              opacity: 0.35,
+                              strokeWidth: 2.4 * scaleFactor,
+                              delay: 0.2,
+                            ),
+
+                            // Pulsing glow effect behind number
+                            Transform.scale(
+                              scale: 1.0 + (pulseValue * 0.3),
+                              child: Container(
+                                width: glowSize,
+                                height: glowSize,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: RadialGradient(
+                                    colors: [
+                                      widget.deck.color.withOpacity(
+                                        0.4 * (1 - pulseValue),
+                                      ),
+                                      widget.deck.color.withOpacity(
+                                        0.2 * (1 - pulseValue),
+                                      ),
+                                      Colors.transparent,
+                                    ],
+                                    stops: const [0.0, 0.5, 1.0],
+                                  ),
                                 ),
                               ),
-                              // Main text with gradient
-                              ShaderMask(
-                                shaderCallback:
-                                    (bounds) => LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.white,
-                                        Colors.white.withOpacity(0.9),
-                                        Colors.white.withOpacity(0.7),
-                                      ],
-                                      stops: const [0.0, 0.5, 1.0],
-                                    ).createShader(bounds),
-                                child: Text(
-                                  _countdownValue.toString(),
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 120 * scaleFactor,
-                                    fontWeight: FontWeight.w900,
-                                    height: 1,
-                                    letterSpacing: -4,
-                                    shadows: const [
-                                      Shadow(
-                                        color: Colors.black26,
-                                        blurRadius: 20,
-                                        offset: Offset(0, 10),
+                            ),
+
+                            // Inner glowing circle
+                            Container(
+                              width: innerCircleSize,
+                              height: innerCircleSize,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    Colors.white.withOpacity(0.2),
+                                    Colors.white.withOpacity(0.1),
+                                    Colors.white.withOpacity(0.05),
+                                  ],
+                                  stops: const [0.0, 0.6, 1.0],
+                                ),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(
+                                    0.4 + (pulseValue * 0.2),
+                                  ),
+                                  width: borderWidth,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.white.withOpacity(0.3),
+                                    blurRadius:
+                                        blurRadius +
+                                        (pulseValue * 20 * scaleFactor),
+                                    spreadRadius: spreadRadius,
+                                  ),
+                                  BoxShadow(
+                                    color: widget.deck.color.withOpacity(0.4),
+                                    blurRadius: blurRadius * 2,
+                                    spreadRadius: spreadRadius * 1.8,
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Animated progress arc
+                            SizedBox(
+                              width: arcSize,
+                              height: arcSize,
+                              child: CustomPaint(
+                                painter: _CountdownArcPainter(
+                                  progress: 1.0 - ringValue,
+                                  color: Colors.white,
+                                  strokeWidth: 3.5 * scaleFactor,
+                                ),
+                              ),
+                            ),
+
+                            // Main number with dramatic animation
+                            Transform.scale(
+                              scale: numberScale,
+                              child: ImageFiltered(
+                                imageFilter: ImageFilter.blur(
+                                  sigmaX: blurValue * 10 * scaleFactor,
+                                  sigmaY: blurValue * 10 * scaleFactor,
+                                ),
+                                child: Opacity(
+                                  opacity: numberOpacity * (1 - blurValue),
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      // Shadow layer
+                                      Text(
+                                        _countdownValue.toString(),
+                                        style: TextStyle(
+                                          color: widget.deck.color.withOpacity(
+                                            0.5,
+                                          ),
+                                          fontSize: fontSize,
+                                          fontWeight: FontWeight.w900,
+                                          height: 1,
+                                          letterSpacing: letterSpacing,
+                                        ),
+                                      ),
+                                      // Main text with gradient
+                                      ShaderMask(
+                                        shaderCallback:
+                                            (bounds) => LinearGradient(
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                              colors: [
+                                                Colors.white,
+                                                Colors.white.withOpacity(0.9),
+                                                Colors.white.withOpacity(0.7),
+                                              ],
+                                              stops: const [0.0, 0.5, 1.0],
+                                            ).createShader(bounds),
+                                        child: Text(
+                                          _countdownValue.toString(),
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: fontSize,
+                                            fontWeight: FontWeight.w900,
+                                            height: 1,
+                                            letterSpacing: letterSpacing,
+                                            shadows: [
+                                              Shadow(
+                                                color: Colors.black26,
+                                                blurRadius: shadowOffset * 1.8,
+                                                offset: Offset(0, shadowOffset),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     ],
                                   ),
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+
+                            // Particle effects (scaled for landscape)
+                            ..._buildParticlesScaled(pulseValue, scaleFactor),
+                          ],
                         ),
                       ),
-                    ),
 
-                    // Particle effects (scaled for landscape)
-                    ..._buildParticlesScaled(pulseValue, scaleFactor),
-                  ],
+                      // Spacing between number and GET READY
+                      SizedBox(height: spacing),
+
+                      // Forehead instruction with animated icon - compact for landscape
+                      // Reference entrance offset: 28pt for iPhone 16 Pro Max
+                      AnimatedOpacity(
+                        duration: const Duration(milliseconds: 400),
+                        opacity: elasticValue > 0.6 ? 1.0 : 0.0,
+                        child: Transform.translate(
+                          offset: Offset(
+                            0,
+                            28 * scaleFactor * (1 - elasticValue),
+                          ),
+                          child: _buildForeheadHint(pulseValue, scaleFactor),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-
-              // Spacing between number and GET READY
-              SizedBox(height: 16 * scaleFactor),
-
-              // Forehead instruction with animated icon - compact for landscape
-              AnimatedOpacity(
-                duration: const Duration(milliseconds: 400),
-                opacity: elasticValue > 0.6 ? 1.0 : 0.0,
-                child: Transform.translate(
-                  offset: Offset(0, 25 * (1 - elasticValue)),
-                  child: _buildForeheadHint(pulseValue, scaleFactor),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
   }
 
-  /// Compact, elegant forehead placement hint for landscape mode
+  /// Compact, elegant forehead placement hint - responsive for all screen sizes
+  /// Design baseline: iPhone 16 Pro Max (440 x 956 pts)
   Widget _buildForeheadHint(double pulseValue, double scaleFactor) {
+    // =================================================================
+    // REFERENCE VALUES FOR IPHONE 16 PRO MAX (440 x 956 pts)
+    // All values below are designed for iPhone 16 Pro Max
+    // They will scale proportionally on smaller devices
+    // =================================================================
+
+    // Container padding
+    const double refHorizontalPadding = 18.0;
+    const double refVerticalPadding = 12.0;
+    const double refBorderRadius = 44.0;
+    const double refBorderWidth = 1.2;
+
+    // Icon container
+    const double refIconContainerSize = 32.0;
+    const double refHeadSize = 22.0;
+    const double refHeadBorderWidth = 1.8;
+    const double refPhoneWidth = 16.0;
+    const double refPhoneHeight = 8.0;
+    const double refPhoneRadius = 2.5;
+    const double refPhoneGlow = 8.0;
+
+    // Spacing
+    const double refIconTextSpacing = 12.0;
+    const double refTextLineSpacing = 2.0;
+
+    // Typography
+    const double refMainFontSize = 14.0;
+    const double refMainLetterSpacing = 0.4;
+    const double refSubFontSize = 11.0;
+    const double refSubLetterSpacing = 0.3;
+    const double refSubIconSize = 12.0;
+    const double refSubIconSpacing = 4.0;
+
+    // =================================================================
+    // SCALED VALUES
+    // =================================================================
+    final horizontalPadding = refHorizontalPadding * scaleFactor;
+    final verticalPadding = refVerticalPadding * scaleFactor;
+    final borderRadius = refBorderRadius * scaleFactor;
+    final borderWidth = refBorderWidth * scaleFactor;
+
+    final iconContainerSize = refIconContainerSize * scaleFactor;
+    final headSize = refHeadSize * scaleFactor;
+    final headBorderWidth = refHeadBorderWidth * scaleFactor;
+    final phoneWidth = refPhoneWidth * scaleFactor;
+    final phoneHeight = refPhoneHeight * scaleFactor;
+    final phoneRadius = refPhoneRadius * scaleFactor;
+    final phoneGlow = refPhoneGlow * scaleFactor;
+
+    final iconTextSpacing = refIconTextSpacing * scaleFactor;
+    final textLineSpacing = refTextLineSpacing * scaleFactor;
+
+    final mainFontSize = refMainFontSize * scaleFactor;
+    final mainLetterSpacing = refMainLetterSpacing * scaleFactor;
+    final subFontSize = refSubFontSize * scaleFactor;
+    final subLetterSpacing = refSubLetterSpacing * scaleFactor;
+    final subIconSize = refSubIconSize * scaleFactor;
+    final subIconSpacing = refSubIconSpacing * scaleFactor;
+
     // Subtle floating animation for the phone icon
-    final floatOffset = math.sin(pulseValue * math.pi * 2) * 2;
+    final floatOffset = math.sin(pulseValue * math.pi * 2) * 2.5 * scaleFactor;
 
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: 16 * scaleFactor,
-        vertical: 10 * scaleFactor,
+        horizontal: horizontalPadding,
+        vertical: verticalPadding,
       ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.white.withOpacity(0.12),
-            Colors.white.withOpacity(0.06),
+            Colors.white.withOpacity(0.14),
+            Colors.white.withOpacity(0.07),
           ],
         ),
-        borderRadius: BorderRadius.circular(40),
-        border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.18),
+          width: borderWidth,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Animated phone + head icon
           SizedBox(
-            width: 28 * scaleFactor,
-            height: 28 * scaleFactor,
+            width: iconContainerSize,
+            height: iconContainerSize,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 // Head silhouette
                 Container(
-                  width: 20 * scaleFactor,
-                  height: 20 * scaleFactor,
+                  width: headSize,
+                  height: headSize,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.4),
-                      width: 1.5,
+                      color: Colors.white.withOpacity(0.45),
+                      width: headBorderWidth,
                     ),
                   ),
                 ),
                 // Phone on forehead with float animation
                 Positioned(
-                  top: (1 + floatOffset) * scaleFactor,
+                  top: floatOffset,
                   child: Transform.rotate(
                     angle: math.pi / 2,
                     child: Container(
-                      width: 14 * scaleFactor,
-                      height: 7 * scaleFactor,
+                      width: phoneWidth,
+                      height: phoneHeight,
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius: BorderRadius.circular(phoneRadius),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.white.withOpacity(0.4),
-                            blurRadius: 6,
+                            color: Colors.white.withOpacity(0.45),
+                            blurRadius: phoneGlow,
                           ),
                         ],
                       ),
@@ -2025,7 +2204,7 @@ class _GameplayScreenState extends State<GameplayScreen>
               ],
             ),
           ),
-          SizedBox(width: 10 * scaleFactor),
+          SizedBox(width: iconTextSpacing),
           // Text instruction
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2034,30 +2213,30 @@ class _GameplayScreenState extends State<GameplayScreen>
               Text(
                 'Place on forehead',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
-                  fontSize: 12 * scaleFactor,
+                  color: Colors.white.withOpacity(0.92),
+                  fontSize: mainFontSize,
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3,
+                  letterSpacing: mainLetterSpacing,
                   height: 1.2,
                 ),
               ),
-              SizedBox(height: 1 * scaleFactor),
+              SizedBox(height: textLineSpacing),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.stay_current_landscape_rounded,
-                    color: Colors.white.withOpacity(0.5),
-                    size: 10 * scaleFactor,
+                    color: Colors.white.withOpacity(0.55),
+                    size: subIconSize,
                   ),
-                  SizedBox(width: 3 * scaleFactor),
+                  SizedBox(width: subIconSpacing),
                   Text(
                     'Landscape',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
-                      fontSize: 9 * scaleFactor,
+                      color: Colors.white.withOpacity(0.55),
+                      fontSize: subFontSize,
                       fontWeight: FontWeight.w400,
-                      letterSpacing: 0.2,
+                      letterSpacing: subLetterSpacing,
                     ),
                   ),
                 ],
@@ -2448,15 +2627,33 @@ class _GameplayScreenState extends State<GameplayScreen>
     return particles;
   }
 
+  /// Builds animated particles around the countdown
+  /// Design baseline: iPhone 16 Pro Max (440 x 956 pts)
   List<Widget> _buildParticlesScaled(double progress, double scale) {
+    // =================================================================
+    // REFERENCE VALUES FOR IPHONE 16 PRO MAX
+    // =================================================================
+    const double refBaseDistance = 110.0;
+    const double refDistanceRange = 90.0;
+    const double refBaseParticleSize = 5.0;
+    const double refParticleSizeRange = 4.0;
+    const double refBlurRadius = 12.0;
+    const double refSpreadRadius = 3.0;
+    const int particleCount = 8;
+
     final particles = <Widget>[];
-    const particleCount = 8;
 
     for (int i = 0; i < particleCount; i++) {
       final angle = (i / particleCount) * 2 * math.pi;
-      final distance = (100 + (progress * 80)) * scale;
-      final particleOpacity = (1 - progress) * 0.6;
-      final particleSize = (4 + (math.sin(progress * math.pi) * 3)) * scale;
+      final distance =
+          (refBaseDistance + (progress * refDistanceRange)) * scale;
+      final particleOpacity = (1 - progress) * 0.65;
+      final particleSize =
+          (refBaseParticleSize +
+              (math.sin(progress * math.pi) * refParticleSizeRange)) *
+          scale;
+      final blurRadius = refBlurRadius * scale;
+      final spreadRadius = refSpreadRadius * scale;
 
       particles.add(
         Transform.translate(
@@ -2473,8 +2670,8 @@ class _GameplayScreenState extends State<GameplayScreen>
               boxShadow: [
                 BoxShadow(
                   color: Colors.white.withOpacity(particleOpacity * 0.5),
-                  blurRadius: 10,
-                  spreadRadius: 2,
+                  blurRadius: blurRadius,
+                  spreadRadius: spreadRadius,
                 ),
               ],
             ),
@@ -2558,14 +2755,18 @@ class _GameplayScreenState extends State<GameplayScreen>
             children: [
               // Main card with premium exit/enter animations
               Center(
-                child: AnimatedBuilder(
-                  animation: Listenable.merge([
-                    _cardExitController,
-                    _cardEnterController,
-                  ]),
-                  builder: (context, child) {
-                    return _buildAnimatedCard(currentCard);
-                  },
+                child: Semantics(
+                  label: currentCard,
+                  liveRegion: true,
+                  child: AnimatedBuilder(
+                    animation: Listenable.merge([
+                      _cardExitController,
+                      _cardEnterController,
+                    ]),
+                    builder: (context, child) {
+                      return _buildAnimatedCard(currentCard);
+                    },
+                  ),
                 ),
               ),
 
@@ -2611,55 +2812,77 @@ class _GameplayScreenState extends State<GameplayScreen>
                   final isUnlimited = gameProvider.isUnlimitedMode;
                   final isLowTime = !isUnlimited && remainingTime <= 10;
 
-                  return Transform.scale(
-                    scale: isLowTime ? scale : 1.0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(
-                          color:
-                              isLowTime
-                                  ? Colors.redAccent.withOpacity(0.5)
-                                  : Colors.white.withOpacity(0.3),
-                          width: 2,
+                  // Premium time warning haptics at key moments
+                  if (!isUnlimited && remainingTime != _lastRemainingTime) {
+                    _lastRemainingTime = remainingTime;
+                    // Trigger warning haptics at critical time thresholds
+                    if (remainingTime == 10 && !_hasTriggeredTimeWarning) {
+                      _hasTriggeredTimeWarning = true;
+                      _hapticService.timeWarning();
+                    } else if (remainingTime <= 5 && remainingTime > 0) {
+                      // Countdown haptics for final 5 seconds
+                      _hapticService.mediumImpact();
+                    } else if (remainingTime == 0) {
+                      // Game over haptic
+                      _hapticService.heavyImpact();
+                    }
+                  }
+
+                  return Semantics(
+                    label:
+                        isUnlimited
+                            ? 'Unlimited time'
+                            : 'Time remaining: $remainingTime seconds',
+                    child: Transform.scale(
+                      scale: isLowTime ? scale : 1.0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
                         ),
-                        boxShadow: [
-                          BoxShadow(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(
                             color:
                                 isLowTime
-                                    ? Colors.redAccent.withOpacity(0.3)
-                                    : Colors.black.withOpacity(0.1),
-                            blurRadius: 20,
-                            spreadRadius: isLowTime ? 5 : 0,
+                                    ? Colors.redAccent.withOpacity(0.5)
+                                    : Colors.white.withOpacity(0.3),
+                            width: 2,
                           ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isUnlimited
-                                ? Icons.all_inclusive_rounded
-                                : Icons.timer_outlined,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            isUnlimited ? '∞' : '${remainingTime}s',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1,
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  isLowTime
+                                      ? Colors.redAccent.withOpacity(0.3)
+                                      : Colors.black.withOpacity(0.1),
+                              blurRadius: 20,
+                              spreadRadius: isLowTime ? 5 : 0,
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isUnlimited
+                                  ? Icons.all_inclusive_rounded
+                                  : Icons.timer_outlined,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              isUnlimited ? '∞' : '${remainingTime}s',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   );
@@ -2679,51 +2902,59 @@ class _GameplayScreenState extends State<GameplayScreen>
     required IconData icon,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+    return Semantics(
+      label: 'Pause game',
+      button: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Center(child: Icon(icon, color: Colors.white, size: 24)),
         ),
-        child: Center(child: Icon(icon, color: Colors.white, size: 24)),
       ),
     );
   }
 
   Widget _buildFinishButton() {
-    return GestureDetector(
-      onTap: _handleFinishGame,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+    return Semantics(
+      label: 'Finish game',
+      button: true,
+      child: GestureDetector(
+        onTap: _handleFinishGame,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Text(
+            'Finish',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
             ),
-          ],
-        ),
-        child: Text(
-          'Finish',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -2771,103 +3002,136 @@ class _GameplayScreenState extends State<GameplayScreen>
                 width: 1,
               ),
             ),
-            child: Stack(
-              children: [
-                // Decorative elements
-                Positioned(
-                  top: -50,
-                  right: -50,
-                  child: Container(
-                    width: 200,
-                    height: 200,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          widget.deck.color.withOpacity(0.1),
-                          widget.deck.color.withOpacity(0.0),
+            child: Builder(
+              builder: (context) {
+                final decorationColor = _getContrastedDecorationColor(
+                  widget.deck.color,
+                );
+
+                return Stack(
+                  children: [
+                    // Decorative elements
+                    Positioned(
+                      top: -50,
+                      right: -50,
+                      child: Container(
+                        width: 200,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              decorationColor.withOpacity(0.15),
+                              decorationColor.withOpacity(0.0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Main content
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Category badge
+                          Builder(
+                            builder: (context) {
+                              // Get contrasted colors for yellow
+                              final textColor = _getContrastedTextColor(
+                                widget.deck.color,
+                              );
+                              final badgeDecorationColor =
+                                  _getContrastedDecorationColor(
+                                    widget.deck.color,
+                                  );
+
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: badgeDecorationColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: badgeDecorationColor.withOpacity(
+                                      0.3,
+                                    ),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      widget.deck.icon,
+                                      size: 16,
+                                      color: textColor,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      widget.deck.name.toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: textColor,
+                                        letterSpacing: 1.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 24),
+                          // Word with gradient - use contrasted color for yellow
+                          Builder(
+                            builder: (context) {
+                              final textColor = _getContrastedTextColor(
+                                widget.deck.color,
+                              );
+
+                              return Flexible(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                  ),
+                                  child: ShaderMask(
+                                    shaderCallback:
+                                        (bounds) => LinearGradient(
+                                          colors: [
+                                            textColor,
+                                            textColor.withOpacity(0.8),
+                                          ],
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                        ).createShader(bounds),
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        word,
+                                        style: const TextStyle(
+                                          fontSize: 48,
+                                          fontWeight: FontWeight.w900,
+                                          color: Colors.white,
+                                          height: 1.2,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 3,
+                                        overflow: TextOverflow.visible,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
-                  ),
-                ),
-                // Main content
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Category badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: widget.deck.color.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: widget.deck.color.withOpacity(0.2),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              widget.deck.icon,
-                              size: 16,
-                              color: widget.deck.color,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              widget.deck.name.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: widget.deck.color,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      // Word with gradient
-                      Flexible(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: ShaderMask(
-                            shaderCallback:
-                                (bounds) => LinearGradient(
-                                  colors: [
-                                    widget.deck.color,
-                                    widget.deck.color.withOpacity(0.7),
-                                  ],
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                ).createShader(bounds),
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                word,
-                                style: const TextStyle(
-                                  fontSize: 48,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white,
-                                  height: 1.2,
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 3,
-                                overflow: TextOverflow.visible,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             ),
           ),
         );
@@ -2914,52 +3178,57 @@ class _GameplayScreenState extends State<GameplayScreen>
     required String label,
     required bool isLeft,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child:
-          Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [color.withOpacity(0.3), color.withOpacity(0.2)],
-                  ),
-                  border: Border.all(color: color.withOpacity(0.5), width: 3),
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withOpacity(0.3),
-                      blurRadius: 30,
-                      spreadRadius: 5,
+    return Semantics(
+      label:
+          label == 'PASS' ? 'Pass, skip this card' : 'Correct, mark as guessed',
+      button: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child:
+            Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [color.withOpacity(0.3), color.withOpacity(0.2)],
                     ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(icon, color: Colors.white, size: 44),
-                    const SizedBox(height: 8),
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
+                    border: Border.all(color: color.withOpacity(0.5), width: 3),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.3),
+                        blurRadius: 30,
+                        spreadRadius: 5,
                       ),
-                    ),
-                  ],
-                ),
-              )
-              .animate()
-              .scale(
-                delay: isLeft ? 400.ms : 500.ms,
-                duration: 600.ms,
-                curve: Curves.easeOutBack,
-              )
-              .fadeIn(),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(icon, color: Colors.white, size: 44),
+                      const SizedBox(height: 8),
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+                .animate()
+                .scale(
+                  delay: isLeft ? 400.ms : 500.ms,
+                  duration: 600.ms,
+                  curve: Curves.easeOutBack,
+                )
+                .fadeIn(),
+      ),
     );
   }
 
@@ -2967,37 +3236,49 @@ class _GameplayScreenState extends State<GameplayScreen>
     return Positioned(
       bottom: 20,
       right: 20,
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _useManualControls = !_useManualControls;
+      child: Semantics(
+        label:
+            _useManualControls
+                ? 'Switch to tilt controls'
+                : 'Switch to manual controls',
+        button: true,
+        child: GestureDetector(
+          onTap: () {
+            setState(() {
+              _useManualControls = !_useManualControls;
 
-            if (!_useManualControls) {
-              // Initialize sensors when switching to tilt mode
-              _initializeSensors(isRecalibration: true);
-            } else {
-              // Stop sensor subscriptions when using manual controls
-              _gyroscopeSubscription?.cancel();
-              _gyroscopeSubscription = null;
-              _accelerometerSubscription?.cancel();
-              _accelerometerSubscription = null;
-            }
-          });
-          SharedPreferences.getInstance().then((prefs) {
-            prefs.setBool('use_manual_controls', _useManualControls);
-          });
-        },
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(12.s),
-            border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-          ),
-          child: Icon(
-            _useManualControls ? Icons.touch_app : Icons.screen_rotation,
-            color: Colors.white,
-            size: 20,
+              if (!_useManualControls) {
+                // Initialize sensors when switching to tilt mode
+                _initializeSensors(isRecalibration: true);
+              } else {
+                // Stop all sensor subscriptions when using manual controls
+                _calibrationSubscription?.cancel();
+                _calibrationSubscription = null;
+                _sensorSubscription?.cancel();
+                _sensorSubscription = null;
+                _gyroSubscription?.cancel();
+                _gyroSubscription = null;
+              }
+            });
+            SharedPreferences.getInstance().then((prefs) {
+              prefs.setBool('use_manual_controls', _useManualControls);
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12.s),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: Icon(
+              _useManualControls ? Icons.touch_app : Icons.screen_rotation,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
         ),
       ),
@@ -3013,16 +3294,22 @@ class _GameplayScreenState extends State<GameplayScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _buildScoreItem(
-            icon: Icons.check_circle,
-            count: correct,
-            color: AppTheme.successColor,
+          Semantics(
+            label: '$correct correct',
+            child: _buildScoreItem(
+              icon: Icons.check_circle,
+              count: correct,
+              color: AppTheme.successColor,
+            ),
           ),
           const SizedBox(width: 32),
-          _buildScoreItem(
-            icon: Icons.skip_next,
-            count: passed,
-            color: AppTheme.warningColor,
+          Semantics(
+            label: '$passed passed',
+            child: _buildScoreItem(
+              icon: Icons.skip_next,
+              count: passed,
+              color: AppTheme.warningColor,
+            ),
           ),
         ],
       ),

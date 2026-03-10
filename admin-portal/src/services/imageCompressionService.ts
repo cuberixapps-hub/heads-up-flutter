@@ -1,5 +1,5 @@
-import { storage } from '../config/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+// Note: For uploading images, use supabaseStorageService.ts
+// This file contains compression utilities only
 
 /**
  * Configuration for image compression
@@ -141,8 +141,9 @@ export const compressImage = async (
 };
 
 /**
- * Upload compressed image to Firebase Storage
- * This function ALWAYS compresses the image before uploading
+ * Upload compressed image to Supabase Storage
+ * @deprecated Use uploadDeckImage from supabaseStorageService.ts instead
+ * This function is kept for backward compatibility
  * @param file - The original image file
  * @param deckId - The deck ID for organization
  * @param onProgress - Optional progress callback
@@ -153,69 +154,9 @@ export const uploadCompressedImage = async (
   deckId: string,
   onProgress?: (progress: number) => void
 ): Promise<string> => {
-  try {
-    console.log(`📤 Upload started for: ${file.name}`);
-    console.log(`   Original size: ${Math.round(file.size / 1024)}KB`);
-    
-    // Update progress - starting compression
-    onProgress?.(10);
-    
-    // COMPRESS THE IMAGE FIRST - this reduces size before Firebase upload
-    const compressedBlob = await compressImage(file, (progress) => {
-      // Map compression progress from 10% to 50%
-      onProgress?.(10 + progress * 0.4);
-    });
-    
-    onProgress?.(50);
-    
-    // Log compression results
-    const originalSize = file.size;
-    const compressedSize = compressedBlob.size;
-    const compressionRatio = Math.round((1 - compressedSize / originalSize) * 100);
-    
-    console.log(`🎯 Compression Results:`);
-    console.log(`   Before: ${Math.round(originalSize / 1024)}KB`);
-    console.log(`   After: ${Math.round(compressedSize / 1024)}KB`);
-    console.log(`   Saved: ${compressionRatio}% reduction`);
-    
-    // Generate unique filename
-    const timestamp = Date.now();
-    const extension = IMAGE_CONFIG.format;
-    const filename = `${timestamp}_${file.name.replace(/\.[^/.]+$/, '')}.${extension}`;
-    const storageRef = ref(storage, `deck-images/${deckId}/${filename}`);
-    
-    // Upload COMPRESSED blob to Firebase Storage
-    console.log(`☁️ Uploading compressed image to Firebase...`);
-    onProgress?.(60);
-    
-    const uploadResult = await uploadBytes(storageRef, compressedBlob, {
-      contentType: `image/${IMAGE_CONFIG.format}`,
-      customMetadata: {
-        originalName: file.name,
-        originalSize: originalSize.toString(),
-        compressedSize: compressedSize.toString(),
-        compressionRatio: compressionRatio.toString(),
-        compressedAt: new Date().toISOString(),
-        targetSize: `${IMAGE_CONFIG.maxSizeKB}KB`,
-        format: IMAGE_CONFIG.format,
-      },
-    });
-    
-    onProgress?.(90);
-    
-    // Get download URL
-    const downloadURL = await getDownloadURL(uploadResult.ref);
-    
-    onProgress?.(100);
-    
-    console.log(`✅ Upload complete! Compressed image uploaded to Firebase.`);
-    console.log(`   URL: ${downloadURL}`);
-    
-    return downloadURL;
-  } catch (error) {
-    console.error('❌ Error uploading compressed image:', error);
-    throw new Error('Failed to upload image. Please try again.');
-  }
+  // Redirect to Supabase storage service
+  const { uploadDeckImage } = await import('./supabaseStorageService');
+  return uploadDeckImage(file, deckId, onProgress);
 };
 
 /**

@@ -73,6 +73,10 @@ export function Layout() {
               <span className="tab-icon">📅</span>
               Daily Heads Up
             </NavLink>
+            <NavLink to="/initial-decks" className={({ isActive }) => `tab ${isActive ? 'active' : ''}`}>
+              <span className="tab-icon">🌍</span>
+              Initial Decks
+            </NavLink>
             <NavLink to="/ai-generator" className={({ isActive }) => `tab ${isActive ? 'active' : ''}`}>
               <span className="tab-icon">✨</span>
               AI Generator

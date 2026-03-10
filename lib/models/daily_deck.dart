@@ -58,6 +58,55 @@ class DailyDeck {
     );
   }
 
+  /// Create a DailyDeck from Supabase response (snake_case to camelCase)
+  factory DailyDeck.fromSupabase(Map<String, dynamic> row) {
+    return DailyDeck(
+      id: row['id'] as String,
+      date: DateTime.parse(row['date'] as String),
+      title: row['title'] as String? ?? 'Daily Challenge',
+      description: row['description'] as String? ?? '',
+      cards: (row['cards'] as List<dynamic>?)
+              ?.map(
+                (card) => Card(
+                  word: card['word'] ?? '',
+                  category: card['category'] ?? '',
+                  difficulty: card['difficulty'] ?? 1,
+                ),
+              )
+              .toList() ??
+          [],
+      color: row['color'] as int? ?? 0xFF4CAF50,
+      iconName: row['icon_name'] as String? ?? 'calendar_today',
+      imageUrl: row['image_url'] as String?,
+      isActive: row['is_active'] as bool? ?? true,
+      createdAt: row['created_at'] != null
+          ? DateTime.parse(row['created_at'] as String)
+          : DateTime.now(),
+      expiresAt: row['expires_at'] != null
+          ? DateTime.parse(row['expires_at'] as String)
+          : null,
+    );
+  }
+
+  /// Convert to Supabase format (camelCase to snake_case)
+  Map<String, dynamic> toSupabase() {
+    return {
+      'date': date.toIso8601String().split('T')[0],
+      'title': title,
+      'description': description,
+      'cards': cards.map((card) => {
+        'word': card.word,
+        'category': card.category,
+        'difficulty': card.difficulty,
+      }).toList(),
+      'color': color,
+      'icon_name': iconName,
+      'image_url': imageUrl,
+      'is_active': isActive,
+      'expires_at': expiresAt?.toIso8601String(),
+    };
+  }
+
   Map<String, dynamic> toFirestore() {
     return {
       'date': Timestamp.fromDate(date),

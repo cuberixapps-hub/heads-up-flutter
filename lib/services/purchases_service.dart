@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../config/environment.dart';
+import '../config/purchase_config.dart';
 import 'firebase_service.dart';
 
 /// RevenueCat Purchase Service
@@ -14,14 +17,6 @@ class PurchasesService {
   static bool _initialized = false;
 
   // ============================================
-  // 🔑 REVENUECAT API KEYS - REPLACE WITH YOUR KEYS
-  // ============================================
-  // Get these from: https://app.revenuecat.com/
-  // Project Settings → API Keys
-  static const String _androidApiKey = 'YOUR_ANDROID_API_KEY';
-  static const String _iosApiKey = 'YOUR_IOS_API_KEY';
-
-  // ============================================
   // 📦 ENTITLEMENT & PRODUCT IDS
   // ============================================
   // These must match what you configure in RevenueCat dashboard
@@ -30,6 +25,19 @@ class PurchasesService {
   static const String productIdMonthly = 'premium_monthly';
   static const String productIdYearly = 'premium_yearly';
   static const String productIdLifetime = 'premium_lifetime';
+  static const String productIdWeekend = 'premium_weekend';
+
+  // ============================================
+  // 🎉 WEEKEND PASS - 48-Hour One-Time Purchase
+  // ============================================
+  // Tracked locally because the product is a non-renewing subscription
+  // and we need precise 48-hour expiry (stores only offer fixed periods).
+  // Purchase timestamp is persisted in SharedPreferences (UTC) so it
+  // survives app restarts and works correctly across time zones.
+  static const Duration weekendPassDuration = Duration(hours: 48);
+  static const String _weekendPassExpiryKey = 'weekend_pass_expiry_utc';
+  DateTime? _weekendPassExpiry;
+  Timer? _weekendPassTimer;
 
   // ============================================
   // 📊 STATE MANAGEMENT
@@ -51,28 +59,29 @@ class PurchasesService {
   /// Can ONLY be toggled via Settings screen debug controls
   static bool _debugSimulatePremium = false;
 
-  /// Enable simulated premium status (DEBUG ONLY)
+  /// Enable simulated premium status (development only)
   /// Call this ONLY from Settings screen debug toggle
   static void debugEnablePremium() {
-    if (kDebugMode) {
+    if (EnvironmentConfig.isDevelopment) {
       _debugSimulatePremium = true;
       debugPrint('🧪 DEBUG: Simulating premium status via Settings toggle');
       PurchasesService()._premiumStatusController.add(true);
     }
   }
 
-  /// Disable simulated premium status (DEBUG ONLY)
+  /// Disable simulated premium status (development only)
   /// Call this ONLY from Settings screen debug toggle
   static void debugDisablePremium() {
-    if (kDebugMode) {
+    if (EnvironmentConfig.isDevelopment) {
       _debugSimulatePremium = false;
       debugPrint('🧪 DEBUG: Disabling simulated premium via Settings toggle');
       PurchasesService()._premiumStatusController.add(false);
     }
   }
 
-  /// Check if debug simulation is active (DEBUG ONLY)
-  static bool get isDebugPremiumActive => kDebugMode && _debugSimulatePremium;
+  /// Check if debug simulation is active (development only)
+  static bool get isDebugPremiumActive =>
+      EnvironmentConfig.isDevelopment && _debugSimulatePremium;
 
   /// Check if RevenueCat is initialized
   static bool get isInitialized => _initialized;
@@ -80,12 +89,18 @@ class PurchasesService {
   /// Check if user has premium access
   /// Returns true ONLY if:
   /// 1. Debug simulation is enabled via Settings toggle (debug mode only), OR
-  /// 2. RevenueCat confirms user has active premium entitlement
+  /// 2. RevenueCat confirms user has active premium entitlement, OR
+  /// 3. An active Weekend Pass is still within its 48-hour window
   /// 
   /// IMPORTANT: Returns FALSE by default for all users until proven otherwise
   bool get isPremium {
-    // Debug simulation - ONLY works if explicitly enabled via Settings toggle
-    if (kDebugMode && _debugSimulatePremium) {
+    // Debug simulation - ONLY works in development when explicitly enabled via Settings toggle
+    if (EnvironmentConfig.isDevelopment && _debugSimulatePremium) {
+      return true;
+    }
+
+    // Weekend Pass: local 48-hour timer (works even if RevenueCat not initialized)
+    if (isWeekendPassActive) {
       return true;
     }
     
@@ -112,46 +127,40 @@ class PurchasesService {
       return;
     }
 
-    // Check if API keys are configured
-    final apiKey = Platform.isIOS ? _iosApiKey : _androidApiKey;
-    if (apiKey.startsWith('YOUR_')) {
-      debugPrint('⚠️ RevenueCat: Using placeholder API key - treating all users as FREE');
-      debugPrint('📝 To enable purchases, replace API keys in purchases_service.dart');
-      // Don't set _initialized to true - this ensures isPremium returns false
+    final String apiKey = PurchaseConfig.apiKey;
+    if (PurchaseConfig.isPlaceholder) {
+      debugPrint('⚠️ RevenueCat: Placeholder API key - treating all users as FREE');
       return;
     }
 
     try {
-      // Configure RevenueCat
       final configuration = PurchasesConfiguration(apiKey);
-
       await Purchases.configure(configuration);
 
-      // Enable debug logs in development
-      if (kDebugMode) {
-        await Purchases.setLogLevel(LogLevel.debug);
+      // Use LogLevel.warn in dev to avoid massive JWT token dumps in console.
+      // RevenueCat's debug level prints full StoreKit transaction receipts.
+      if (EnvironmentConfig.enableDebugLogging) {
+        await Purchases.setLogLevel(LogLevel.warn);
+      } else {
+        await Purchases.setLogLevel(LogLevel.info);
       }
 
       _initialized = true;
       debugPrint('✅ RevenueCat SDK initialized');
       debugPrint('📱 Platform: ${Platform.isIOS ? "iOS" : "Android"}');
 
-      // Fetch initial customer info and offerings
       final instance = PurchasesService();
+      await instance._restoreWeekendPass();
       await instance._fetchCustomerInfo();
       await instance._fetchOfferings();
-      
       debugPrint('📊 Initial premium status: ${instance._isPremium}');
 
-      // Set up listener for customer info updates
       Purchases.addCustomerInfoUpdateListener((customerInfo) {
         instance._handleCustomerInfoUpdate(customerInfo);
       });
     } catch (e, stackTrace) {
       debugPrint('❌ RevenueCat initialization failed: $e');
-      debugPrint('📝 Users will be treated as FREE until RevenueCat is properly configured');
       FirebaseService.logError(e, stackTrace);
-      // Don't set _initialized to true on failure
     }
   }
 
@@ -175,6 +184,12 @@ class PurchasesService {
 
   /// Fetch customer info from RevenueCat
   Future<void> _fetchCustomerInfo() async {
+    // Guard: Don't call SDK if not initialized (prevents fatal crash)
+    if (!_initialized) {
+      debugPrint('⚠️ RevenueCat not initialized - skipping customer info fetch');
+      return;
+    }
+    
     try {
       _customerInfo = await Purchases.getCustomerInfo();
       _isPremium =
@@ -188,6 +203,12 @@ class PurchasesService {
 
   /// Fetch available offerings (products)
   Future<void> _fetchOfferings() async {
+    // Guard: Don't call SDK if not initialized (prevents fatal crash)
+    if (!_initialized) {
+      debugPrint('⚠️ RevenueCat not initialized - skipping offerings fetch');
+      return;
+    }
+    
     try {
       _offerings = await Purchases.getOfferings();
       if (_offerings?.current != null) {
@@ -207,6 +228,12 @@ class PurchasesService {
 
   /// Refresh offerings (call when paywall opens)
   Future<Offerings?> refreshOfferings() async {
+    // Guard: Don't call SDK if not initialized (prevents fatal crash)
+    if (!_initialized) {
+      debugPrint('⚠️ RevenueCat not initialized - no offerings available');
+      return null;
+    }
+    
     await _fetchOfferings();
     return _offerings;
   }
@@ -234,6 +261,12 @@ class PurchasesService {
 
   /// Purchase a package
   Future<PurchaseResult> purchasePackage(Package package) async {
+    // Guard: Don't call SDK if not initialized (prevents fatal crash)
+    if (!_initialized) {
+      debugPrint('⚠️ RevenueCat not initialized - cannot purchase');
+      return PurchaseResult.notAllowed;
+    }
+    
     try {
       debugPrint('🛒 Attempting to purchase: ${package.identifier}');
 
@@ -293,6 +326,12 @@ class PurchasesService {
 
   /// Restore purchases
   Future<RestoreResult> restorePurchases() async {
+    // Guard: Don't call SDK if not initialized (prevents fatal crash)
+    if (!_initialized) {
+      debugPrint('⚠️ RevenueCat not initialized - cannot restore purchases');
+      return RestoreResult.error;
+    }
+    
     try {
       debugPrint('🔄 Restoring purchases...');
 
@@ -331,7 +370,11 @@ class PurchasesService {
   }
 
   /// Get subscription expiration date (if applicable)
+  /// Returns the weekend pass expiry if active, otherwise RevenueCat's date
   DateTime? get subscriptionExpirationDate {
+    // Weekend pass expiry (locally managed)
+    if (isWeekendPassActive) return _weekendPassExpiry;
+
     final entitlement = _customerInfo?.entitlements.active[entitlementId];
     if (entitlement?.expirationDate != null) {
       return DateTime.parse(entitlement!.expirationDate!);
@@ -359,9 +402,12 @@ class PurchasesService {
 
   /// Get the active plan name for display
   String get activePlanName {
-    if (kDebugMode && _debugSimulatePremium) {
+    if (EnvironmentConfig.isDevelopment && _debugSimulatePremium) {
       return 'Debug Premium';
     }
+
+    // Local weekend pass takes priority (non-renewing, app-managed)
+    if (isWeekendPassActive) return 'Weekend Pass';
     
     final productId = activeProductId;
     if (productId == null) return 'Free';
@@ -369,6 +415,7 @@ class PurchasesService {
     if (productId.contains('lifetime')) return 'Lifetime';
     if (productId.contains('yearly') || productId.contains('annual')) return 'Annual';
     if (productId.contains('monthly')) return 'Monthly';
+    if (productId.contains('weekend')) return 'Weekend Pass';
     
     return 'Premium';
   }
@@ -379,8 +426,139 @@ class PurchasesService {
     return productId?.contains('lifetime') ?? false;
   }
 
+  /// Check if active plan is a weekend pass (48-hour non-renewing)
+  bool get isWeekendPass {
+    final productId = activeProductId;
+    if (productId?.contains('weekend') ?? false) return true;
+    // Also check local timer (product may no longer appear in active entitlements)
+    return isWeekendPassActive;
+  }
+
+  // ============================================
+  // 🎉 WEEKEND PASS - 48-Hour Timer Management
+  // ============================================
+
+  /// Whether the locally-tracked weekend pass is still within its 48-hour window
+  bool get isWeekendPassActive {
+    if (_weekendPassExpiry == null) return false;
+    return DateTime.now().toUtc().isBefore(_weekendPassExpiry!);
+  }
+
+  /// Time remaining on the weekend pass (Duration.zero if expired/inactive)
+  Duration get weekendPassTimeRemaining {
+    if (_weekendPassExpiry == null) return Duration.zero;
+    final remaining = _weekendPassExpiry!.difference(DateTime.now().toUtc());
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+
+  /// Get weekend pass expiry date (null if not active)
+  DateTime? get weekendPassExpiryDate => isWeekendPassActive ? _weekendPassExpiry : null;
+
+  /// Activate the weekend pass after a successful purchase.
+  /// Saves the expiry timestamp to SharedPreferences (UTC) and starts
+  /// a timer that automatically revokes premium when 48 hours elapse.
+  Future<void> activateWeekendPass() async {
+    final now = DateTime.now().toUtc();
+    _weekendPassExpiry = now.add(weekendPassDuration);
+
+    // Persist to SharedPreferences so it survives app restarts
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_weekendPassExpiryKey, _weekendPassExpiry!.toIso8601String());
+      debugPrint('🎉 Weekend Pass activated! Expires: $_weekendPassExpiry');
+    } catch (e) {
+      debugPrint('❌ Failed to save weekend pass expiry: $e');
+    }
+
+    // Notify listeners that premium is now active
+    _premiumStatusController.add(true);
+
+    // Schedule automatic expiry
+    _scheduleWeekendPassExpiry();
+
+    // Log analytics
+    FirebaseService().logEvent(
+      'weekend_pass_activated',
+      parameters: {
+        'expiry_utc': _weekendPassExpiry!.toIso8601String(),
+        'duration_hours': weekendPassDuration.inHours,
+      },
+    );
+  }
+
+  /// Restore weekend pass state from SharedPreferences on app launch.
+  /// Called during initialize() to resume an active pass after restart.
+  Future<void> _restoreWeekendPass() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final expiryString = prefs.getString(_weekendPassExpiryKey);
+      if (expiryString == null) return;
+
+      final expiry = DateTime.parse(expiryString);
+      final now = DateTime.now().toUtc();
+
+      if (now.isBefore(expiry)) {
+        // Still active — restore and schedule expiry
+        _weekendPassExpiry = expiry;
+        _scheduleWeekendPassExpiry();
+        debugPrint('🎉 Weekend Pass restored! Remaining: ${weekendPassTimeRemaining.inMinutes} min');
+      } else {
+        // Already expired — clean up
+        await prefs.remove(_weekendPassExpiryKey);
+        _weekendPassExpiry = null;
+        debugPrint('⏰ Weekend Pass expired during app restart — cleaned up');
+      }
+    } catch (e) {
+      debugPrint('❌ Failed to restore weekend pass: $e');
+    }
+  }
+
+  /// Schedule a timer that fires when the weekend pass expires,
+  /// updating premium status automatically without needing a server call.
+  void _scheduleWeekendPassExpiry() {
+    _weekendPassTimer?.cancel();
+
+    if (_weekendPassExpiry == null) return;
+
+    final remaining = _weekendPassExpiry!.difference(DateTime.now().toUtc());
+    if (remaining.isNegative) {
+      _onWeekendPassExpired();
+      return;
+    }
+
+    _weekendPassTimer = Timer(remaining, _onWeekendPassExpired);
+    debugPrint('⏰ Weekend Pass expiry timer set: ${remaining.inMinutes} min');
+  }
+
+  /// Called when the 48-hour window elapses.
+  Future<void> _onWeekendPassExpired() async {
+    _weekendPassExpiry = null;
+    _weekendPassTimer?.cancel();
+    _weekendPassTimer = null;
+
+    // Clean up persisted data
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_weekendPassExpiryKey);
+    } catch (_) {}
+
+    // Re-evaluate premium: if no other entitlement is active, user is free
+    final stillPremium = _isPremium; // from RevenueCat
+    _premiumStatusController.add(stillPremium);
+
+    debugPrint('⏰ Weekend Pass expired. Premium from RevenueCat: $stillPremium');
+
+    FirebaseService().logEvent('weekend_pass_expired');
+  }
+
   /// Identify user (call after user logs in)
   Future<void> identifyUser(String userId) async {
+    // Guard: Don't call SDK if not initialized (prevents fatal crash)
+    if (!_initialized) {
+      debugPrint('⚠️ RevenueCat not initialized - skipping user identification');
+      return;
+    }
+    
     try {
       final result = await Purchases.logIn(userId);
       _handleCustomerInfoUpdate(result.customerInfo);
@@ -392,6 +570,12 @@ class PurchasesService {
 
   /// Reset user (call after user logs out)
   Future<void> resetUser() async {
+    // Guard: Don't call SDK if not initialized (prevents fatal crash)
+    if (!_initialized) {
+      debugPrint('⚠️ RevenueCat not initialized - skipping user reset');
+      return;
+    }
+    
     try {
       final customerInfo = await Purchases.logOut();
       _handleCustomerInfoUpdate(customerInfo);
@@ -408,6 +592,12 @@ class PurchasesService {
     String? phoneNumber,
     Map<String, String>? customAttributes,
   }) async {
+    // Guard: Don't call SDK if not initialized (prevents fatal crash)
+    if (!_initialized) {
+      debugPrint('⚠️ RevenueCat not initialized - skipping user attributes');
+      return;
+    }
+    
     try {
       if (email != null) {
         await Purchases.setEmail(email);
@@ -431,6 +621,7 @@ class PurchasesService {
 
   /// Dispose resources
   void dispose() {
+    _weekendPassTimer?.cancel();
     _premiumStatusController.close();
   }
 }

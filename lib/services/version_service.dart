@@ -17,33 +17,33 @@ enum UpdateStatus {
 /// Version information from Remote Config
 class VersionInfo {
   final String currentVersion;
-  final String minRequiredVersion;
+  final String minimumVersion;
   final String latestVersion;
-  final bool forceUpdateEnabled;
+  final bool forceUpdateRequired;
   final bool softUpdateEnabled;
-  final String updateMessage;
-  final String updateUrlIos;
-  final String updateUrlAndroid;
+  final String forceUpdateMessage;
+  final String storeUrlIos;
+  final String storeUrlAndroid;
 
   VersionInfo({
     required this.currentVersion,
-    required this.minRequiredVersion,
+    required this.minimumVersion,
     required this.latestVersion,
-    required this.forceUpdateEnabled,
+    required this.forceUpdateRequired,
     required this.softUpdateEnabled,
-    required this.updateMessage,
-    required this.updateUrlIos,
-    required this.updateUrlAndroid,
+    required this.forceUpdateMessage,
+    required this.storeUrlIos,
+    required this.storeUrlAndroid,
   });
 
   /// Get the platform-specific store URL
   String get storeUrl {
     if (Platform.isIOS) {
-      return updateUrlIos;
+      return storeUrlIos;
     } else if (Platform.isAndroid) {
-      return updateUrlAndroid;
+      return storeUrlAndroid;
     }
-    return updateUrlAndroid; // Default fallback
+    return storeUrlAndroid;
   }
 }
 
@@ -54,13 +54,13 @@ class VersionService {
   VersionService._internal();
 
   // Remote Config Keys
-  static const String _forceUpdateEnabledKey = 'force_update_enabled';
-  static const String _minRequiredVersionKey = 'min_required_version';
+  static const String _forceUpdateRequiredKey = 'force_update_required';
+  static const String _minimumVersionKey = 'minimum_version';
   static const String _softUpdateEnabledKey = 'soft_update_enabled';
   static const String _latestVersionKey = 'latest_version';
-  static const String _updateUrlIosKey = 'update_url_ios';
-  static const String _updateUrlAndroidKey = 'update_url_android';
-  static const String _updateMessageKey = 'update_message';
+  static const String _storeUrlIosKey = 'store_url_ios';
+  static const String _storeUrlAndroidKey = 'store_url_android';
+  static const String _forceUpdateMessageKey = 'force_update_message';
 
   String? _currentVersion;
   VersionInfo? _cachedVersionInfo;
@@ -89,20 +89,20 @@ class VersionService {
 
     _cachedVersionInfo = VersionInfo(
       currentVersion: currentVersion,
-      minRequiredVersion: remoteConfig.getString(_minRequiredVersionKey),
+      minimumVersion: remoteConfig.getString(_minimumVersionKey),
       latestVersion: remoteConfig.getString(_latestVersionKey),
-      forceUpdateEnabled: remoteConfig.getBool(_forceUpdateEnabledKey),
+      forceUpdateRequired: remoteConfig.getBool(_forceUpdateRequiredKey),
       softUpdateEnabled: remoteConfig.getBool(_softUpdateEnabledKey),
-      updateMessage: remoteConfig.getString(_updateMessageKey),
-      updateUrlIos: remoteConfig.getString(_updateUrlIosKey),
-      updateUrlAndroid: remoteConfig.getString(_updateUrlAndroidKey),
+      forceUpdateMessage: remoteConfig.getString(_forceUpdateMessageKey),
+      storeUrlIos: remoteConfig.getString(_storeUrlIosKey),
+      storeUrlAndroid: remoteConfig.getString(_storeUrlAndroidKey),
     );
 
     debugPrint('🔍 Version Info:');
     debugPrint('   - Current: $currentVersion');
-    debugPrint('   - Min Required: ${_cachedVersionInfo!.minRequiredVersion}');
+    debugPrint('   - Minimum Version: ${_cachedVersionInfo!.minimumVersion}');
     debugPrint('   - Latest: ${_cachedVersionInfo!.latestVersion}');
-    debugPrint('   - Force Update Enabled: ${_cachedVersionInfo!.forceUpdateEnabled}');
+    debugPrint('   - Force Update Required: ${_cachedVersionInfo!.forceUpdateRequired}');
     debugPrint('   - Soft Update Enabled: ${_cachedVersionInfo!.softUpdateEnabled}');
 
     return _cachedVersionInfo!;
@@ -114,14 +114,14 @@ class VersionService {
       final versionInfo = await getVersionInfo();
 
       // Check force update first
-      if (versionInfo.forceUpdateEnabled &&
-          versionInfo.minRequiredVersion.isNotEmpty) {
+      if (versionInfo.forceUpdateRequired &&
+          versionInfo.minimumVersion.isNotEmpty) {
         final comparison = compareVersions(
           versionInfo.currentVersion,
-          versionInfo.minRequiredVersion,
+          versionInfo.minimumVersion,
         );
         if (comparison < 0) {
-          debugPrint('🚨 Force update required: ${versionInfo.currentVersion} < ${versionInfo.minRequiredVersion}');
+          debugPrint('🚨 Force update required: ${versionInfo.currentVersion} < ${versionInfo.minimumVersion}');
           return UpdateStatus.forceUpdateRequired;
         }
       }
@@ -207,16 +207,17 @@ class VersionService {
   /// Get default Remote Config values for version service
   static Map<String, dynamic> getRemoteConfigDefaults() {
     return {
-      _forceUpdateEnabledKey: false,
-      _minRequiredVersionKey: '1.0.0',
+      _forceUpdateRequiredKey: false,
+      _minimumVersionKey: '1.0.0',
       _softUpdateEnabledKey: false,
       _latestVersionKey: '1.0.0',
-      _updateUrlIosKey: '',
-      _updateUrlAndroidKey: '',
-      _updateMessageKey: 'A new version is available with exciting features and improvements!',
+      _storeUrlIosKey: '',
+      _storeUrlAndroidKey: '',
+      _forceUpdateMessageKey: 'A new version is available with exciting features and improvements!',
     };
   }
 }
+
 
 
 

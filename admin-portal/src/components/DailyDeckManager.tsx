@@ -1,35 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import {
-    collection,
-    addDoc,
-    updateDoc,
-    deleteDoc,
-    doc,
-    onSnapshot,
-    query,
-    orderBy,
-    Timestamp
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+    subscribeToDailyDecks,
+    createDailyDeck,
+    updateDailyDeck,
+    deleteDailyDeck,
+    unsubscribeFromDecks,
+    type DailyDeckData
+} from '../services/supabaseDeckService';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import '../styles/DailyDeckManager.css';
 
-interface DailyDeck {
-    id?: string;
-    date: Date;
-    title: string;
-    description: string;
-    cards: Array<{
-        word: string;
-        category: string;
-        difficulty: number;
-    }>;
-    color: number;
-    iconName: string;
-    imageUrl?: string;
-    isActive: boolean;
-    createdAt: Date;
-    expiresAt?: Date;
-}
+// Use DailyDeckData from supabaseDeckService
+type DailyDeck = DailyDeckData;
 
 export const DailyDeckManager: React.FC = () => {
     const [dailyDecks, setDailyDecks] = useState<DailyDeck[]>([]);
@@ -49,53 +31,49 @@ export const DailyDeckManager: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
     useEffect(() => {
-        // Load daily decks from Firebase
-        const q = query(
-            collection(db, 'daily_decks'),
-            orderBy('date', 'desc')
+        let channel: RealtimeChannel | null = null;
+
+        // Subscribe to Supabase real-time updates
+        channel = subscribeToDailyDecks(
+            (decks) => {
+                setDailyDecks(decks);
+                setLoading(false);
+            },
+            (error) => {
+                console.error('Error fetching daily decks:', error);
+                setLoading(false);
+            }
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const decks: DailyDeck[] = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                decks.push({
-                    id: doc.id,
-                    date: data.date?.toDate() || new Date(),
-                    title: data.title || '',
-                    description: data.description || '',
-                    cards: data.cards || [],
-                    color: data.color || 0xFF4CAF50,
-                    iconName: data.iconName || 'calendar_today',
-                    isActive: data.isActive ?? true,
-                    createdAt: data.createdAt?.toDate() || new Date(),
-                    expiresAt: data.expiresAt?.toDate(),
-                });
-            });
-            setDailyDecks(decks);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
+        return () => {
+            if (channel) {
+                unsubscribeFromDecks(channel);
+            }
+        };
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         try {
-            const deckData = {
-                ...formData,
-                date: Timestamp.fromDate(new Date(selectedDate)),
-                createdAt: Timestamp.now(),
-                expiresAt: formData.expiresAt ? Timestamp.fromDate(formData.expiresAt) : null,
+            const deckData: DailyDeck = {
+                date: new Date(selectedDate),
+                title: formData.title || '',
+                description: formData.description || '',
+                cards: formData.cards || [],
+                color: formData.color || 0xFF4CAF50,
+                iconName: formData.iconName || 'calendar_today',
+                imageUrl: formData.imageUrl,
+                isActive: formData.isActive ?? true,
+                expiresAt: formData.expiresAt || null,
             };
 
             if (editingDeck?.id) {
                 // Update existing deck
-                await updateDoc(doc(db, 'daily_decks', editingDeck.id), deckData);
+                await updateDailyDeck(editingDeck.id, deckData);
             } else {
                 // Create new deck
-                await addDoc(collection(db, 'daily_decks'), deckData);
+                await createDailyDeck(deckData);
             }
 
             // Reset form
@@ -120,7 +98,7 @@ export const DailyDeckManager: React.FC = () => {
     const handleDelete = async (id: string) => {
         if (window.confirm('Are you sure you want to delete this daily deck?')) {
             try {
-                await deleteDoc(doc(db, 'daily_decks', id));
+                await deleteDailyDeck(id);
             } catch (error) {
                 console.error('Error deleting daily deck:', error);
                 alert('Failed to delete daily deck');

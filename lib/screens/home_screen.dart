@@ -19,7 +19,7 @@ import 'category_selection_screen.dart';
 import 'gameplay_screen.dart';
 import 'tutorial_screen.dart';
 import 'team_setup_screen.dart';
-import 'custom_deck_management_screen.dart';
+import 'explore_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -2058,7 +2058,7 @@ class _HomeScreenState extends State<HomeScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const CustomDeckManagementScreen(),
+        builder: (context) => ExploreScreen(category: 'My Decks'),
       ),
     );
   }

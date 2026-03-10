@@ -150,3 +150,4 @@ This project is created for educational and entertainment purposes.
 - Inspired by the popular Heads Up! game by Warner Bros
 - Built with Flutter and love for party games
 # headsup-flutter
+# heads-up-flutter

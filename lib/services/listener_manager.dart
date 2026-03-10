@@ -38,7 +38,7 @@ class ListenerManager with widgets.WidgetsBindingObserver {
     _activeListeners[key] = subscription;
     _listenerStartTimes[key] = DateTime.now();
     
-    debugPrint('📡 Listener registered: $key (Total: ${_activeListeners.length})');
+    // Listener registered
     
     // Log analytics
     FirebaseService().logEvent('listener_registered', parameters: {
@@ -57,7 +57,7 @@ class ListenerManager with widgets.WidgetsBindingObserver {
       final startTime = _listenerStartTimes.remove(key);
       if (startTime != null) {
         final duration = DateTime.now().difference(startTime);
-        debugPrint('🔌 Listener cancelled: $key (Active for: ${duration.inSeconds}s, Remaining: ${_activeListeners.length})');
+        // Listener cancelled
         
         // Log analytics
         FirebaseService().logEventSampled('listener_cancelled', 
@@ -74,7 +74,7 @@ class ListenerManager with widgets.WidgetsBindingObserver {
 
   /// Cancel all listeners
   void cancelAllListeners() {
-    debugPrint('🔌 Cancelling all listeners (${_activeListeners.length})');
+    // Cancelling all listeners
     
     for (var entry in _activeListeners.entries) {
       entry.value.cancel();
@@ -93,7 +93,7 @@ class ListenerManager with widgets.WidgetsBindingObserver {
         .where((key) => key.startsWith('${category}_'))
         .toList();
     
-    debugPrint('🔌 Cancelling ${keysToRemove.length} listeners for category: $category');
+    // Cancel listeners by category
     
     for (final key in keysToRemove) {
       cancelListener(key);
@@ -102,7 +102,7 @@ class ListenerManager with widgets.WidgetsBindingObserver {
 
   /// Pause non-critical listeners when app goes to background
   void pauseNonCriticalListeners() {
-    debugPrint('⏸️ Pausing non-critical listeners');
+    // Pausing non-critical listeners
     
     // Cancel non-critical listeners (keep game session listeners if active)
     final nonCriticalKeys = _activeListeners.keys
@@ -181,7 +181,7 @@ class ListenerManager with widgets.WidgetsBindingObserver {
         // App going to background
         if (_isAppInForeground) {
           _isAppInForeground = false;
-          debugPrint('📱 App backgrounded - pausing listeners');
+          // App backgrounded
           pauseNonCriticalListeners();
         }
         break;
@@ -190,7 +190,7 @@ class ListenerManager with widgets.WidgetsBindingObserver {
         // App coming to foreground
         if (!_isAppInForeground) {
           _isAppInForeground = true;
-          debugPrint('📱 App foregrounded - listeners can resume');
+          // App foregrounded
           
           // Log analytics
           FirebaseService().logEvent('app_foregrounded', parameters: {
@@ -201,7 +201,7 @@ class ListenerManager with widgets.WidgetsBindingObserver {
         
       case AppLifecycleState.detached:
         // App terminating
-        debugPrint('📱 App terminating - cleaning up listeners');
+        // App terminating
         cancelAllListeners();
         break;
         
@@ -216,7 +216,7 @@ class ListenerManager with widgets.WidgetsBindingObserver {
     widgets.WidgetsBinding.instance.removeObserver(this);
     cancelAllListeners();
     _initialized = false;
-    debugPrint('🗑️ ListenerManager disposed');
+    // ListenerManager disposed
   }
 
   /// Log current listener status for debugging

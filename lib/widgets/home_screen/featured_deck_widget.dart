@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/deck.dart';
 import '../../services/haptic_service.dart';
 import '../../services/image_cache_manager.dart';
+import '../../utils/responsive.dart';
 
 class FeaturedDeckWidget extends StatelessWidget {
   final List<Deck> availableDecks;
@@ -43,7 +44,7 @@ class FeaturedDeckWidget extends StatelessWidget {
 
     return Container(
       key: tutorialKey,
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      margin: EdgeInsets.fromLTRB(16.s, 8.s, 16.s, 24.s),
       child: GestureDetector(
         onHorizontalDragEnd: (details) {
           if (details.primaryVelocity != null) {
@@ -118,24 +119,24 @@ class FeaturedDeckWidget extends StatelessWidget {
           },
           child: Container(
             key: ValueKey(featuredDeck.id),
-            height: 580,
+            height: 580.s,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(14.s),
               border: Border.all(
                 color: Colors.white.withOpacity(0.15),
-                width: 1.5,
+                width: 1.5.s,
               ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.35),
-                  blurRadius: 52.5,
-                  offset: const Offset(19.5, 16.5),
-                  spreadRadius: 1.88,
+                  blurRadius: 52.5.s,
+                  offset: Offset(19.5.s, 16.5.s),
+                  spreadRadius: 1.88.s,
                 ),
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(15),
+              borderRadius: BorderRadius.circular(15.s),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -242,10 +243,10 @@ class FeaturedDeckWidget extends StatelessWidget {
                   // Inner glass border effect
                   Container(
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(15),
+                      borderRadius: BorderRadius.circular(15.s),
                       border: Border.all(
                         color: Colors.white.withOpacity(0.08),
-                        width: 0.5,
+                        width: 0.5.s,
                       ),
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
@@ -263,22 +264,22 @@ class FeaturedDeckWidget extends StatelessWidget {
 
                   // Game info badges
                   Positioned(
-                    left: 20,
-                    top: 20,
+                    left: 20.s,
+                    top: 20.s,
                     child: Row(
                       children: [
                         // Player count badge
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12.s,
+                            vertical: 6.s,
                           ),
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(20.s),
                             border: Border.all(
                               color: Colors.white.withOpacity(0.2),
-                              width: 1,
+                              width: 1.s,
                             ),
                           ),
                           child: Row(
@@ -287,13 +288,13 @@ class FeaturedDeckWidget extends StatelessWidget {
                               Icon(
                                 Icons.people_rounded,
                                 color: Colors.white,
-                                size: 16,
+                                size: 16.s,
                               ),
-                              const SizedBox(width: 4),
+                              SizedBox(width: 4.s),
                               Text(
                                 '2-10',
                                 style: GoogleFonts.poppins(
-                                  fontSize: 13,
+                                  fontSize: 13.sp,
                                   fontWeight: FontWeight.w500,
                                   color: Colors.white,
                                 ),
@@ -301,19 +302,19 @@ class FeaturedDeckWidget extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8.s),
                         // Time badge
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12.s,
+                            vertical: 6.s,
                           ),
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(20.s),
                             border: Border.all(
                               color: Colors.white.withOpacity(0.2),
-                              width: 1,
+                              width: 1.s,
                             ),
                           ),
                           child: Row(
@@ -322,13 +323,13 @@ class FeaturedDeckWidget extends StatelessWidget {
                               Icon(
                                 Icons.timer_rounded,
                                 color: Colors.white,
-                                size: 16,
+                                size: 16.s,
                               ),
-                              const SizedBox(width: 4),
+                              SizedBox(width: 4.s),
                               Text(
                                 '60s',
                                 style: GoogleFonts.poppins(
-                                  fontSize: 13,
+                                  fontSize: 13.sp,
                                   fontWeight: FontWeight.w500,
                                   color: Colors.white,
                                 ),
@@ -336,25 +337,25 @@ class FeaturedDeckWidget extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8.s),
                         // Difficulty badge
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12.s,
+                            vertical: 6.s,
                           ),
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(20.s),
                             border: Border.all(
                               color: Colors.white.withOpacity(0.2),
-                              width: 1,
+                              width: 1.s,
                             ),
                           ),
                           child: Text(
                             'Easy',
                             style: GoogleFonts.poppins(
-                              fontSize: 13,
+                              fontSize: 13.sp,
                               fontWeight: FontWeight.w500,
                               color: Colors.white,
                             ),
@@ -370,7 +371,7 @@ class FeaturedDeckWidget extends StatelessWidget {
                     right: 0,
                     bottom: 0,
                     child: Padding(
-                      padding: const EdgeInsets.all(24),
+                      padding: EdgeInsets.all(24.s),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -379,7 +380,7 @@ class FeaturedDeckWidget extends StatelessWidget {
                           Text(
                             featuredDeck.name,
                             style: GoogleFonts.poppins(
-                              fontSize: 48,
+                              fontSize: 48.sp,
                               fontWeight: FontWeight.w800,
                               color: Colors.white,
                               height: 1.05,
@@ -387,7 +388,7 @@ class FeaturedDeckWidget extends StatelessWidget {
                             ),
                           ),
 
-                          const SizedBox(height: 12),
+                          SizedBox(height: 12.s),
 
                           // Tags row
                           Row(
@@ -396,17 +397,17 @@ class FeaturedDeckWidget extends StatelessWidget {
                                 'Fun',
                                 style: GoogleFonts.poppins(
                                   color: Colors.white.withOpacity(0.9),
-                                  fontSize: 14,
+                                  fontSize: 14.sp,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                               Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 6.s,
                                 ),
                                 child: Container(
-                                  width: 4,
-                                  height: 4,
+                                  width: 4.s,
+                                  height: 4.s,
                                   decoration: BoxDecoration(
                                     color: Colors.white.withOpacity(0.7),
                                     shape: BoxShape.circle,
@@ -417,17 +418,17 @@ class FeaturedDeckWidget extends StatelessWidget {
                                 'Exciting',
                                 style: GoogleFonts.poppins(
                                   color: Colors.white.withOpacity(0.9),
-                                  fontSize: 14,
+                                  fontSize: 14.sp,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                               Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 6.s,
                                 ),
                                 child: Container(
-                                  width: 4,
-                                  height: 4,
+                                  width: 4.s,
+                                  height: 4.s,
                                   decoration: BoxDecoration(
                                     color: Colors.white.withOpacity(0.7),
                                     shape: BoxShape.circle,
@@ -438,14 +439,14 @@ class FeaturedDeckWidget extends StatelessWidget {
                                 'Party Game',
                                 style: GoogleFonts.poppins(
                                   color: Colors.white.withOpacity(0.9),
-                                  fontSize: 14,
+                                  fontSize: 14.sp,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
                           ),
 
-                          const SizedBox(height: 24),
+                          SizedBox(height: 24.s),
 
                           // Action buttons with elegant styling
                           Row(
@@ -455,7 +456,7 @@ class FeaturedDeckWidget extends StatelessWidget {
                                 child: Material(
                                       color: Colors.white,
                                       borderRadius: BorderRadius.circular(
-                                        10,
+                                        10.s,
                                       ),
                                       elevation: 0,
                                       child: InkWell(
@@ -464,25 +465,25 @@ class FeaturedDeckWidget extends StatelessWidget {
                                           onPlayDeck(featuredDeck);
                                         },
                                         borderRadius: BorderRadius.circular(
-                                          10,
+                                          10.s,
                                         ),
                                         splashColor: Colors.grey.shade200,
                                         highlightColor:
                                             Colors.grey.shade100,
                                         child: Container(
                                           padding:
-                                              const EdgeInsets.symmetric(
-                                                vertical: 14,
+                                              EdgeInsets.symmetric(
+                                                vertical: 14.s,
                                               ),
                                           decoration: BoxDecoration(
                                             borderRadius:
-                                                BorderRadius.circular(10),
+                                                BorderRadius.circular(10.s),
                                             boxShadow: [
                                               BoxShadow(
                                                 color: Colors.black
                                                     .withOpacity(0.2),
-                                                blurRadius: 8,
-                                                offset: const Offset(0, 2),
+                                                blurRadius: 8.s,
+                                                offset: Offset(0, 2.s),
                                               ),
                                             ],
                                           ),
@@ -490,16 +491,16 @@ class FeaturedDeckWidget extends StatelessWidget {
                                             mainAxisAlignment:
                                                 MainAxisAlignment.center,
                                             children: [
-                                              const Icon(
+                                              Icon(
                                                 Icons.play_arrow_rounded,
-                                                size: 28,
+                                                size: 28.s,
                                                 color: Colors.black,
                                               ),
-                                              const SizedBox(width: 6),
+                                              SizedBox(width: 6.s),
                                               Text(
                                                 'Play',
                                                 style: GoogleFonts.poppins(
-                                                  fontSize: 17,
+                                                  fontSize: 17.sp,
                                                   fontWeight:
                                                       FontWeight.w700,
                                                   color: Colors.black,
@@ -533,30 +534,30 @@ class FeaturedDeckWidget extends StatelessWidget {
                                     ),
                               ),
 
-                              const SizedBox(width: 10),
+                              SizedBox(width: 10.s),
 
                               // Info button - Elegant glass morphism
                               Container(
-                                    width: 56,
-                                    height: 56,
+                                    width: 56.s,
+                                    height: 56.s,
                                     decoration: BoxDecoration(
                                       color: Colors.black.withOpacity(0.4),
                                       borderRadius: BorderRadius.circular(
-                                        10,
+                                        10.s,
                                       ),
                                       border: Border.all(
                                         color: Colors.white.withOpacity(
                                           0.25,
                                         ),
-                                        width: 1.5,
+                                        width: 1.5.s,
                                       ),
                                       boxShadow: [
                                         BoxShadow(
                                           color: Colors.black.withOpacity(
                                             0.2,
                                           ),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
+                                          blurRadius: 8.s,
+                                          offset: Offset(0, 2.s),
                                         ),
                                       ],
                                     ),
@@ -573,16 +574,16 @@ class FeaturedDeckWidget extends StatelessWidget {
                                           );
                                         },
                                         borderRadius: BorderRadius.circular(
-                                          10,
+                                          10.s,
                                         ),
                                         splashColor: Colors.white
                                             .withOpacity(0.1),
                                         highlightColor: Colors.white
                                             .withOpacity(0.05),
-                                        child: const Center(
+                                        child: Center(
                                           child: Icon(
                                             Icons.info_outline_rounded,
-                                            size: 26,
+                                            size: 26.s,
                                             color: Colors.white,
                                           ),
                                         ),

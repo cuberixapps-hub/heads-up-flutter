@@ -1,0 +1,21 @@
+// Copy this file to production_config.dart and fill in your production values.
+// Add production_config.dart to .gitignore if it contains real secrets.
+//
+// AdMob: Get production ad unit IDs from AdMob console.
+// RevenueCat: Get production API keys from https://app.revenuecat.com/
+//   Project Settings → API Keys (use production keys, not sandbox).
+
+class ProductionConfig {
+  ProductionConfig._();
+
+  static const String androidBannerAdUnitId = 'ca-app-pub-XXXX/YYYY';
+  static const String androidInterstitialAdUnitId = 'ca-app-pub-XXXX/YYYY';
+  static const String androidRewardedAdUnitId = 'ca-app-pub-XXXX/YYYY';
+
+  static const String iosBannerAdUnitId = 'ca-app-pub-XXXX/YYYY';
+  static const String iosInterstitialAdUnitId = 'ca-app-pub-XXXX/YYYY';
+  static const String iosRewardedAdUnitId = 'ca-app-pub-XXXX/YYYY';
+
+  static const String androidRevenueCatApiKey = 'goog_xxxxxxxxxxxx';
+  static const String iosRevenueCatApiKey = 'appl_xxxxxxxxxxxx';
+}

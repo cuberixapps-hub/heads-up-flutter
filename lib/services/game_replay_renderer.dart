@@ -5,13 +5,102 @@ import 'dart:typed_data';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import '../models/video_recording_result.dart';
+import 'video_processing_manager.dart';
 
 class GameReplayRenderer {
   static const double frameWidth = 400;
   static const double frameHeight = 300;
   static const int fps = 30;
 
-  // Generate game replay video frames as images
+  /// Generate game replay video frames as images with cancellation support.
+  /// 
+  /// This method checks the [cancellationToken] periodically during frame
+  /// generation and will stop early if cancelled. When cancelled, any
+  /// already-generated frames are returned (caller should clean them up).
+  static Future<List<String>> generateGameReplayFramesWithCancellation({
+    required VideoRecordingResult recordingResult,
+    required Color deckColor,
+    required Duration gameDuration,
+    required VideoCancellationToken cancellationToken,
+  }) async {
+    try {
+      debugPrint('=== GENERATING GAME REPLAY FRAMES (with cancellation) ===');
+      debugPrint('Session: ${cancellationToken.sessionId}');
+      debugPrint('Total events: ${recordingResult.events.length}');
+      debugPrint('Deck name: ${recordingResult.deckName}');
+      debugPrint('Game duration: ${gameDuration.inSeconds}s');
+
+      // Check for cancellation before starting
+      if (cancellationToken.isCancelled) {
+        debugPrint('🛑 Frame generation cancelled before start');
+        return [];
+      }
+
+      final frames = <String>[];
+      final tempDir = await getTemporaryDirectory();
+      final frameDir = Directory('${tempDir.path}/game_frames_${cancellationToken.sessionId}');
+
+      // Clean up old frames for this session
+      if (await frameDir.exists()) {
+        await frameDir.delete(recursive: true);
+      }
+      await frameDir.create();
+
+      // Generate frames at 30 FPS for smooth playback
+      const frameRate = 30;
+      final totalFrames =
+          (gameDuration.inMilliseconds / (1000 / frameRate)).ceil();
+
+      for (int i = 0; i < totalFrames; i++) {
+        // Check for cancellation every frame
+        if (cancellationToken.isCancelled) {
+          debugPrint('🛑 Frame generation cancelled at frame $i/$totalFrames');
+          return frames; // Return what we have so caller can cleanup
+        }
+
+        final timestamp = Duration(
+          milliseconds: (i * 1000 / frameRate).round(),
+        );
+
+        // Generate frame
+        final frameData = await _generateFrame(
+          recordingResult: recordingResult,
+          timestamp: timestamp,
+          deckColor: deckColor,
+          gameDuration: gameDuration,
+        );
+
+        if (frameData != null) {
+          // Save frame as image
+          final framePath =
+              '${frameDir.path}/frame_${i.toString().padLeft(6, '0')}.png';
+          final file = File(framePath);
+          await file.writeAsBytes(frameData);
+          frames.add(framePath);
+        }
+
+        // Show progress every 10 frames
+        if (i % 10 == 0) {
+          debugPrint('Generated ${i + 1}/$totalFrames frames');
+        }
+
+        // Yield to allow other tasks and UI updates
+        // This also makes cancellation more responsive
+        if (i % 5 == 0) {
+          await Future.delayed(Duration.zero);
+        }
+      }
+
+      debugPrint('Game replay frames generated: ${frames.length} frames');
+      return frames;
+    } catch (e) {
+      debugPrint('Error generating game replay frames: $e');
+      return [];
+    }
+  }
+
+  // Generate game replay video frames as images (legacy - no cancellation)
+  @Deprecated('Use generateGameReplayFramesWithCancellation instead')
   static Future<List<String>> generateGameReplayFrames({
     required VideoRecordingResult recordingResult,
     required Color deckColor,

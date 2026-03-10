@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../services/haptic_service.dart';
+import '../utils/responsive.dart';
 
 class ColorPickerDialog extends StatefulWidget {
   final Color selectedColor;
@@ -10,11 +12,15 @@ class ColorPickerDialog extends StatefulWidget {
   State<ColorPickerDialog> createState() => _ColorPickerDialogState();
 }
 
-class _ColorPickerDialogState extends State<ColorPickerDialog>
-    with SingleTickerProviderStateMixin {
+class _ColorPickerDialogState extends State<ColorPickerDialog> {
   late Color _selectedColor;
-  late AnimationController _animationController;
   String _selectedCategory = 'Material';
+  final _hapticService = HapticService();
+
+  // Tap states for interactive animations
+  bool _selectButtonPressed = false;
+  bool _cancelButtonPressed = false;
+  bool _closeButtonPressed = false;
 
   final Map<String, List<Color>> _colorCategories = {
     'Material': [
@@ -71,16 +77,6 @@ class _ColorPickerDialogState extends State<ColorPickerDialog>
   void initState() {
     super.initState();
     _selectedColor = widget.selectedColor;
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    )..forward();
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
   }
 
   Color _darken(Color color, [double amount = 0.1]) {
@@ -104,129 +100,109 @@ class _ColorPickerDialogState extends State<ColorPickerDialog>
     return Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+      insetPadding: EdgeInsets.symmetric(horizontal: 16.s, vertical: 40.s),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 720),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 50,
-              offset: const Offset(0, 25),
-              spreadRadius: 0,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Premium Header
-            _buildPremiumHeader(),
-
-            // Content
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 8),
-                    
-                    // Preview Card
-                    _buildPreviewCard(),
-
-                    const SizedBox(height: 24),
-
-                    // Category Tabs
-                    _buildCategoryTabs(),
-
-                    const SizedBox(height: 24),
-
-                    // Color Grid
-                    _buildColorGrid(),
-
-                    const SizedBox(height: 20),
-
-                    // Shades Section
-                    _buildShadesSection(),
-
-                    const SizedBox(height: 24),
-                  ],
-                ),
+            constraints: BoxConstraints(maxWidth: 400.s, maxHeight: 650.s),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D0D0D),
+              borderRadius: BorderRadius.circular(24.s),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.08),
+                width: 1,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.5),
+                  blurRadius: 40.s,
+                  offset: Offset(0, 20.s),
+                  spreadRadius: 0,
+                ),
+              ],
             ),
-
-            // Action Buttons
-            _buildActionButtons(),
-          ],
-        ),
-      )
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildHeader(),
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: EdgeInsets.symmetric(horizontal: 18.s),
+                    child: Column(
+                      children: [
+                        SizedBox(height: 6.s),
+                        _buildPreviewCard(),
+                        SizedBox(height: 20.s),
+                        _buildCategoryTabs(),
+                        SizedBox(height: 18.s),
+                        _buildColorGrid(),
+                        SizedBox(height: 18.s),
+                        _buildShadesSection(),
+                        SizedBox(height: 18.s),
+                      ],
+                    ),
+                  ),
+                ),
+                _buildActionButtons(),
+              ],
+            ),
+          )
           .animate()
-          .fadeIn(duration: 350.ms, curve: Curves.easeOutCubic)
-          .scale(
-            begin: const Offset(0.88, 0.88),
-            curve: Curves.easeOutCubic,
-          ),
+          .fadeIn(duration: 300.ms, curve: Curves.easeOutCubic)
+          .scale(begin: const Offset(0.92, 0.92), curve: Curves.easeOutCubic),
     );
   }
 
-  Widget _buildPremiumHeader() {
+  Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 24, 20, 20),
+      padding: EdgeInsets.fromLTRB(22.s, 20.s, 16.s, 16.s),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(
-            color: const Color(0xFF1A1A1A).withOpacity(0.06),
-            width: 1,
-          ),
+          bottom: BorderSide(color: Colors.white.withOpacity(0.06), width: 1),
         ),
       ),
       child: Row(
         children: [
-          // Title
           Expanded(
             child: Text(
               'Choose Color',
               style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF1A1A1A).withOpacity(0.95),
-                letterSpacing: -0.8,
-                height: 1.2,
+                fontSize: 20.sp,
+                fontWeight: FontWeight.w700,
+                color: Colors.white.withOpacity(0.95),
+                letterSpacing: -0.5,
               ),
-            )
-                .animate()
-                .fadeIn(duration: 400.ms, curve: Curves.easeOutCubic)
-                .slideX(begin: -0.02, curve: Curves.easeOutCubic),
+            ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.02, end: 0),
           ),
-
-          // Close Button
           GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A).withOpacity(0.04),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFF1A1A1A).withOpacity(0.06),
-                  width: 1,
-                ),
-              ),
-              child: Icon(
-                Icons.close_rounded,
-                size: 20,
-                color: const Color(0xFF1A1A1A).withOpacity(0.7),
-              ),
-            )
+            onTapDown: (_) => setState(() => _closeButtonPressed = true),
+            onTapUp: (_) => setState(() => _closeButtonPressed = false),
+            onTapCancel: () => setState(() => _closeButtonPressed = false),
+            onTap: () {
+              _hapticService.lightImpact();
+              Navigator.pop(context);
+            },
+            child: AnimatedScale(
+                  scale: _closeButtonPressed ? 0.9 : 1.0,
+                  duration: const Duration(milliseconds: 100),
+                  child: Container(
+                    width: 36.s,
+                    height: 36.s,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(10.s),
+                    ),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 18.s,
+                      color: Colors.white.withOpacity(0.6),
+                    ),
+                  ),
+                )
                 .animate()
-                .fadeIn(delay: 100.ms, duration: 400.ms, curve: Curves.easeOutCubic)
+                .fadeIn(delay: 100.ms, duration: 400.ms)
                 .scale(
                   begin: const Offset(0.8, 0.8),
-                  curve: Curves.easeOutCubic,
+                  curve: Curves.easeOutBack,
                 ),
           ),
         ],
@@ -236,162 +212,167 @@ class _ColorPickerDialogState extends State<ColorPickerDialog>
 
   Widget _buildPreviewCard() {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOutCubic,
-      width: double.infinity,
-      height: 140,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            _selectedColor,
-            _darken(_selectedColor, 0.15),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: _selectedColor.withOpacity(0.35),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.25),
-              shape: BoxShape.circle,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic,
+          width: double.infinity,
+          height: 120.s,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [_selectedColor, _darken(_selectedColor, 0.18)],
             ),
-            child: const Icon(
-              Icons.palette_outlined,
-              color: Colors.white,
-              size: 28,
-            ),
-          )
-              .animate(
-                key: ValueKey(_selectedColor.value),
-              )
-              .fadeIn(duration: 250.ms, curve: Curves.easeOut)
-              .scale(
-                begin: const Offset(0.7, 0.7),
-                curve: Curves.easeOutBack,
+            borderRadius: BorderRadius.circular(18.s),
+            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: _selectedColor.withOpacity(0.35),
+                blurRadius: 24.s,
+                offset: Offset(0, 10.s),
+                spreadRadius: 0,
               ),
-          const SizedBox(height: 12),
-          Text(
-            'Preview',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.95),
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.3,
-            ),
+            ],
           ),
-        ],
-      ),
-    )
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                    width: 48.s,
+                    height: 48.s,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.palette_outlined,
+                      color: Colors.white.withOpacity(0.95),
+                      size: 24.s,
+                    ),
+                  )
+                  .animate(key: ValueKey(_selectedColor.value))
+                  .fadeIn(duration: 200.ms)
+                  .scale(
+                    begin: const Offset(0.7, 0.7),
+                    curve: Curves.easeOutBack,
+                  ),
+              SizedBox(height: 10.s),
+              Text(
+                'Preview',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ],
+          ),
+        )
         .animate()
-        .fadeIn(delay: 150.ms, duration: 500.ms, curve: Curves.easeOutCubic)
-        .slideY(begin: 0.05, curve: Curves.easeOutCubic);
+        .fadeIn(delay: 150.ms, duration: 450.ms, curve: Curves.easeOutCubic)
+        .slideY(begin: 0.04, curve: Curves.easeOutCubic);
   }
 
   Widget _buildCategoryTabs() {
+    final categories = _colorCategories.keys.toList();
+
     return SizedBox(
-      height: 44,
+      height: 38.s,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        itemCount: _colorCategories.keys.length,
+        itemCount: categories.length,
         itemBuilder: (context, index) {
-          final category = _colorCategories.keys.elementAt(index);
+          final category = categories[index];
           final isSelected = _selectedCategory == category;
-          
+
           return Padding(
-            padding: const EdgeInsets.only(right: 10),
+            padding: EdgeInsets.only(right: 8.s),
             child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedCategory = category;
-                });
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOutCubic,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                decoration: BoxDecoration(
-                  gradient: isSelected
-                      ? LinearGradient(
-                          colors: [
-                            _selectedColor.withOpacity(0.9),
-                            _selectedColor,
-                          ],
-                        )
-                      : null,
-                  color: isSelected ? null : const Color(0xFF1A1A1A).withOpacity(0.04),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isSelected
-                        ? Colors.transparent
-                        : const Color(0xFF1A1A1A).withOpacity(0.08),
-                    width: 1,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: _selectedColor.withOpacity(0.25),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isSelected)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: Icon(
-                          Icons.check_circle_rounded,
-                          size: 16,
-                          color: Colors.white.withOpacity(0.95),
-                        )
-                            .animate(
-                              key: ValueKey(category),
-                            )
-                            .fadeIn(duration: 200.ms)
-                            .scale(
-                              begin: const Offset(0.6, 0.6),
-                              curve: Curves.easeOutBack,
-                            ),
-                      ),
-                    Text(
-                      category,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                        color: isSelected
-                            ? Colors.white.withOpacity(0.95)
-                            : const Color(0xFF1A1A1A).withOpacity(0.6),
-                        letterSpacing: -0.2,
-                      ),
+                  onTap: () {
+                    _hapticService.lightImpact();
+                    setState(() {
+                      _selectedCategory = category;
+                    });
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.s,
+                      vertical: 8.s,
                     ),
-                  ],
-                ),
-              ),
-            )
+                    decoration: BoxDecoration(
+                      gradient:
+                          isSelected
+                              ? LinearGradient(
+                                colors: [
+                                  _selectedColor.withOpacity(0.9),
+                                  _selectedColor,
+                                ],
+                              )
+                              : null,
+                      color: isSelected ? null : Colors.white.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(10.s),
+                      border: Border.all(
+                        color:
+                            isSelected
+                                ? Colors.transparent
+                                : Colors.white.withOpacity(0.08),
+                        width: 1,
+                      ),
+                      boxShadow:
+                          isSelected
+                              ? [
+                                BoxShadow(
+                                  color: _selectedColor.withOpacity(0.3),
+                                  blurRadius: 12.s,
+                                  offset: Offset(0, 4.s),
+                                ),
+                              ]
+                              : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isSelected)
+                          Padding(
+                            padding: EdgeInsets.only(right: 6.s),
+                            child: Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 14.s,
+                                  color: Colors.white.withOpacity(0.9),
+                                )
+                                .animate(key: ValueKey('check_$category'))
+                                .fadeIn(duration: 200.ms)
+                                .scale(
+                                  begin: const Offset(0.5, 0.5),
+                                  curve: Curves.easeOutBack,
+                                ),
+                          ),
+                        Text(
+                          category,
+                          style: TextStyle(
+                            fontSize: 13.sp,
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.w500,
+                            color:
+                                isSelected
+                                    ? Colors.white.withOpacity(0.95)
+                                    : Colors.white.withOpacity(0.55),
+                            letterSpacing: -0.1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
                 .animate()
                 .fadeIn(
-                  delay: (200 + index * 50).ms,
-                  duration: 400.ms,
+                  delay: (200 + index * 40).ms,
+                  duration: 350.ms,
                   curve: Curves.easeOutCubic,
                 )
-                .slideX(begin: 0.1, curve: Curves.easeOutCubic),
+                .slideX(begin: 0.05, curve: Curves.easeOutCubic),
           );
         },
       ),
@@ -399,89 +380,32 @@ class _ColorPickerDialogState extends State<ColorPickerDialog>
   }
 
   Widget _buildColorGrid() {
+    final colors = _currentColors;
+
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 4,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        crossAxisSpacing: 10.s,
+        mainAxisSpacing: 10.s,
         childAspectRatio: 1.0,
       ),
-      itemCount: _currentColors.length,
+      itemCount: colors.length,
       itemBuilder: (context, index) {
-        final color = _currentColors[index];
+        final color = colors[index];
         final isSelected = color.value == _selectedColor.value;
 
-        return GestureDetector(
+        return _ColorCell(
+          color: color,
+          isSelected: isSelected,
           onTap: () {
+            _hapticService.lightImpact();
             setState(() {
               _selectedColor = color;
             });
           },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutCubic,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  color,
-                  _darken(color, 0.12),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isSelected
-                    ? Colors.white
-                    : Colors.white.withOpacity(0.15),
-                width: isSelected ? 3 : 2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(isSelected ? 0.45 : 0.25),
-                  blurRadius: isSelected ? 16 : 8,
-                  offset: Offset(0, isSelected ? 8 : 4),
-                ),
-              ],
-            ),
-            child: isSelected
-                ? Center(
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.95),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.check_rounded,
-                        color: color,
-                        size: 20,
-                      ),
-                    )
-                        .animate(
-                          key: ValueKey(color.value),
-                        )
-                        .fadeIn(duration: 200.ms, curve: Curves.easeOut)
-                        .scale(
-                          begin: const Offset(0.5, 0.5),
-                          curve: Curves.easeOutBack,
-                        ),
-                  )
-                : null,
-          )
-              .animate()
-              .fadeIn(
-                delay: (index * 25).ms,
-                duration: 300.ms,
-                curve: Curves.easeOutCubic,
-              )
-              .scale(
-                begin: const Offset(0.7, 0.7),
-                curve: Curves.easeOutCubic,
-              ),
+          animationDelay: (index * 25).ms,
         );
       },
     );
@@ -497,99 +421,98 @@ class _ColorPickerDialogState extends State<ColorPickerDialog>
     ];
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A).withOpacity(0.03),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFF1A1A1A).withOpacity(0.06),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: shades.asMap().entries.map((entry) {
-          final index = entry.key;
-          final color = entry.value;
-          final isSelected = color.value == _selectedColor.value;
+          padding: EdgeInsets.symmetric(horizontal: 12.s, vertical: 12.s),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.04),
+            borderRadius: BorderRadius.circular(14.s),
+            border: Border.all(color: Colors.white.withOpacity(0.06), width: 1),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children:
+                shades.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final color = entry.value;
+                  final isSelected = color.value == _selectedColor.value;
 
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedColor = color;
-              });
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOutCubic,
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected
-                      ? const Color(0xFF1A1A1A).withOpacity(0.8)
-                      : Colors.transparent,
-                  width: 2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withOpacity(0.35),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: isSelected
-                  ? Center(
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.9),
-                          shape: BoxShape.circle,
-                        ),
-                      )
-                          .animate(
-                            key: ValueKey(color.value),
-                          )
-                          .fadeIn(duration: 150.ms)
-                          .scale(
-                            begin: const Offset(0.3, 0.3),
-                            curve: Curves.easeOutBack,
+                  return GestureDetector(
+                    onTap: () {
+                      _hapticService.lightImpact();
+                      setState(() {
+                        _selectedColor = color;
+                      });
+                    },
+                    child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOutCubic,
+                          width: 40.s,
+                          height: 40.s,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color:
+                                  isSelected
+                                      ? Colors.white.withOpacity(0.9)
+                                      : Colors.transparent,
+                              width: 2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: color.withOpacity(0.35),
+                                blurRadius: 8.s,
+                                offset: Offset(0, 3.s),
+                              ),
+                            ],
                           ),
-                    )
-                  : null,
-            )
-                .animate()
-                .fadeIn(
-                  delay: (300 + index * 40).ms,
-                  duration: 400.ms,
-                  curve: Curves.easeOutCubic,
-                )
-                .scale(
-                  begin: const Offset(0.6, 0.6),
-                  curve: Curves.easeOutCubic,
-                ),
-          );
-        }).toList(),
-      ),
-    )
+                          child:
+                              isSelected
+                                  ? Center(
+                                    child: Container(
+                                          width: 8.s,
+                                          height: 8.s,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withOpacity(
+                                              0.9,
+                                            ),
+                                            shape: BoxShape.circle,
+                                          ),
+                                        )
+                                        .animate(key: ValueKey('shade_$index'))
+                                        .fadeIn(duration: 150.ms)
+                                        .scale(
+                                          begin: const Offset(0.3, 0.3),
+                                          curve: Curves.easeOutBack,
+                                        ),
+                                  )
+                                  : null,
+                        )
+                        .animate()
+                        .fadeIn(
+                          delay: (350 + index * 40).ms,
+                          duration: 350.ms,
+                          curve: Curves.easeOutCubic,
+                        )
+                        .scale(
+                          begin: const Offset(0.6, 0.6),
+                          curve: Curves.easeOutCubic,
+                        ),
+                  );
+                }).toList(),
+          ),
+        )
         .animate()
-        .fadeIn(delay: 400.ms, duration: 500.ms, curve: Curves.easeOutCubic)
-        .slideY(begin: 0.05, curve: Curves.easeOutCubic);
+        .fadeIn(delay: 400.ms, duration: 450.ms, curve: Curves.easeOutCubic)
+        .slideY(begin: 0.04, curve: Curves.easeOutCubic);
   }
 
   Widget _buildActionButtons() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      padding: EdgeInsets.fromLTRB(18.s, 14.s, 18.s, 18.s),
       decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
         border: Border(
-          top: BorderSide(
-            color: const Color(0xFF1A1A1A).withOpacity(0.06),
-            width: 1,
-          ),
+          top: BorderSide(color: Colors.white.withOpacity(0.06), width: 1),
         ),
       ),
       child: Row(
@@ -598,91 +521,202 @@ class _ColorPickerDialogState extends State<ColorPickerDialog>
           Expanded(
             flex: 3,
             child: GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A).withOpacity(0.04),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: const Color(0xFF1A1A1A).withOpacity(0.08),
-                    width: 1,
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF1A1A1A).withOpacity(0.7),
-                      letterSpacing: -0.3,
+              onTapDown: (_) => setState(() => _cancelButtonPressed = true),
+              onTapUp: (_) => setState(() => _cancelButtonPressed = false),
+              onTapCancel: () => setState(() => _cancelButtonPressed = false),
+              onTap: () {
+                _hapticService.lightImpact();
+                Navigator.pop(context);
+              },
+              child: AnimatedScale(
+                    scale: _cancelButtonPressed ? 0.95 : 1.0,
+                    duration: const Duration(milliseconds: 100),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(vertical: 14.s),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(12.s),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.08),
+                          width: 1,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withOpacity(0.6),
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              )
-                  .animate()
-                  .fadeIn(
-                    delay: 450.ms,
-                    duration: 400.ms,
-                    curve: Curves.easeOutCubic,
                   )
-                  .slideY(begin: 0.15, curve: Curves.easeOutCubic),
+                  .animate()
+                  .fadeIn(delay: 450.ms, duration: 400.ms)
+                  .slideY(begin: 0.1, curve: Curves.easeOutCubic),
             ),
           ),
-
-          const SizedBox(width: 12),
-
+          SizedBox(width: 10.s),
           // Select Button
           Expanded(
             flex: 5,
             child: GestureDetector(
-              onTap: () => Navigator.pop(context, _selectedColor),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 350),
-                curve: Curves.easeOutCubic,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      _selectedColor,
-                      _darken(_selectedColor, 0.15),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _selectedColor.withOpacity(0.35),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
+              onTapDown: (_) => setState(() => _selectButtonPressed = true),
+              onTapUp: (_) => setState(() => _selectButtonPressed = false),
+              onTapCancel: () => setState(() => _selectButtonPressed = false),
+              onTap: () {
+                _hapticService.mediumImpact();
+                Navigator.pop(context, _selectedColor);
+              },
+              child: AnimatedScale(
+                    scale: _selectButtonPressed ? 0.95 : 1.0,
+                    duration: const Duration(milliseconds: 100),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutCubic,
+                      padding: EdgeInsets.symmetric(vertical: 14.s),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            _selectedColor,
+                            _darken(_selectedColor, 0.15),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12.s),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _selectedColor.withOpacity(0.35),
+                            blurRadius: 16.s,
+                            offset: Offset(0, 6.s),
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          'Select Color',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withOpacity(0.95),
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ),
                     ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    'Select Color',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white.withOpacity(0.95),
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                ),
-              )
-                  .animate()
-                  .fadeIn(
-                    delay: 500.ms,
-                    duration: 400.ms,
-                    curve: Curves.easeOutCubic,
                   )
-                  .slideY(begin: 0.15, curve: Curves.easeOutCubic),
+                  .animate()
+                  .fadeIn(delay: 500.ms, duration: 400.ms)
+                  .slideY(begin: 0.1, curve: Curves.easeOutCubic),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Individual color cell with tap animation
+class _ColorCell extends StatefulWidget {
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final Duration animationDelay;
+
+  const _ColorCell({
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+    required this.animationDelay,
+  });
+
+  @override
+  State<_ColorCell> createState() => _ColorCellState();
+}
+
+class _ColorCellState extends State<_ColorCell> {
+  bool _isPressed = false;
+
+  Color _darken(Color color, [double amount = 0.12]) {
+    final hsl = HSLColor.fromColor(color);
+    final darkened = hsl.withLightness(
+      (hsl.lightness - amount).clamp(0.0, 1.0),
+    );
+    return darkened.toColor();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+            scale: _isPressed ? 0.9 : 1.0,
+            duration: const Duration(milliseconds: 100),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [widget.color, _darken(widget.color)],
+                ),
+                borderRadius: BorderRadius.circular(14.s),
+                border: Border.all(
+                  color:
+                      widget.isSelected
+                          ? Colors.white.withOpacity(0.9)
+                          : Colors.white.withOpacity(0.1),
+                  width: widget.isSelected ? 2.5 : 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.color.withOpacity(
+                      widget.isSelected ? 0.45 : 0.25,
+                    ),
+                    blurRadius: widget.isSelected ? 14.s : 8.s,
+                    offset: Offset(0, widget.isSelected ? 6.s : 3.s),
+                  ),
+                ],
+              ),
+              child:
+                  widget.isSelected
+                      ? Center(
+                        child: Container(
+                              width: 28.s,
+                              height: 28.s,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.95),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.check_rounded,
+                                color: widget.color,
+                                size: 18.s,
+                              ),
+                            )
+                            .animate(
+                              key: ValueKey('selected_${widget.color.value}'),
+                            )
+                            .fadeIn(duration: 200.ms)
+                            .scale(
+                              begin: const Offset(0.5, 0.5),
+                              curve: Curves.easeOutBack,
+                            ),
+                      )
+                      : null,
+            ),
+          )
+          .animate()
+          .fadeIn(delay: widget.animationDelay, duration: 280.ms)
+          .scale(begin: const Offset(0.75, 0.75), curve: Curves.easeOutCubic),
     );
   }
 }

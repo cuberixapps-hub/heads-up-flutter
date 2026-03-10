@@ -5,6 +5,7 @@ import { DailyPage } from './pages/DailyPage';
 import { AIGeneratorPage } from './pages/AIGeneratorPage';
 import { AutomatedPage } from './pages/AutomatedPage';
 import { ImageTestPage } from './pages/ImageTestPage';
+import { InitialDecksPage } from './pages/InitialDecksPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import './App.css';
 
@@ -17,6 +18,7 @@ function App() {
           <Route path="daily" element={<DailyPage />} />
           <Route path="ai-generator" element={<AIGeneratorPage />} />
           <Route path="automated" element={<AutomatedPage />} />
+          <Route path="initial-decks" element={<InitialDecksPage />} />
           <Route path="image-test" element={<ImageTestPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>

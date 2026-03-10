@@ -94,6 +94,7 @@ class Deck {
   final List<String> tags;
   final int priority; // Lower number = higher priority
   final bool isActive; // Enable/disable deck remotely
+  final bool premiumOnly; // If true, ads cannot unlock this deck - purchase only
   final Map<String, DeckTranslation>? translations; // Language code -> Translation
   final CardsByDifficulty? cardsByDifficulty; // Cards organized by difficulty
   final bool hasDifficultyModes; // Flag indicating this deck supports difficulty modes
@@ -116,6 +117,7 @@ class Deck {
     this.tags = const [],
     this.priority = 0,
     this.isActive = true,
+    this.premiumOnly = false,
     this.translations,
     this.cardsByDifficulty,
     this.hasDifficultyModes = false,
@@ -198,11 +200,108 @@ class Deck {
           : [],
       priority: map['priority'] as int? ?? 0,
       isActive: map['isActive'] as bool? ?? true,
+      premiumOnly: map['premiumOnly'] as bool? ?? false,
       translations: parsedTranslations,
       cardsByDifficulty: parsedCardsByDifficulty,
       hasDifficultyModes: map['hasDifficultyModes'] as bool? ?? false,
       playCount: map['playCount'] as int? ?? 0,
     );
+  }
+
+  /// Create a Deck from Supabase response (snake_case to camelCase)
+  factory Deck.fromSupabase(Map<String, dynamic> row) {
+    // Parse translations if available
+    Map<String, DeckTranslation>? parsedTranslations;
+    if (row['translations'] != null) {
+      final translationsMap = row['translations'] as Map<String, dynamic>;
+      parsedTranslations = {};
+      translationsMap.forEach((key, value) {
+        parsedTranslations![key] = DeckTranslation.fromMap(value as Map<String, dynamic>);
+      });
+    }
+
+    // Parse cardsByDifficulty if available (Supabase uses snake_case)
+    CardsByDifficulty? parsedCardsByDifficulty;
+    if (row['cards_by_difficulty'] != null) {
+      parsedCardsByDifficulty = CardsByDifficulty.fromMap(
+        row['cards_by_difficulty'] as Map<String, dynamic>,
+      );
+    }
+
+    // Parse countries array
+    List<String> parsedCountries = [];
+    if (row['countries'] != null) {
+      parsedCountries = List<String>.from(row['countries'] as List);
+    } else if (row['country'] != null) {
+      parsedCountries = [row['country'] as String];
+    }
+
+    // Parse icon from code point
+    final iconCodePoint = row['icon_code_point'] as int? ?? 0xf005;
+    final iconFontFamily = row['icon_font_family'] as String? ?? 'FontAwesomeIcons';
+    
+    // Parse color from int value
+    final colorValue = row['color_value'] as int? ?? 0xFF9C27B0;
+
+    return Deck(
+      id: row['id'] as String,
+      name: row['name'] as String,
+      description: row['description'] as String? ?? '',
+      icon: IconData(iconCodePoint, fontFamily: iconFontFamily, fontPackage: 'font_awesome_flutter'),
+      color: Color(colorValue),
+      imageUrl: row['image_url'] as String?,
+      isPremium: row['is_premium'] as bool? ?? false,
+      isCustom: false, // Supabase decks are not custom
+      cards: row['cards'] != null ? List<String>.from(row['cards'] as List) : [],
+      createdAt: row['created_at'] != null
+          ? DateTime.parse(row['created_at'] as String)
+          : DateTime.now(),
+      updatedAt: row['updated_at'] != null
+          ? DateTime.parse(row['updated_at'] as String)
+          : null,
+      country: row['country'] as String?,
+      countries: parsedCountries,
+      tags: row['tags'] != null ? List<String>.from(row['tags'] as List) : [],
+      priority: row['priority'] as int? ?? 0,
+      isActive: row['is_active'] as bool? ?? true,
+      premiumOnly: row['premium_only'] as bool? ?? false,
+      translations: parsedTranslations,
+      cardsByDifficulty: parsedCardsByDifficulty,
+      hasDifficultyModes: row['has_difficulty_modes'] as bool? ?? false,
+      playCount: row['play_count'] as int? ?? 0,
+    );
+  }
+
+  /// Convert to Supabase format (camelCase to snake_case)
+  Map<String, dynamic> toSupabase() {
+    final translationsMap = <String, dynamic>{};
+    if (translations != null) {
+      translations!.forEach((key, value) {
+        translationsMap[key] = value.toMap();
+      });
+    }
+
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'cards': cards,
+      'icon_code_point': icon.codePoint,
+      'icon_font_family': icon.fontFamily ?? 'FontAwesomeIcons',
+      'color_value': color.value,
+      'image_url': imageUrl,
+      'is_premium': isPremium,
+      'is_active': isActive,
+      'premium_only': premiumOnly,
+      'country': country,
+      'countries': countries.isNotEmpty ? countries : effectiveCountries,
+      'tags': tags,
+      'priority': priority,
+      'play_count': playCount,
+      'has_difficulty_modes': hasDifficultyModes,
+      if (cardsByDifficulty != null) 'cards_by_difficulty': cardsByDifficulty!.toMap(),
+      if (translations != null && translations!.isNotEmpty) 'translations': translationsMap,
+    };
   }
 
   Map<String, dynamic> toMap() {
@@ -231,6 +330,7 @@ class Deck {
       'tags': tags,
       'priority': priority,
       'isActive': isActive,
+      'premiumOnly': premiumOnly,
       if (translations != null && translations!.isNotEmpty) 'translations': translationsMap,
       if (cardsByDifficulty != null) 'cardsByDifficulty': cardsByDifficulty!.toMap(),
       'hasDifficultyModes': hasDifficultyModes,
@@ -255,6 +355,7 @@ class Deck {
     List<String>? tags,
     int? priority,
     bool? isActive,
+    bool? premiumOnly,
     Map<String, DeckTranslation>? translations,
     CardsByDifficulty? cardsByDifficulty,
     bool? hasDifficultyModes,
@@ -277,6 +378,7 @@ class Deck {
       tags: tags ?? this.tags,
       priority: priority ?? this.priority,
       isActive: isActive ?? this.isActive,
+      premiumOnly: premiumOnly ?? this.premiumOnly,
       translations: translations ?? this.translations,
       cardsByDifficulty: cardsByDifficulty ?? this.cardsByDifficulty,
       hasDifficultyModes: hasDifficultyModes ?? this.hasDifficultyModes,

@@ -9,7 +9,9 @@ import '../models/deck.dart';
 import '../providers/deck_provider.dart';
 import '../services/haptic_service.dart';
 import '../services/local_storage_service.dart';
+import '../services/share_service.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/responsive.dart';
 import 'deck_details_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -273,7 +275,7 @@ class _SearchScreenState extends State<SearchScreen>
                           top: 0,
                           left: 0,
                           right: 0,
-                          height: 20,
+                          height: 20.s,
                           child: Container(
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
@@ -300,8 +302,26 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildModernSearchHeader() {
+    // Responsive values based on iPhone 16 Pro Max baseline
+    final horizontalPadding = 20.s;
+    final topPadding = 16.s;
+    final bottomPadding = 20.s;
+    final backButtonSize = 44.s;
+    final backButtonRadius = 16.s;
+    final backIconSize = 20.s;
+    final spaceBetweenButtonAndField = 16.s;
+    final searchFieldRadius = 24.s;
+    final searchFieldHorizontalPadding = 16.s;
+    final searchFieldVerticalPadding = 12.s;
+    final searchFieldHeight = 24.s;
+    final searchIconSize = 20.s;
+    final searchTextSize = 16.sp;
+    final clearButtonPadding = 6.s;
+    final clearIconSize = 18.s;
+    final iconToTextSpace = 16.s;
+    
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      padding: EdgeInsets.fromLTRB(horizontalPadding, topPadding, horizontalPadding, bottomPadding),
       child: Column(
         children: [
           Row(
@@ -316,22 +336,22 @@ class _SearchScreenState extends State<SearchScreen>
                           color: Colors.transparent,
                           child: InkWell(
                             onTap: _closeSearch,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(backButtonRadius),
                             child: Container(
-                              width: 44,
-                              height: 44,
+                              width: backButtonSize,
+                              height: backButtonSize,
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(backButtonRadius),
                                 border: Border.all(
                                   color: Colors.white.withOpacity(0.05),
                                   width: 1,
                                 ),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.arrow_back_ios_new_rounded,
                                 color: Colors.white70,
-                                size: 20,
+                                size: backIconSize,
                               ),
                             ),
                           ),
@@ -348,7 +368,7 @@ class _SearchScreenState extends State<SearchScreen>
                     curve: Curves.easeOutCubic,
                   ),
 
-              const SizedBox(width: 16),
+              SizedBox(width: spaceBetweenButtonAndField),
 
               // Premium Hero search field with enhanced animations
               Expanded(
@@ -361,7 +381,7 @@ class _SearchScreenState extends State<SearchScreen>
                           width: heroSize.width,
                           height: heroSize.height,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(searchFieldRadius),
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
@@ -401,12 +421,12 @@ class _SearchScreenState extends State<SearchScreen>
                             return Material(
                               color: Colors.transparent,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16.0,
-                                  vertical: 12.0,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: searchFieldHorizontalPadding,
+                                  vertical: searchFieldVerticalPadding,
                                 ),
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(24),
+                                  borderRadius: BorderRadius.circular(searchFieldRadius),
                                   gradient: LinearGradient(
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
@@ -422,21 +442,21 @@ class _SearchScreenState extends State<SearchScreen>
                                   boxShadow: [
                                     BoxShadow(
                                       color: searchColor.withOpacity(0.2),
-                                      blurRadius: 10 + (10 * easedProgress),
-                                      offset: const Offset(0, 3),
+                                      blurRadius: 10.s + (10.s * easedProgress),
+                                      offset: Offset(0, 3.s),
                                     ),
                                     if (easedProgress > 0.3)
                                       BoxShadow(
                                         color: searchColor.withOpacity(
                                           0.15 * (easedProgress - 0.3) / 0.7,
                                         ),
-                                        blurRadius: 20,
-                                        spreadRadius: 2,
+                                        blurRadius: 20.s,
+                                        spreadRadius: 2.s,
                                       ),
                                   ],
                                 ),
                                 child: SizedBox(
-                                  height: 24,
+                                  height: searchFieldHeight,
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
@@ -452,18 +472,18 @@ class _SearchScreenState extends State<SearchScreen>
                                                 begin: Alignment.topLeft,
                                                 end: Alignment.bottomRight,
                                               ).createShader(bounds),
-                                          child: const Icon(
+                                          child: Icon(
                                             Icons.search_rounded,
                                             color: Colors.white,
-                                            size: 20,
+                                            size: searchIconSize,
                                           ),
                                         ),
                                       ),
                                       if (progress > 0.2)
                                         Flexible(
                                           child: Padding(
-                                            padding: const EdgeInsets.only(
-                                              left: 16.0,
+                                            padding: EdgeInsets.only(
+                                              left: iconToTextSpace,
                                             ),
                                             child: Opacity(
                                               opacity: (progress - 0.2) / 0.8,
@@ -472,7 +492,7 @@ class _SearchScreenState extends State<SearchScreen>
                                                 style: GoogleFonts.inter(
                                                   color: Colors.white
                                                       .withOpacity(0.4),
-                                                  fontSize: 16,
+                                                  fontSize: searchTextSize,
                                                   fontWeight: FontWeight.w400,
                                                 ),
                                                 overflow: TextOverflow.ellipsis,
@@ -500,12 +520,12 @@ class _SearchScreenState extends State<SearchScreen>
                             const searchColor = Color(0xFF9B59B6);
 
                             return Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16.0,
-                                vertical: 12.0,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: searchFieldHorizontalPadding,
+                                vertical: searchFieldVerticalPadding,
                               ),
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(24),
+                                borderRadius: BorderRadius.circular(searchFieldRadius),
                                 gradient: LinearGradient(
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
@@ -522,8 +542,8 @@ class _SearchScreenState extends State<SearchScreen>
                                   BoxShadow(
                                     color: searchColor.withOpacity(0.2),
                                     blurRadius:
-                                        10 + (10 * _heroAnimation.value),
-                                    offset: const Offset(0, 3),
+                                        10.s + (10.s * _heroAnimation.value),
+                                    offset: Offset(0, 3.s),
                                   ),
                                   if (_heroAnimation.value > 0.3)
                                     BoxShadow(
@@ -532,13 +552,13 @@ class _SearchScreenState extends State<SearchScreen>
                                             (_heroAnimation.value - 0.3) /
                                             0.7,
                                       ),
-                                      blurRadius: 20,
-                                      spreadRadius: 2,
+                                      blurRadius: 20.s,
+                                      spreadRadius: 2.s,
                                     ),
                                 ],
                               ),
                               child: SizedBox(
-                                height: 24,
+                                height: searchFieldHeight,
                                 child: Row(
                                   children: [
                                     // Match home screen icon exactly
@@ -563,17 +583,17 @@ class _SearchScreenState extends State<SearchScreen>
                                                   begin: Alignment.topLeft,
                                                   end: Alignment.bottomRight,
                                                 ).createShader(bounds),
-                                            child: const Icon(
+                                            child: Icon(
                                               Icons.search_rounded,
                                               color: Colors.white,
-                                              size: 20,
+                                              size: searchIconSize,
                                             ),
                                           ),
                                         );
                                       },
                                     ),
 
-                                    const SizedBox(width: 16),
+                                    SizedBox(width: iconToTextSpace),
 
                                     // Search field with smooth fade-in
                                     Expanded(
@@ -590,7 +610,7 @@ class _SearchScreenState extends State<SearchScreen>
                                                   TextAlignVertical.center,
                                               style: GoogleFonts.inter(
                                                 color: Colors.white,
-                                                fontSize: 16,
+                                                fontSize: searchTextSize,
                                                 fontWeight: FontWeight.w400,
                                                 letterSpacing: 0.2,
                                                 height: 1.0,
@@ -600,7 +620,7 @@ class _SearchScreenState extends State<SearchScreen>
                                                 hintStyle: GoogleFonts.inter(
                                                   color: Colors.white
                                                       .withOpacity(0.4),
-                                                  fontSize: 16,
+                                                  fontSize: searchTextSize,
                                                   fontWeight: FontWeight.w400,
                                                 ),
                                                 border: InputBorder.none,
@@ -609,7 +629,7 @@ class _SearchScreenState extends State<SearchScreen>
                                               ),
                                               cursorColor: searchColor,
                                               cursorWidth: 2,
-                                              cursorHeight: 20,
+                                              cursorHeight: 20.s,
                                               cursorRadius:
                                                   const Radius.circular(2),
                                             ),
@@ -644,15 +664,15 @@ class _SearchScreenState extends State<SearchScreen>
                                                 child: InkWell(
                                                   onTap: _clearSearch,
                                                   borderRadius:
-                                                      BorderRadius.circular(12),
+                                                      BorderRadius.circular(12.s),
                                                   child: Padding(
                                                     padding:
-                                                        const EdgeInsets.all(6),
+                                                        EdgeInsets.all(clearButtonPadding),
                                                     child: Icon(
                                                       Icons.close_rounded,
                                                       color: searchColor
                                                           .withOpacity(0.7),
-                                                      size: 18,
+                                                      size: clearIconSize,
                                                     ),
                                                   ),
                                                 ),
@@ -703,20 +723,26 @@ class _SearchScreenState extends State<SearchScreen>
     }
 
     // Modern results grid with 3 items per row
+    // Responsive values
+    final gridHorizontalPadding = 20.s;
+    final gridBottomPadding = 20.s;
+    final gridCrossAxisSpacing = 12.s;
+    final gridMainAxisSpacing = 12.s;
+    
     return AnimatedBuilder(
       animation: _animationController,
       builder: (context, child) {
         return GridView.builder(
           controller: _scrollController,
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          padding: EdgeInsets.fromLTRB(gridHorizontalPadding, 0, gridHorizontalPadding, gridBottomPadding),
           physics: const BouncingScrollPhysics(
             parent: AlwaysScrollableScrollPhysics(),
           ),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
             childAspectRatio: 0.7,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
+            crossAxisSpacing: gridCrossAxisSpacing,
+            mainAxisSpacing: gridMainAxisSpacing,
           ),
           itemCount: _filteredDecks.length,
           itemBuilder: (context, index) {
@@ -730,6 +756,30 @@ class _SearchScreenState extends State<SearchScreen>
 
   Widget _buildModernSearchSuggestions() {
     final l10n = AppLocalizations.of(context)!;
+    
+    // Responsive values based on iPhone 16 Pro Max baseline
+    final horizontalPadding = 20.s;
+    final bottomPadding = 20.s;
+    final titleFontSize = 20.sp;
+    final subtitleFontSize = 14.sp;
+    final titleToSubtitleSpace = 4.s;
+    final subtitleToPillsSpace = 24.s;
+    final pillSpacing = 12.s;
+    final pillRunSpacing = 12.s;
+    final pillHeight = 48.s;
+    final pillHorizontalPadding = 20.s;
+    final pillBorderRadius = 14.s;
+    final pillIconSize = 20.s;
+    final pillIconToTextSpace = 10.s;
+    final pillTextSize = 14.sp;
+    final sectionSpacing = 40.s;
+    final recentSearchesTitleSize = 18.sp;
+    final clearAllTextSize = 13.sp;
+    final clearAllHorizontalPadding = 12.s;
+    final clearAllVerticalPadding = 6.s;
+    final clearAllBorderRadius = 8.s;
+    final recentToItemsSpace = 16.s;
+    
     final categories = [
       {
         'icon': Icons.local_fire_department_rounded,
@@ -764,7 +814,7 @@ class _SearchScreenState extends State<SearchScreen>
     ];
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      padding: EdgeInsets.fromLTRB(horizontalPadding, 0, horizontalPadding, bottomPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -773,7 +823,7 @@ class _SearchScreenState extends State<SearchScreen>
                 AppLocalizations.of(context)!.trendingSearches,
                 style: GoogleFonts.inter(
                   color: Colors.white,
-                  fontSize: 20,
+                  fontSize: titleFontSize,
                   fontWeight: FontWeight.w600,
                   letterSpacing: -0.5,
                 ),
@@ -782,23 +832,23 @@ class _SearchScreenState extends State<SearchScreen>
               .fadeIn(delay: 200.ms, duration: 600.ms)
               .slideY(begin: 0.1, end: 0, duration: 600.ms),
 
-          const SizedBox(height: 4),
+          SizedBox(height: titleToSubtitleSpace),
 
           Text(
             AppLocalizations.of(context)!.popularCategoriesRightNow,
             style: GoogleFonts.inter(
               color: Colors.white.withOpacity(0.4),
-              fontSize: 14,
+              fontSize: subtitleFontSize,
               fontWeight: FontWeight.w400,
             ),
           ).animate().fadeIn(delay: 250.ms, duration: 600.ms),
 
-          const SizedBox(height: 24),
+          SizedBox(height: subtitleToPillsSpace),
 
           // Category pills
           Wrap(
-            spacing: 12,
-            runSpacing: 12,
+            spacing: pillSpacing,
+            runSpacing: pillRunSpacing,
             children:
                 categories.asMap().entries.map((entry) {
                   final index = entry.key;
@@ -811,13 +861,13 @@ class _SearchScreenState extends State<SearchScreen>
                             _hapticService.selection();
                             _searchController.text = category['text'] as String;
                           },
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(pillBorderRadius),
                           child: Container(
-                            height: 48,
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            height: pillHeight,
+                            padding: EdgeInsets.symmetric(horizontal: pillHorizontalPadding),
                             decoration: BoxDecoration(
                               color: _cardColor.withOpacity(0.5),
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(pillBorderRadius),
                               border: Border.all(
                                 color: Colors.white.withOpacity(0.05),
                                 width: 1,
@@ -837,15 +887,15 @@ class _SearchScreenState extends State<SearchScreen>
                                   child: Icon(
                                     category['icon'] as IconData,
                                     color: Colors.white,
-                                    size: 20,
+                                    size: pillIconSize,
                                   ),
                                 ),
-                                const SizedBox(width: 10),
+                                SizedBox(width: pillIconToTextSpace),
                                 Text(
                                   category['text'] as String,
                                   style: GoogleFonts.inter(
                                     color: Colors.white.withOpacity(0.9),
-                                    fontSize: 14,
+                                    fontSize: pillTextSize,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -866,7 +916,7 @@ class _SearchScreenState extends State<SearchScreen>
                 }).toList(),
           ),
 
-          const SizedBox(height: 40),
+          SizedBox(height: sectionSpacing),
 
           // Recent searches header with clear button
           if (_recentSearches.isNotEmpty) ...[
@@ -877,7 +927,7 @@ class _SearchScreenState extends State<SearchScreen>
                   AppLocalizations.of(context)!.recentSearches,
                   style: GoogleFonts.inter(
                     color: Colors.white,
-                    fontSize: 18,
+                    fontSize: recentSearchesTitleSize,
                     fontWeight: FontWeight.w600,
                     letterSpacing: -0.5,
                   ),
@@ -886,17 +936,17 @@ class _SearchScreenState extends State<SearchScreen>
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: _clearAllRecentSearches,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(clearAllBorderRadius),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: clearAllHorizontalPadding,
+                        vertical: clearAllVerticalPadding,
                       ),
                       child: Text(
                         AppLocalizations.of(context)!.clearAll,
                         style: GoogleFonts.inter(
                           color: _primaryAccent.withOpacity(0.8),
-                          fontSize: 13,
+                          fontSize: clearAllTextSize,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -906,7 +956,7 @@ class _SearchScreenState extends State<SearchScreen>
               ],
             ).animate().fadeIn(delay: 600.ms, duration: 600.ms),
 
-            const SizedBox(height: 16),
+            SizedBox(height: recentToItemsSpace),
 
             // Recent search items
             ..._buildRecentSearchItems(),
@@ -917,12 +967,26 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   List<Widget> _buildRecentSearchItems() {
+    // Responsive values based on iPhone 16 Pro Max baseline
+    final itemBottomMargin = 12.s;
+    final itemBorderRadius = 12.s;
+    final itemHorizontalPadding = 16.s;
+    final itemVerticalPadding = 14.s;
+    final historyIconSize = 18.s;
+    final iconToTextSpace = 12.s;
+    final searchTextSize = 15.sp;
+    final textToCloseSpace = 8.s;
+    final closeButtonPadding = 4.s;
+    final closeIconSize = 16.s;
+    final closeToArrowSpace = 4.s;
+    final arrowIconSize = 16.s;
+    
     return _recentSearches.asMap().entries.map((entry) {
       final index = entry.key;
       final search = entry.value;
 
       return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: EdgeInsets.only(bottom: itemBottomMargin),
             child: Material(
               color: Colors.transparent,
               child: InkWell(
@@ -930,14 +994,14 @@ class _SearchScreenState extends State<SearchScreen>
                   _hapticService.selection();
                   _searchController.text = search;
                 },
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(itemBorderRadius),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: itemHorizontalPadding,
+                    vertical: itemVerticalPadding,
                   ),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(itemBorderRadius),
                     border: Border.all(
                       color: Colors.white.withOpacity(0.05),
                       width: 1,
@@ -948,39 +1012,39 @@ class _SearchScreenState extends State<SearchScreen>
                       Icon(
                         Icons.history_rounded,
                         color: Colors.white.withOpacity(0.3),
-                        size: 18,
+                        size: historyIconSize,
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: iconToTextSpace),
                       Expanded(
                         child: Text(
                           search,
                           style: GoogleFonts.inter(
                             color: Colors.white.withOpacity(0.7),
-                            fontSize: 15,
+                            fontSize: searchTextSize,
                             fontWeight: FontWeight.w400,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: textToCloseSpace),
                       // Remove button
                       GestureDetector(
                         onTap: () => _removeRecentSearch(search),
                         child: Container(
-                          padding: const EdgeInsets.all(4),
+                          padding: EdgeInsets.all(closeButtonPadding),
                           child: Icon(
                             Icons.close_rounded,
                             color: Colors.white.withOpacity(0.25),
-                            size: 16,
+                            size: closeIconSize,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 4),
+                      SizedBox(width: closeToArrowSpace),
                       Icon(
                         Icons.north_east_rounded,
                         color: Colors.white.withOpacity(0.2),
-                        size: 16,
+                        size: arrowIconSize,
                       ),
                     ],
                   ),
@@ -1001,16 +1065,31 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildModernNoResults() {
+    // Responsive values based on iPhone 16 Pro Max baseline
+    final containerPadding = 40.s;
+    final outerCircleSize = 120.s;
+    final innerCircleSize = 80.s;
+    final searchOffIconSize = 40.s;
+    final circleToTitleSpace = 32.s;
+    final titleFontSize = 22.sp;
+    final titleToSubtitleSpace = 8.s;
+    final subtitleFontSize = 15.sp;
+    final subtitleToButtonSpace = 32.s;
+    final buttonBorderRadius = 12.s;
+    final buttonHorizontalPadding = 24.s;
+    final buttonVerticalPadding = 12.s;
+    final buttonTextSize = 14.sp;
+    
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(40),
+        padding: EdgeInsets.all(containerPadding),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // Modern empty state illustration
             Container(
-                  width: 120,
-                  height: 120,
+                  width: outerCircleSize,
+                  height: outerCircleSize,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
@@ -1024,8 +1103,8 @@ class _SearchScreenState extends State<SearchScreen>
                   ),
                   child: Center(
                     child: Container(
-                      width: 80,
-                      height: 80,
+                      width: innerCircleSize,
+                      height: innerCircleSize,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: LinearGradient(
@@ -1039,7 +1118,7 @@ class _SearchScreenState extends State<SearchScreen>
                       ),
                       child: Icon(
                         Icons.search_off_rounded,
-                        size: 40,
+                        size: searchOffIconSize,
                         color: _primaryAccent.withOpacity(0.5),
                       ),
                     ),
@@ -1054,13 +1133,13 @@ class _SearchScreenState extends State<SearchScreen>
                   curve: Curves.easeOutBack,
                 ),
 
-            const SizedBox(height: 32),
+            SizedBox(height: circleToTitleSpace),
 
             Text(
                   AppLocalizations.of(context)!.noResultsFound,
                   style: GoogleFonts.inter(
                     color: Colors.white,
-                    fontSize: 22,
+                    fontSize: titleFontSize,
                     fontWeight: FontWeight.w600,
                     letterSpacing: -0.5,
                   ),
@@ -1069,32 +1148,32 @@ class _SearchScreenState extends State<SearchScreen>
                 .fadeIn(delay: 300.ms, duration: 600.ms)
                 .slideY(begin: 0.1, end: 0, delay: 300.ms, duration: 600.ms),
 
-            const SizedBox(height: 8),
+            SizedBox(height: titleToSubtitleSpace),
 
             Text(
               AppLocalizations.of(context)!.tryAdjustingYourSearch,
               style: GoogleFonts.inter(
                 color: Colors.white.withOpacity(0.4),
-                fontSize: 15,
+                fontSize: subtitleFontSize,
                 fontWeight: FontWeight.w400,
               ),
             ).animate().fadeIn(delay: 400.ms, duration: 600.ms),
 
-            const SizedBox(height: 32),
+            SizedBox(height: subtitleToButtonSpace),
 
             // Suggestion button
             Material(
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: _clearSearch,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(buttonBorderRadius),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: buttonHorizontalPadding,
+                        vertical: buttonVerticalPadding,
                       ),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(buttonBorderRadius),
                         border: Border.all(
                           color: _primaryAccent.withOpacity(0.3),
                           width: 1,
@@ -1104,7 +1183,7 @@ class _SearchScreenState extends State<SearchScreen>
                         AppLocalizations.of(context)!.clearSearch,
                         style: GoogleFonts.inter(
                           color: _primaryAccent,
-                          fontSize: 14,
+                          fontSize: buttonTextSize,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1129,6 +1208,26 @@ class _SearchScreenState extends State<SearchScreen>
     final heroTag =
         'search_deck_card_${deck.id}_${DateTime.now().millisecondsSinceEpoch}_$index';
 
+    // Responsive values based on iPhone 16 Pro Max baseline
+    final cardBorderRadius = 16.s;
+    final cardInnerRadius = 15.s;
+    final cardBlurRadius = 16.s;
+    final cardShadowOffsetY = 6.s;
+    final cardShadowSpread = -4.s;
+    final fallbackIconSize = 40.s;
+    final infoBottomPadding = 12.s;
+    final infoHorizontalPadding = 12.s;
+    final deckNameSize = 14.sp;
+    final cardCountSize = 11.sp;
+    final nameToCountSpace = 4.s;
+    final lockPadding = 16.s;
+    final lockIconSize = 24.s;
+    final playButtonSize = 32.s;
+    final playButtonRadius = 8.s;
+    final playIconSize = 20.s;
+    final playButtonTop = 8.s;
+    final playButtonRight = 8.s;
+
     return Hero(
           tag: heroTag,
           createRectTween: (begin, end) {
@@ -1148,7 +1247,7 @@ class _SearchScreenState extends State<SearchScreen>
               child: Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFF2C2C2E),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(cardBorderRadius),
                   border: Border.all(
                     color: Colors.white.withOpacity(0.08),
                     width: 1,
@@ -1156,14 +1255,14 @@ class _SearchScreenState extends State<SearchScreen>
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.3),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                      spreadRadius: -4,
+                      blurRadius: cardBlurRadius,
+                      offset: Offset(0, cardShadowOffsetY),
+                      spreadRadius: cardShadowSpread,
                     ),
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(15),
+                  borderRadius: BorderRadius.circular(cardInnerRadius),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -1197,7 +1296,7 @@ class _SearchScreenState extends State<SearchScreen>
                                 child: Icon(
                                   deck.icon,
                                   color: deck.color,
-                                  size: 40,
+                                  size: fallbackIconSize,
                                 ),
                               ),
                             );
@@ -1209,7 +1308,7 @@ class _SearchScreenState extends State<SearchScreen>
                             color: deck.color.withOpacity(0.15),
                           ),
                           child: Center(
-                            child: Icon(deck.icon, color: deck.color, size: 40),
+                            child: Icon(deck.icon, color: deck.color, size: fallbackIconSize),
                           ),
                         ),
 
@@ -1230,9 +1329,9 @@ class _SearchScreenState extends State<SearchScreen>
 
                       // Deck info overlay
                       Positioned(
-                        bottom: 12,
-                        left: 12,
-                        right: 12,
+                        bottom: infoBottomPadding,
+                        left: infoHorizontalPadding,
+                        right: infoHorizontalPadding,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
@@ -1240,7 +1339,7 @@ class _SearchScreenState extends State<SearchScreen>
                             Text(
                               deck.name,
                               style: GoogleFonts.inter(
-                                fontSize: 14,
+                                fontSize: deckNameSize,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
                                 letterSpacing: -0.2,
@@ -1249,11 +1348,11 @@ class _SearchScreenState extends State<SearchScreen>
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: nameToCountSpace),
                             Text(
                               '${deck.cards.length} cards',
                               style: GoogleFonts.inter(
-                                fontSize: 11,
+                                fontSize: cardCountSize,
                                 fontWeight: FontWeight.w500,
                                 color: Colors.white.withOpacity(0.6),
                                 letterSpacing: 0.1,
@@ -1271,7 +1370,7 @@ class _SearchScreenState extends State<SearchScreen>
                           ),
                           child: Center(
                             child: Container(
-                              padding: const EdgeInsets.all(16),
+                              padding: EdgeInsets.all(lockPadding),
                               decoration: BoxDecoration(
                                 color: Colors.black.withOpacity(0.3),
                                 shape: BoxShape.circle,
@@ -1282,10 +1381,10 @@ class _SearchScreenState extends State<SearchScreen>
                                   width: 2,
                                 ),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.lock_rounded,
-                                color: Color(0xFFFFC107),
-                                size: 24,
+                                color: const Color(0xFFFFC107),
+                                size: lockIconSize,
                               ),
                             ),
                           ),
@@ -1294,19 +1393,19 @@ class _SearchScreenState extends State<SearchScreen>
                       // Play icon hint (top right)
                       if (!isPremium || isUnlocked)
                         Positioned(
-                          top: 8,
-                          right: 8,
+                          top: playButtonTop,
+                          right: playButtonRight,
                           child: Container(
-                                width: 32,
-                                height: 32,
+                                width: playButtonSize,
+                                height: playButtonSize,
                                 decoration: BoxDecoration(
                                   color: Colors.white.withOpacity(0.9),
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(playButtonRadius),
                                 ),
                                 child: Icon(
                                   Icons.play_arrow_rounded,
                                   color: deck.color,
-                                  size: 20,
+                                  size: playIconSize,
                                 ),
                               )
                               .animate(delay: (500 + index * 100).ms)
@@ -1337,14 +1436,20 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildSkeletonLoader() {
+    // Responsive values
+    final gridHorizontalPadding = 20.s;
+    final gridBottomPadding = 20.s;
+    final gridCrossAxisSpacing = 12.s;
+    final gridMainAxisSpacing = 12.s;
+    
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      padding: EdgeInsets.fromLTRB(gridHorizontalPadding, 0, gridHorizontalPadding, gridBottomPadding),
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
         childAspectRatio: 0.7,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        crossAxisSpacing: gridCrossAxisSpacing,
+        mainAxisSpacing: gridMainAxisSpacing,
       ),
       itemCount: 6,
       itemBuilder: (context, index) {
@@ -1360,14 +1465,30 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildSkeletonCard() {
+    // Responsive values based on iPhone 16 Pro Max baseline
+    final cardBorderRadius = 16.s;
+    final cardInnerRadius = 15.s;
+    final infoBottomPadding = 12.s;
+    final infoHorizontalPadding = 12.s;
+    final titleHeight = 14.s;
+    final titleRadius = 7.s;
+    final titleToSubtitleSpace = 6.s;
+    final subtitleWidth = 60.s;
+    final subtitleHeight = 10.s;
+    final subtitleRadius = 5.s;
+    final playButtonSize = 32.s;
+    final playButtonRadius = 8.s;
+    final playButtonTop = 8.s;
+    final playButtonRight = 8.s;
+    
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF2C2C2E).withOpacity(0.5),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(cardBorderRadius),
         border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(cardInnerRadius),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -1376,9 +1497,9 @@ class _SearchScreenState extends State<SearchScreen>
 
             // Skeleton text at bottom
             Positioned(
-              bottom: 12,
-              left: 12,
-              right: 12,
+              bottom: infoBottomPadding,
+              left: infoHorizontalPadding,
+              right: infoHorizontalPadding,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -1386,21 +1507,21 @@ class _SearchScreenState extends State<SearchScreen>
                   // Skeleton title
                   Container(
                     width: double.infinity,
-                    height: 14,
+                    height: titleHeight,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(7),
+                      borderRadius: BorderRadius.circular(titleRadius),
                       color: Colors.white.withOpacity(0.1),
                     ),
                   ),
 
-                  const SizedBox(height: 6),
+                  SizedBox(height: titleToSubtitleSpace),
 
                   // Skeleton subtitle
                   Container(
-                    width: 60,
-                    height: 10,
+                    width: subtitleWidth,
+                    height: subtitleHeight,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(5),
+                      borderRadius: BorderRadius.circular(subtitleRadius),
                       color: Colors.white.withOpacity(0.08),
                     ),
                   ),
@@ -1410,14 +1531,14 @@ class _SearchScreenState extends State<SearchScreen>
 
             // Skeleton play icon at top right
             Positioned(
-              top: 8,
-              right: 8,
+              top: playButtonTop,
+              right: playButtonRight,
               child: Container(
-                width: 32,
-                height: 32,
+                width: playButtonSize,
+                height: playButtonSize,
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(playButtonRadius),
                 ),
               ),
             ),
@@ -1451,6 +1572,21 @@ class _SearchScreenState extends State<SearchScreen>
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
     final isFavorite = deckProvider.favoriteDecks.contains(deck.id);
 
+    // Responsive values based on iPhone 16 Pro Max baseline
+    final sheetBorderRadius = 32.s;
+    final handleMarginTop = 14.s;
+    final handleMarginBottom = 6.s;
+    final handleWidth = 42.s;
+    final handleHeight = 5.s;
+    final handleRadius = 2.5.s;
+    final handleToPreviewSpace = 12.s;
+    final previewToSeparatorSpace = 20.s;
+    final separatorHorizontalMargin = 24.s;
+    final separatorToButtonsSpace = 20.s;
+    final buttonsHorizontalPadding = 20.s;
+    final buttonSpacing = 10.s;
+    final bottomPadding = 28.s;
+
     return Container(
           decoration: BoxDecoration(
             gradient: const LinearGradient(
@@ -1458,14 +1594,14 @@ class _SearchScreenState extends State<SearchScreen>
               end: Alignment.bottomRight,
               colors: [Color(0xFF1A1A1C), Color(0xFF141416)],
             ),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(sheetBorderRadius)),
             border: Border.all(color: Colors.white.withOpacity(0.06), width: 1),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.7),
-                blurRadius: 40,
+                blurRadius: 40.s,
                 spreadRadius: 0,
-                offset: const Offset(0, -8),
+                offset: Offset(0, -8.s),
               ),
             ],
           ),
@@ -1476,9 +1612,9 @@ class _SearchScreenState extends State<SearchScreen>
               children: [
                 // Elegant drag handle with pulsing animation
                 Container(
-                      margin: const EdgeInsets.only(top: 14, bottom: 6),
-                      width: 42,
-                      height: 5,
+                      margin: EdgeInsets.only(top: handleMarginTop, bottom: handleMarginBottom),
+                      width: handleWidth,
+                      height: handleHeight,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
@@ -1487,11 +1623,11 @@ class _SearchScreenState extends State<SearchScreen>
                             Colors.white.withOpacity(0.15),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(2.5),
+                        borderRadius: BorderRadius.circular(handleRadius),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.white.withOpacity(0.1),
-                            blurRadius: 8,
+                            blurRadius: 8.s,
                             spreadRadius: 0,
                           ),
                         ],
@@ -1512,17 +1648,17 @@ class _SearchScreenState extends State<SearchScreen>
                       curve: Curves.easeOutBack,
                     ),
 
-                const SizedBox(height: 12),
+                SizedBox(height: handleToPreviewSpace),
 
                 // Premium deck preview
                 _buildPremiumDeckPreview(deck),
 
-                const SizedBox(height: 20),
+                SizedBox(height: previewToSeparatorSpace),
 
                 // Elegant separator with gradient
                 Container(
                       height: 0.5,
-                      margin: const EdgeInsets.symmetric(horizontal: 24),
+                      margin: EdgeInsets.symmetric(horizontal: separatorHorizontalMargin),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
@@ -1540,11 +1676,11 @@ class _SearchScreenState extends State<SearchScreen>
                     .fadeIn(delay: 150.ms, duration: 500.ms)
                     .scale(begin: const Offset(0.8, 1), duration: 500.ms),
 
-                const SizedBox(height: 20),
+                SizedBox(height: separatorToButtonsSpace),
 
                 // Premium action buttons
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: EdgeInsets.symmetric(horizontal: buttonsHorizontalPadding),
                   child: Column(
                     children: [
                       _buildPremiumActionButton(
@@ -1564,7 +1700,7 @@ class _SearchScreenState extends State<SearchScreen>
                         onTap: () => _toggleFavorite(deck),
                         index: 0,
                       ),
-                      const SizedBox(height: 10),
+                      SizedBox(height: buttonSpacing),
                       _buildPremiumActionButton(
                         icon: Icons.ios_share_rounded,
                         label: 'Share Deck',
@@ -1573,7 +1709,7 @@ class _SearchScreenState extends State<SearchScreen>
                         onTap: () => _shareDeck(deck),
                         index: 1,
                       ),
-                      const SizedBox(height: 10),
+                      SizedBox(height: buttonSpacing),
                       _buildPremiumActionButton(
                         icon: Icons.info_outline_rounded,
                         label: 'View Details',
@@ -1587,7 +1723,7 @@ class _SearchScreenState extends State<SearchScreen>
                         },
                         index: 2,
                       ),
-                      const SizedBox(height: 10),
+                      SizedBox(height: buttonSpacing),
                       _buildPremiumActionButton(
                         icon: Icons.shuffle_rounded,
                         label: 'Shuffle & Play',
@@ -1600,7 +1736,7 @@ class _SearchScreenState extends State<SearchScreen>
                   ),
                 ),
 
-                const SizedBox(height: 28),
+                SizedBox(height: bottomPadding),
               ],
             ),
           ),
@@ -1616,10 +1752,31 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildPremiumDeckPreview(Deck deck) {
+    // Responsive values based on iPhone 16 Pro Max baseline
+    final horizontalPadding = 24.s;
+    final containerPadding = 18.s;
+    final containerRadius = 24.s;
+    final thumbnailSize = 72.s;
+    final thumbnailRadius = 16.s;
+    final thumbnailInnerRadius = 15.s;
+    final fallbackIconSize = 32.s;
+    final thumbnailToInfoSpace = 18.s;
+    final deckNameSize = 17.sp;
+    final nameToTagsSpace = 6.s;
+    final tagHorizontalPadding = 8.s;
+    final tagVerticalPadding = 4.s;
+    final tagBorderRadius = 6.s;
+    final tagIconSize = 12.s;
+    final tagIconToTextSpace = 4.s;
+    final tagTextSize = 12.sp;
+    final tagsSpacing = 8.s;
+    final proTextSize = 10.sp;
+    final proIconToTextSpace = 3.s;
+    
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
       child: Container(
-            padding: const EdgeInsets.all(18),
+            padding: EdgeInsets.all(containerPadding),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
@@ -1629,7 +1786,7 @@ class _SearchScreenState extends State<SearchScreen>
                   Colors.white.withOpacity(0.01),
                 ],
               ),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(containerRadius),
               border: Border.all(
                 color: Colors.white.withOpacity(0.06),
                 width: 1,
@@ -1637,9 +1794,9 @@ class _SearchScreenState extends State<SearchScreen>
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.2),
-                  blurRadius: 20,
-                  spreadRadius: -5,
-                  offset: const Offset(0, 10),
+                  blurRadius: 20.s,
+                  spreadRadius: -5.s,
+                  offset: Offset(0, 10.s),
                 ),
               ],
             ),
@@ -1647,8 +1804,8 @@ class _SearchScreenState extends State<SearchScreen>
               children: [
                 // Premium deck thumbnail with glow
                 Container(
-                      width: 72,
-                      height: 72,
+                      width: thumbnailSize,
+                      height: thumbnailSize,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
@@ -1658,7 +1815,7 @@ class _SearchScreenState extends State<SearchScreen>
                             deck.color.withOpacity(0.1),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(thumbnailRadius),
                         border: Border.all(
                           color: deck.color.withOpacity(0.3),
                           width: 1.5,
@@ -1666,7 +1823,7 @@ class _SearchScreenState extends State<SearchScreen>
                         boxShadow: [
                           BoxShadow(
                             color: deck.color.withOpacity(0.3),
-                            blurRadius: 15,
+                            blurRadius: 15.s,
                             spreadRadius: 0,
                           ),
                         ],
@@ -1674,7 +1831,7 @@ class _SearchScreenState extends State<SearchScreen>
                       child:
                           deck.imageUrl != null && deck.imageUrl!.isNotEmpty
                               ? ClipRRect(
-                                borderRadius: BorderRadius.circular(15),
+                                borderRadius: BorderRadius.circular(thumbnailInnerRadius),
                                 child: CachedNetworkImage(
                                   imageUrl: deck.imageUrl!,
                                   fit: BoxFit.cover,
@@ -1697,7 +1854,7 @@ class _SearchScreenState extends State<SearchScreen>
                                       child: Icon(
                                         deck.icon,
                                         color: deck.color,
-                                        size: 32,
+                                        size: fallbackIconSize,
                                       ),
                                     );
                                   },
@@ -1707,7 +1864,7 @@ class _SearchScreenState extends State<SearchScreen>
                                 child: Icon(
                                   deck.icon,
                                   color: deck.color,
-                                  size: 32,
+                                  size: fallbackIconSize,
                                 ),
                               ),
                     )
@@ -1724,7 +1881,7 @@ class _SearchScreenState extends State<SearchScreen>
                       color: Colors.white.withOpacity(0.1),
                     ),
 
-                const SizedBox(width: 18),
+                SizedBox(width: thumbnailToInfoSpace),
 
                 // Deck information with elegant typography
                 Expanded(
@@ -1735,7 +1892,7 @@ class _SearchScreenState extends State<SearchScreen>
                           Text(
                             deck.name,
                             style: GoogleFonts.inter(
-                              fontSize: 17,
+                              fontSize: deckNameSize,
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
                               letterSpacing: -0.5,
@@ -1744,19 +1901,19 @@ class _SearchScreenState extends State<SearchScreen>
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 6),
+                          SizedBox(height: nameToTagsSpace),
 
                           // Card count and badges
                           Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: tagHorizontalPadding,
+                                  vertical: tagVerticalPadding,
                                 ),
                                 decoration: BoxDecoration(
                                   color: Colors.white.withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.circular(tagBorderRadius),
                                   border: Border.all(
                                     color: Colors.white.withOpacity(0.1),
                                     width: 0.5,
@@ -1767,14 +1924,14 @@ class _SearchScreenState extends State<SearchScreen>
                                   children: [
                                     Icon(
                                       Icons.layers_rounded,
-                                      size: 12,
+                                      size: tagIconSize,
                                       color: Colors.white.withOpacity(0.6),
                                     ),
-                                    const SizedBox(width: 4),
+                                    SizedBox(width: tagIconToTextSpace),
                                     Text(
                                       '${deck.cards.length}',
                                       style: GoogleFonts.inter(
-                                        fontSize: 12,
+                                        fontSize: tagTextSize,
                                         fontWeight: FontWeight.w600,
                                         color: Colors.white.withOpacity(0.7),
                                         letterSpacing: 0.2,
@@ -1784,11 +1941,11 @@ class _SearchScreenState extends State<SearchScreen>
                                 ),
                               ),
                               if (deck.isPremium) ...[
-                                const SizedBox(width: 8),
+                                SizedBox(width: tagsSpacing),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: tagHorizontalPadding,
+                                    vertical: tagVerticalPadding,
                                   ),
                                   decoration: BoxDecoration(
                                     gradient: const LinearGradient(
@@ -1797,13 +1954,13 @@ class _SearchScreenState extends State<SearchScreen>
                                         Color(0xFFFFA500),
                                       ],
                                     ),
-                                    borderRadius: BorderRadius.circular(6),
+                                    borderRadius: BorderRadius.circular(tagBorderRadius),
                                     boxShadow: [
                                       BoxShadow(
                                         color: const Color(
                                           0xFFFFA500,
                                         ).withOpacity(0.3),
-                                        blurRadius: 8,
+                                        blurRadius: 8.s,
                                         spreadRadius: 0,
                                       ),
                                     ],
@@ -1811,16 +1968,16 @@ class _SearchScreenState extends State<SearchScreen>
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(
+                                      Icon(
                                         Icons.workspace_premium_rounded,
-                                        size: 12,
+                                        size: tagIconSize,
                                         color: Colors.black87,
                                       ),
-                                      const SizedBox(width: 3),
+                                      SizedBox(width: proIconToTextSpace),
                                       Text(
                                         'PRO',
                                         style: GoogleFonts.inter(
-                                          fontSize: 10,
+                                          fontSize: proTextSize,
                                           fontWeight: FontWeight.w800,
                                           color: Colors.black87,
                                           letterSpacing: 0.8,
@@ -1863,6 +2020,19 @@ class _SearchScreenState extends State<SearchScreen>
     required VoidCallback onTap,
     required int index,
   }) {
+    // Responsive values based on iPhone 16 Pro Max baseline
+    final buttonBorderRadius = 18.s;
+    final buttonHorizontalPadding = 18.s;
+    final buttonVerticalPadding = 18.s;
+    final iconContainerSize = 50.s;
+    final iconContainerRadius = 14.s;
+    final iconSize = 24.s;
+    final iconToTextSpace = 16.s;
+    final labelFontSize = 15.sp;
+    final labelToSubtitleSpace = 2.s;
+    final subtitleFontSize = 12.sp;
+    final chevronSize = 20.s;
+    
     return Material(
           color: Colors.transparent,
           child: InkWell(
@@ -1870,11 +2040,11 @@ class _SearchScreenState extends State<SearchScreen>
               _hapticService.mediumImpact();
               onTap();
             },
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(buttonBorderRadius),
             splashColor: gradient[0].withOpacity(0.1),
             highlightColor: gradient[0].withOpacity(0.05),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+              padding: EdgeInsets.symmetric(horizontal: buttonHorizontalPadding, vertical: buttonVerticalPadding),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
@@ -1884,7 +2054,7 @@ class _SearchScreenState extends State<SearchScreen>
                     Colors.white.withOpacity(0.01),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(buttonBorderRadius),
                 border: Border.all(
                   color: Colors.white.withOpacity(0.06),
                   width: 1,
@@ -1892,9 +2062,9 @@ class _SearchScreenState extends State<SearchScreen>
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.15),
-                    blurRadius: 12,
-                    spreadRadius: -3,
-                    offset: const Offset(0, 6),
+                    blurRadius: 12.s,
+                    spreadRadius: -3.s,
+                    offset: Offset(0, 6.s),
                   ),
                 ],
               ),
@@ -1902,8 +2072,8 @@ class _SearchScreenState extends State<SearchScreen>
                 children: [
                   // Premium icon with gradient glow
                   Container(
-                    width: 50,
-                    height: 50,
+                    width: iconContainerSize,
+                    height: iconContainerSize,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
@@ -1913,7 +2083,7 @@ class _SearchScreenState extends State<SearchScreen>
                           gradient[1].withOpacity(0.12),
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(iconContainerRadius),
                       border: Border.all(
                         color: gradient[0].withOpacity(0.25),
                         width: 1.2,
@@ -1921,7 +2091,7 @@ class _SearchScreenState extends State<SearchScreen>
                       boxShadow: [
                         BoxShadow(
                           color: gradient[0].withOpacity(0.25),
-                          blurRadius: 12,
+                          blurRadius: 12.s,
                           spreadRadius: 0,
                         ),
                       ],
@@ -1934,12 +2104,12 @@ class _SearchScreenState extends State<SearchScreen>
                               end: Alignment.bottomRight,
                               colors: gradient,
                             ).createShader(bounds),
-                        child: Icon(icon, color: Colors.white, size: 24),
+                        child: Icon(icon, color: Colors.white, size: iconSize),
                       ),
                     ),
                   ),
 
-                  const SizedBox(width: 16),
+                  SizedBox(width: iconToTextSpace),
 
                   // Label and subtitle with elegant typography
                   Expanded(
@@ -1949,18 +2119,18 @@ class _SearchScreenState extends State<SearchScreen>
                         Text(
                           label,
                           style: GoogleFonts.inter(
-                            fontSize: 15,
+                            fontSize: labelFontSize,
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
                             letterSpacing: -0.3,
                             height: 1.3,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: labelToSubtitleSpace),
                         Text(
                           subtitle,
                           style: GoogleFonts.inter(
-                            fontSize: 12,
+                            fontSize: subtitleFontSize,
                             fontWeight: FontWeight.w500,
                             color: Colors.white.withOpacity(0.45),
                             letterSpacing: 0.1,
@@ -1974,7 +2144,7 @@ class _SearchScreenState extends State<SearchScreen>
                   // Subtle chevron
                   Icon(
                     Icons.chevron_right_rounded,
-                    size: 20,
+                    size: chevronSize,
                     color: Colors.white.withOpacity(0.25),
                   ),
                 ],
@@ -2023,11 +2193,8 @@ class _SearchScreenState extends State<SearchScreen>
     Navigator.pop(context);
     _hapticService.lightImpact();
 
-    // Show share sheet
     Future.delayed(const Duration(milliseconds: 200), () {
-      _showSuccessToast('Share feature coming soon! 📤');
-      // TODO: Implement actual share functionality
-      // Share.share('Check out this deck: ${deck.name}');
+      ShareService().shareDeck(deck, context);
     });
   }
 
@@ -2043,39 +2210,51 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   void _showSuccessToast(String message) {
+    // Responsive values based on iPhone 16 Pro Max baseline
+    final contentVerticalPadding = 8.s;
+    final contentHorizontalPadding = 4.s;
+    final iconContainerPadding = 8.s;
+    final iconContainerRadius = 10.s;
+    final checkIconSize = 20.s;
+    final iconToTextSpace = 14.s;
+    final messageFontSize = 14.sp;
+    final snackBarRadius = 16.s;
+    final snackBarHorizontalMargin = 20.s;
+    final snackBarBottomMargin = 90.s;
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          padding: EdgeInsets.symmetric(vertical: contentVerticalPadding, horizontal: contentHorizontalPadding),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(iconContainerPadding),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF00D9B1), Color(0xFF00A88E)],
                   ),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(iconContainerRadius),
                   boxShadow: [
                     BoxShadow(
                       color: const Color(0xFF00D9B1).withOpacity(0.3),
-                      blurRadius: 8,
+                      blurRadius: 8.s,
                       spreadRadius: 0,
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.check_rounded,
                   color: Colors.white,
-                  size: 20,
+                  size: checkIconSize,
                 ),
               ),
-              const SizedBox(width: 14),
+              SizedBox(width: iconToTextSpace),
               Expanded(
                 child: Text(
                   message,
                   style: GoogleFonts.inter(
-                    fontSize: 14,
+                    fontSize: messageFontSize,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
                     letterSpacing: -0.2,
@@ -2088,10 +2267,10 @@ class _SearchScreenState extends State<SearchScreen>
         backgroundColor: const Color(0xFF1A1A1C),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(snackBarRadius),
           side: BorderSide(color: Colors.white.withOpacity(0.08), width: 1),
         ),
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 90),
+        margin: EdgeInsets.fromLTRB(snackBarHorizontalMargin, 0, snackBarHorizontalMargin, snackBarBottomMargin),
         duration: const Duration(milliseconds: 2500),
         elevation: 0,
       ),

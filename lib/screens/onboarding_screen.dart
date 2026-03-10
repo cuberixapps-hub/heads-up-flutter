@@ -104,9 +104,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     await prefs.setBool('has_seen_onboarding', true);
 
     if (mounted) {
+      final hasSetPreferences = prefs.getBool('has_set_preferences') ?? false;
       final hasAskedNotifications = prefs.getBool('has_asked_notification_permission') ?? false;
       
-      if (!hasAskedNotifications) {
+      if (!hasSetPreferences) {
+        // Navigate to preference selection first
+        context.go('/preference-selection');
+      } else if (!hasAskedNotifications) {
         context.go('/notification-permission');
       } else {
         context.go('/home');
@@ -182,12 +186,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       children: [
         // Ambient glow - top
                   Positioned(
-          top: -150,
-          left: -100,
+          top: -150.s,
+          left: -100.s,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 800),
-            width: 400,
-            height: 400,
+            width: 400.s,
+            height: 400.s,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
               gradient: RadialGradient(
@@ -202,12 +206,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         ),
         // Ambient glow - bottom right
                   Positioned(
-          bottom: -100,
-          right: -100,
+          bottom: -100.s,
+          right: -100.s,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 800),
-            width: 350,
-            height: 350,
+            width: 350.s,
+            height: 350.s,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
               gradient: RadialGradient(
@@ -250,10 +254,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 padding: EdgeInsets.symmetric(horizontal: 16.s, vertical: 10.s),
                               decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(24.s),
                   border: Border.all(
                     color: Colors.white.withOpacity(0.08),
-                    width: 1,
+                    width: 1.s,
                   ),
                 ),
                 child: Row(
@@ -264,11 +268,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     return AnimatedContainer(
                       duration: const Duration(milliseconds: 400),
                       curve: Curves.easeOutCubic,
-                      margin: EdgeInsets.only(right: index < _pages.length - 1 ? 8 : 0),
-                      width: isActive ? 28 : 10,
-                      height: 10,
+                      margin: EdgeInsets.only(right: index < _pages.length - 1 ? 8.s : 0),
+                      width: isActive ? 28.s : 10.s,
+                      height: 10.s,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(5),
+                        borderRadius: BorderRadius.circular(5.s),
                         gradient: isActive
                             ? LinearGradient(
                                 colors: [
@@ -286,8 +290,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             ? [
                                 BoxShadow(
                                   color: _pages[_currentPage].accentColor.withOpacity(0.5),
-                                  blurRadius: 12,
-                                  spreadRadius: 2,
+                                  blurRadius: 12.s,
+                                  spreadRadius: 2.s,
                                 ),
                               ]
                             : null,
@@ -306,15 +310,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: _completeOnboarding,
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(24.s),
                     child: Container(
                       padding: EdgeInsets.symmetric(horizontal: 20.s, vertical: 10.s),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(24.s),
                         border: Border.all(
                           color: Colors.white.withOpacity(0.1),
-                          width: 1,
+                          width: 1.s,
                         ),
                       ),
                       child: Row(
@@ -382,10 +386,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             page.secondaryColor.withOpacity(0.1),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(30),
+                        borderRadius: BorderRadius.circular(30.s),
                         border: Border.all(
                           color: page.accentColor.withOpacity(0.3),
-                          width: 1.5,
+                          width: 1.5.s,
                         ),
                       ),
                       child: Text(
@@ -523,13 +527,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     ),
                     border: Border.all(
                       color: page.accentColor.withOpacity(0.5),
-                      width: 2,
+                      width: 2.s,
                     ),
                     boxShadow: [
                       BoxShadow(
                         color: page.accentColor.withOpacity(0.4),
-                        blurRadius: 50,
-                        spreadRadius: 5,
+                        blurRadius: 50.s,
+                        spreadRadius: 5.s,
                       ),
                     ],
                   ),
@@ -615,12 +619,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           shape: BoxShape.circle,
           border: Border.all(
             color: color.withOpacity(0.4),
-            width: 1.5,
+            width: 1.5.s,
           ),
           boxShadow: [
             BoxShadow(
               color: color.withOpacity(0.25),
-              blurRadius: 15,
+              blurRadius: 15.s,
                               ),
                           ],
                         ),
@@ -683,7 +687,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     ),
                     border: Border.all(
                       color: Colors.white.withOpacity(0.2),
-                      width: 2,
+                      width: 2.s,
                     ),
                   ),
                   child: Center(
@@ -707,16 +711,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             end: Alignment.bottomRight,
                             colors: [page.accentColor, page.secondaryColor],
                           ),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(14.s),
                           border: Border.all(
                             color: Colors.white.withOpacity(0.4),
-                            width: 2.5,
+                            width: 2.5.s,
                           ),
                           boxShadow: [
                             BoxShadow(
                               color: page.accentColor.withOpacity(0.5),
-                              blurRadius: 25,
-                              spreadRadius: 3,
+                              blurRadius: 25.s,
+                              spreadRadius: 3.s,
                             ),
                           ],
                         ),
@@ -726,7 +730,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             height: 28.s,
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(8.s),
                             ),
                             child: Center(
                               child: Text(
@@ -774,15 +778,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           padding: EdgeInsets.symmetric(horizontal: 14.s, vertical: 8.s),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(20.s),
             border: Border.all(
               color: page.accentColor.withOpacity(0.3),
-              width: 1.5,
+              width: 1.5.s,
             ),
             boxShadow: [
               BoxShadow(
                 color: page.accentColor.withOpacity(0.15),
-                blurRadius: 10,
+                blurRadius: 10.s,
               ),
             ],
           ),
@@ -852,20 +856,20 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           const Color(0xFF1C1C1E),
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(18.s),
                       border: Border.all(
                         color: Colors.white.withOpacity(0.25),
-                        width: 3,
+                        width: 3.s,
                       ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.6),
-                          blurRadius: 30,
-                          offset: const Offset(0, 12),
+                          blurRadius: 30.s,
+                          offset: Offset(0, 12.s),
                         ),
                         BoxShadow(
                           color: page.accentColor.withOpacity(0.2),
-                          blurRadius: 20,
+                          blurRadius: 20.s,
                         ),
                       ],
                     ),
@@ -921,15 +925,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           padding: EdgeInsets.symmetric(horizontal: 16.s, vertical: 10.s),
           decoration: BoxDecoration(
             color: color.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(25),
+            borderRadius: BorderRadius.circular(25.s),
             border: Border.all(
               color: color.withOpacity(0.4),
-              width: 1.5,
+              width: 1.5.s,
             ),
             boxShadow: [
               BoxShadow(
                 color: color.withOpacity(0.2),
-                blurRadius: 12,
+                blurRadius: 12.s,
               ),
             ],
           ),
@@ -998,7 +1002,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: page.accentColor.withOpacity(0.25),
-                        width: 2,
+                        width: 2.s,
                       ),
                     ),
                   ),
@@ -1036,8 +1040,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       boxShadow: [
                         BoxShadow(
                           color: page.accentColor.withOpacity(0.5),
-                          blurRadius: 45,
-                          spreadRadius: 8,
+                          blurRadius: 45.s,
+                          spreadRadius: 8.s,
                         ),
                       ],
                     ),
@@ -1093,12 +1097,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: page.accentColor.withOpacity(0.4),
-                  width: 1.5,
+                  width: 1.5.s,
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: page.accentColor.withOpacity(0.25),
-                    blurRadius: 15,
+                    blurRadius: 15.s,
                   ),
                 ],
               ),
@@ -1156,15 +1160,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               );
               _hapticService.lightImpact();
             },
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(18.s),
             child: Container(
               height: 58.s,
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(18.s),
                 border: Border.all(
                   color: Colors.white.withOpacity(0.1),
-                  width: 1.5,
+                  width: 1.5.s,
                 ),
               ),
             child: Row(
@@ -1206,20 +1210,20 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               );
               _hapticService.lightImpact();
             },
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(18.s),
           child: Container(
               height: 58.s,
             decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [page.accentColor, page.secondaryColor],
                 ),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(18.s),
               boxShadow: [
                 BoxShadow(
                     color: page.accentColor.withOpacity(0.4),
-                    blurRadius: 24,
-                  offset: const Offset(0, 8),
-                    spreadRadius: -4,
+                    blurRadius: 24.s,
+                  offset: Offset(0, 8.s),
+                    spreadRadius: -4.s,
                 ),
               ],
             ),
@@ -1271,7 +1275,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               _completeOnboarding();
               _hapticService.mediumImpact();
             },
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(22.s),
           child: Container(
             width: double.infinity,
               height: 68.s,
@@ -1281,13 +1285,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   end: Alignment.bottomRight,
                   colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
                 ),
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(22.s),
               boxShadow: [
                 BoxShadow(
                     color: const Color(0xFFFFD700).withOpacity(0.4),
-                    blurRadius: 30,
-                  offset: const Offset(0, 12),
-                  spreadRadius: -4,
+                    blurRadius: 30.s,
+                  offset: Offset(0, 12.s),
+                  spreadRadius: -4.s,
                 ),
               ],
             ),

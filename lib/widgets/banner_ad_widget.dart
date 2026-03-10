@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../services/ad_service.dart';
+import '../services/purchases_service.dart';
 import '../constants/app_theme.dart';
 
 /// A reusable banner ad widget that displays Google AdMob banner ads
@@ -29,14 +30,13 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   @override
   void initState() {
     super.initState();
-    // Only load banner ad if AdMob SDK is initialized
+    if (PurchasesService().isPremium) return;
+
     if (AdService.isInitialized) {
-      // Wait for the first frame to get context
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _loadBannerAd();
       });
     } else {
-      // Try again after a delay
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted && AdService.isInitialized) {
           _loadBannerAd();
@@ -127,11 +127,14 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   Widget build(BuildContext context) {
+    if (PurchasesService().isPremium) {
+      return const SizedBox.shrink();
+    }
+
     if (!_isBannerAdReady || _bannerAd == null || _adSize == null) {
-      // Return a placeholder with the expected height to prevent layout jumps
       return Container(
         width: double.infinity,
-        height: 60, // Approximate height for adaptive banners
+        height: 60,
         color: Colors.transparent,
       );
     }
@@ -175,10 +178,11 @@ class BottomBannerAd extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shouldShowAd = showAd && !PurchasesService().isPremium;
     return Column(
       children: [
         Expanded(child: child),
-        if (showAd)
+        if (shouldShowAd)
           BannerAdWidget(
             widgetKey: widgetKey,
             backgroundColor: AppTheme.backgroundColor,
@@ -222,13 +226,14 @@ class ScreenWithBannerAd extends StatelessWidget {
       body: Column(
         children: [
           Expanded(child: body),
-          SizedBox(
-            width: double.infinity, // Ensure full width
-            child: BannerAdWidget(
-              widgetKey: '${screenName}_banner',
-              padding: bannerPadding,
+          if (!PurchasesService().isPremium)
+            SizedBox(
+              width: double.infinity,
+              child: BannerAdWidget(
+                widgetKey: '${screenName}_banner',
+                padding: bannerPadding,
+              ),
             ),
-          ),
         ],
       ),
       bottomNavigationBar: bottomNavigationBar,

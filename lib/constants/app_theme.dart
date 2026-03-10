@@ -172,7 +172,9 @@ class AppTheme {
         foregroundColor: Colors.white,
         elevation: 0,
         padding: EdgeInsets.symmetric(horizontal: 24.s, vertical: 14.s),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.s)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.s),
+        ),
         textStyle: GoogleFonts.poppins(
           fontSize: 16.sp,
           fontWeight: FontWeight.w600,
@@ -187,7 +189,9 @@ class AppTheme {
         foregroundColor: primaryColor,
         side: BorderSide(color: primaryColor, width: 2.s),
         padding: EdgeInsets.symmetric(horizontal: 24.s, vertical: 14.s),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.s)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.s),
+        ),
         textStyle: GoogleFonts.poppins(
           fontSize: 16.sp,
           fontWeight: FontWeight.w600,

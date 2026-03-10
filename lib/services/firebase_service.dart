@@ -6,6 +6,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
+import '../config/environment.dart';
 import '../firebase_options.dart';
 import 'version_service.dart';
 
@@ -21,6 +22,7 @@ class FirebaseService {
   late FirebaseRemoteConfig _remoteConfig;
 
   static bool _initialized = false;
+  static bool _remoteConfigReady = false;
 
   // Remote Config Keys
   static const String _useProductionAdsKey = 'use_production_ads';
@@ -39,6 +41,8 @@ class FirebaseService {
     if (_initialized) return;
 
     try {
+      // Firebase.initializeApp is already called in main.dart (for early Crashlytics),
+      // but this is safe to call again — it returns the existing instance.
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
@@ -55,11 +59,7 @@ class FirebaseService {
         cacheSizeBytes: 100 * 1024 * 1024, // 100MB cache limit (was unlimited)
       );
 
-      // Configure Crashlytics (don't await - non-blocking)
-      if (!kDebugMode) {
-        _crashlytics.setCrashlyticsCollectionEnabled(true);
-        FlutterError.onError = _crashlytics.recordFlutterError;
-      }
+      // Crashlytics error handlers are configured in main.dart before runApp()
 
       _initialized = true;
       debugPrint('✅ Firebase core initialized successfully');
@@ -196,9 +196,10 @@ class FirebaseService {
 
   // Update user last seen
   Future<void> updateUserLastSeen() async {
-    if (currentUser != null) {
+    final user = _auth.currentUser;
+    if (user != null) {
       try {
-        await _firestore.collection('users').doc(currentUser!.uid).update({
+        await _firestore.collection('users').doc(user.uid).update({
           'lastSeen': FieldValue.serverTimestamp(),
         });
       } catch (e) {
@@ -209,9 +210,10 @@ class FirebaseService {
 
   // Save FCM token to user profile
   Future<void> saveFCMToken(String token) async {
-    if (currentUser != null) {
+    final user = _auth.currentUser;
+    if (user != null) {
       try {
-        await _firestore.collection('users').doc(currentUser!.uid).update({
+        await _firestore.collection('users').doc(user.uid).update({
           'fcmToken': token,
           'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
           'platform': _getPlatform(),
@@ -221,7 +223,7 @@ class FirebaseService {
         debugPrint('Error saving FCM token: $e');
         // Try to create the field if it doesn't exist
         try {
-          await _firestore.collection('users').doc(currentUser!.uid).set({
+          await _firestore.collection('users').doc(user.uid).set({
             'fcmToken': token,
             'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
             'platform': _getPlatform(),
@@ -338,11 +340,11 @@ class FirebaseService {
       // Set config settings with SHORT fetch timeout to avoid blocking
       await _remoteConfig.setConfigSettings(
         RemoteConfigSettings(
-          fetchTimeout: const Duration(seconds: 5), // Reduced from 1 minute
+          fetchTimeout: const Duration(seconds: 5),
           minimumFetchInterval:
-              kDebugMode
-                  ? const Duration(hours: 1) // 1 hour in debug (was 5 min)
-                  : const Duration(hours: 24), // 24 hours in production (was 12)
+              EnvironmentConfig.enableDebugLogging
+                  ? const Duration(hours: 1)
+                  : const Duration(hours: 24),
         ),
       );
 
@@ -379,6 +381,7 @@ class FirebaseService {
         );
       });
 
+      _remoteConfigReady = true;
       debugPrint('🎛️ Remote Config initialized successfully');
     } catch (e) {
       debugPrint('⚠️ Remote Config initialization failed: $e');
@@ -386,24 +389,55 @@ class FirebaseService {
     }
   }
 
-  // Check if production ads should be used based on Remote Config
+  /// Ensures Firebase is initialized and Remote Config has been fetched.
+  /// Safe to call multiple times — returns immediately if already ready.
+  /// Fails open: on any error or timeout, returns without throwing so the
+  /// caller can proceed with default/cached values.
+  Future<void> ensureRemoteConfigReady() async {
+    if (_remoteConfigReady) return;
+
+    try {
+      if (!_initialized) {
+        await initialize();
+      }
+
+      final rc = FirebaseRemoteConfig.instance;
+
+      await rc.setDefaults({
+        _useProductionAdsKey: false,
+        ...VersionService.getRemoteConfigDefaults(),
+      });
+
+      await rc.setConfigSettings(
+        RemoteConfigSettings(
+          fetchTimeout: const Duration(seconds: 5),
+          minimumFetchInterval:
+              EnvironmentConfig.enableDebugLogging
+                  ? const Duration(hours: 1)
+                  : const Duration(hours: 24),
+        ),
+      );
+
+      await rc.fetchAndActivate().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          debugPrint('📦 ensureRemoteConfigReady: fetch timeout, using cached values');
+          return false;
+        },
+      );
+
+      _remoteConfigReady = true;
+      debugPrint('✅ ensureRemoteConfigReady: Remote Config is ready');
+    } catch (e) {
+      debugPrint('⚠️ ensureRemoteConfigReady failed: $e — continuing with defaults');
+    }
+  }
+
+  // Check if production ads should be used (EnvironmentConfig overrides Remote Config in dev/UAT)
   static bool shouldUseProductionAds() {
-    if (!_initialized) {
-      // If not initialized, use default behavior
-      return !kDebugMode && !kProfileMode;
-    }
-
-    // Get the value from Remote Config
-    final useProductionAds = _instance._remoteConfig.getBool(
-      _useProductionAdsKey,
-    );
-
-    // SAFETY: In debug/profile mode, ALWAYS use test ads regardless of Remote Config
-    if (kDebugMode || kProfileMode) {
-      return false;
-    }
-
-    // In release mode, use the Remote Config value
+    if (EnvironmentConfig.useTestAds) return false;
+    if (!_initialized) return EnvironmentConfig.isProduction;
+    final useProductionAds = _instance._remoteConfig.getBool(_useProductionAdsKey);
     return useProductionAds;
   }
 

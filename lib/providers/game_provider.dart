@@ -87,16 +87,13 @@ class GameProvider extends ChangeNotifier {
   void _setupRealtimeListeners() {
     // Only enable real-time listeners if configured and during active gameplay
     if (!_syncConfigService.shouldEnableRealtimeGames()) {
-      debugPrint('📊 Real-time game listeners DISABLED (using manual refresh)');
+      // Real-time game listeners disabled
       return;
     }
     
     if (!_isGameActive) {
-      debugPrint('📊 Not in active gameplay, skipping game listeners');
       return;
     }
-    
-    debugPrint('📡 Setting up real-time game listeners');
     
     // Listen to recent games
     _listenerManager.cancelListener('games_recent');
@@ -119,7 +116,7 @@ class GameProvider extends ChangeNotifier {
   
   // Cancel real-time listeners when not in active gameplay
   void _cancelRealtimeListeners() {
-    debugPrint('🔌 Cancelling real-time game listeners');
+    // Cancel game listeners
     _listenerManager.cancelListenersByCategory('games');
   }
 
@@ -153,24 +150,18 @@ class GameProvider extends ChangeNotifier {
   // Manual refresh for game history when listeners are disabled
   Future<void> manualRefreshGameHistory() async {
     if (_syncConfigService.shouldEnableRealtimeGames()) {
-      debugPrint('📊 Real-time enabled, skipping manual refresh');
       return;
     }
     
     final shouldRefresh = await _syncConfigService.shouldManualRefresh('games');
-    if (!shouldRefresh) {
-      debugPrint('📊 Manual refresh not needed yet');
-      return;
-    }
+    if (!shouldRefresh) return;
     
-    debugPrint('🔄 Manual refreshing game history...');
     try {
       _gameHistory = await _gameFirebaseService.getGameHistory(limit: 10);
       await _syncConfigService.recordManualRefresh('games');
       notifyListeners();
-      debugPrint('✅ Manual refresh complete');
     } catch (e) {
-      debugPrint('❌ Manual refresh failed: $e');
+      debugPrint('Manual game history refresh failed: $e');
     }
   }
 

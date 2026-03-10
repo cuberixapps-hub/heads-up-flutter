@@ -75,10 +75,24 @@ Type: Non-Consumable
 Price: $9.99 (or your preferred price)
 ```
 
+#### Product 4: Weekend Pass (48-Hour Non-Renewing)
+```
+Reference Name: Premium Weekend Pass
+Product ID: premium_weekend
+Type: Non-Renewing Subscription
+Duration: 3 days (closest to 48h available on iOS)
+Price: $0.99
+```
+> **Note:** Apple does not offer a 48-hour duration. Use "3 days" as the
+> closest option. RevenueCat will set the entitlement expiration based on
+> the store's configured duration. On Google Play, create this as a
+> prepaid subscription with a 3-day billing period.
+
 ### Step 2.4: Create Subscription Group
 1. When creating subscriptions, create a group called **"Premium"**
-2. Add both monthly and yearly subscriptions to this group
+2. Add monthly and yearly subscriptions to this group
 3. Set the **Level** (yearly should be level 1, monthly level 2)
+4. The Weekend Pass should be a **separate non-renewing subscription** — it does NOT go in the auto-renewable group
 
 ### Step 2.5: Submit for Review
 - Each in-app purchase needs to go through Apple's review
@@ -129,6 +143,17 @@ Name: Premium Lifetime
 Description: One-time purchase for lifetime access
 Price: $9.99
 ```
+
+**Weekend Pass (Prepaid Subscription):**
+```
+Product ID: premium_weekend
+Name: Premium Weekend Pass
+Description: 48 hours of unlimited premium access
+Billing period: 3 days (prepaid, no auto-renewal)
+Price: $0.99
+```
+> On Google Play, create this as a **prepaid** base plan within a new
+> subscription. Prepaid plans do not auto-renew.
 
 ### Step 3.4: Get License Key
 1. Go to **"Monetization setup"**
@@ -183,13 +208,14 @@ static const String _iosApiKey = 'appl_YOUR_ACTUAL_IOS_API_KEY';
 | premium_monthly | premium_monthly | premium_monthly |
 | premium_yearly | premium_yearly | premium_yearly |
 | premium_lifetime | premium_lifetime | premium_lifetime |
+| premium_weekend | premium_weekend | premium_weekend |
 
 ### Step 5.2: Create an Entitlement
 1. Go to **"Entitlements"** → **"+ New"**
 2. Create entitlement:
    - **Identifier**: `premium`
    - **Description**: Premium access to all features
-3. **Attach all 3 products** to this entitlement
+3. **Attach all 4 products** to this entitlement (monthly, yearly, lifetime, **and** weekend pass)
 
 ### Step 5.3: Create an Offering
 1. Go to **"Offerings"** → **"+ New"**
@@ -200,6 +226,7 @@ static const String _iosApiKey = 'appl_YOUR_ACTUAL_IOS_API_KEY';
    - **Monthly** → Link to `premium_monthly`
    - **Annual** → Link to `premium_yearly`  
    - **Lifetime** → Link to `premium_lifetime`
+   - **Custom** (identifier: `premium_weekend`) → Link to `premium_weekend`
 4. **Set as Current Offering** ✓
 
 ---
@@ -361,6 +388,7 @@ Test these scenarios:
 ---
 
 *Last Updated: December 2024*
+
 
 
 

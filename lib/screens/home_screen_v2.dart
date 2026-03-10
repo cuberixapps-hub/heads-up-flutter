@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../l10n/app_localizations.dart';
 import '../models/deck.dart';
 import '../providers/deck_provider.dart';
@@ -28,6 +29,10 @@ import '../widgets/home_screen/tutorial_overlay.dart';
 import '../widgets/home_screen/home_screen_utils.dart';
 import '../utils/premium_utils.dart';
 import '../utils/responsive.dart';
+import '../services/purchases_service.dart';
+import '../services/deck_feedback_service.dart';
+import '../services/video_processing_manager.dart';
+import '../widgets/deck_preference_feedback_widget.dart';
 
 class HomeScreenV2 extends StatefulWidget {
   const HomeScreenV2({super.key});
@@ -90,52 +95,93 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   int _tutorialStep = 0;
   OverlayEntry? _tutorialOverlay;
 
+  // Animation visibility state - only animate when section is visible
+  // This reduces CPU/energy usage significantly
+  bool _headerAnimationsVisible = true;
+  bool _isAppActive = true; // Track if app is in foreground
+
+  // Deck feedback state
+  bool _showDeckFeedback = false;
+  final _deckFeedbackService = DeckFeedbackService();
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // Cancel any ongoing video processing when returning to home screen
+    // This ensures video generation from previous games is stopped
+    VideoProcessingManager.instance.cancelCurrentProcessing(
+      reason: 'Navigated to home screen',
+    );
+
     _loadDailyDeck();
     _loadRecentDecks();
     _loadStreakData();
     _checkFirstTimeUser();
+    _checkDeckFeedback();
     _scrollController.addListener(_onScroll);
     _startDeckRotation();
     _startBadgeCollapseTimer();
 
     // Initialize gradient with first deck's color after frame
+    // Also set initial category based on user preferences
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final deckProvider = Provider.of<DeckProvider>(context, listen: false);
-        
+
         // 🌍 Debug print the user's country for engagement tracking
         _debugPrintUserCountryInfo(deckProvider);
-        
+
         final availableDecks = _getCountryPrioritizedDecks(deckProvider);
         if (availableDecks.isNotEmpty) {
           _updateGradientColors(availableDecks.first.color);
         }
+
+        // 🎯 Auto-select "For You" category if user has preferences
+        // This ensures personalized content is shown by default after onboarding
+        _initializeDefaultCategory(deckProvider);
       }
     });
+  }
+
+  /// Initialize the default category based on user preferences
+  /// If user has preferences and there are matching decks, default to "For You"
+  void _initializeDefaultCategory(DeckProvider deckProvider) {
+    if (!_hasAutoSelectedForYou && deckProvider.hasUserPreferences) {
+      final forYouDecks = _getForYouDecks(deckProvider.allDecks);
+      if (forYouDecks.isNotEmpty && _selectedCategory == 'Trending') {
+        setState(() {
+          _selectedCategory = 'For You';
+          _hasAutoSelectedForYou = true;
+        });
+        debugPrint(
+          '🎯 Auto-selected "For You" category with ${forYouDecks.length} matching decks',
+        );
+      }
+    }
   }
 
   /// Debug prints user country information and deck prioritization stats
   void _debugPrintUserCountryInfo(DeckProvider deckProvider) {
     final userCountry = deckProvider.userCountryCode;
     final isManual = deckProvider.isUsingManualCountry;
-    
+
     debugPrint('═══════════════════════════════════════════════════════════');
     debugPrint('🌍 USER COUNTRY DETECTION');
     debugPrint('═══════════════════════════════════════════════════════════');
     debugPrint('📍 Country Code: $userCountry');
-    debugPrint('🔧 Manual Override: ${isManual ? "YES" : "NO (auto-detected)"}');
+    debugPrint(
+      '🔧 Manual Override: ${isManual ? "YES" : "NO (auto-detected)"}',
+    );
     debugPrint('───────────────────────────────────────────────────────────');
-    
+
     // Count decks by country match
     final allDecks = deckProvider.allDecks;
     int countrySpecificDecks = 0;
     int universalDecks = 0;
     int otherDecks = 0;
-    
+
     for (final deck in allDecks) {
       if (deck.effectiveCountries.contains(userCountry)) {
         countrySpecificDecks++;
@@ -145,14 +191,16 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         otherDecks++;
       }
     }
-    
+
     debugPrint('📊 DECK DISTRIBUTION:');
-    debugPrint('   • Country-specific ($userCountry): $countrySpecificDecks decks');
+    debugPrint(
+      '   • Country-specific ($userCountry): $countrySpecificDecks decks',
+    );
     debugPrint('   • Universal decks: $universalDecks decks');
     debugPrint('   • Regional/Other: $otherDecks decks');
     debugPrint('   • Total decks available: ${allDecks.length}');
     debugPrint('───────────────────────────────────────────────────────────');
-    
+
     // Show top recommended decks for this country
     final topRecommended = deckProvider.getTopRecommendedDecks(limit: 5);
     debugPrint('🎯 TOP 5 RECOMMENDED DECKS FOR $userCountry:');
@@ -168,9 +216,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   // 🧪 DEBUG ONLY: Country Selector for Testing Recommendations
   // This entire section is excluded from production builds via kDebugMode
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   bool _debugPanelExpanded = false;
-  
+
   /// Test countries for recommendation testing
   static const List<Map<String, String>> _testCountries = [
     {'code': 'US', 'name': '🇺🇸 United States', 'flag': '🇺🇸'},
@@ -231,8 +279,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   ),
                   SizedBox(width: 4.s),
                   Icon(
-                    _debugPanelExpanded 
-                        ? Icons.expand_less_rounded 
+                    _debugPanelExpanded
+                        ? Icons.expand_less_rounded
                         : Icons.expand_more_rounded,
                     color: Colors.white,
                     size: 16.s,
@@ -241,7 +289,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               ),
             ),
           ),
-          
+
           // Expanded country list
           if (_debugPanelExpanded) ...[
             SizedBox(height: 8.s),
@@ -303,7 +351,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         ],
                       ),
                     ),
-                    
+
                     // Reset to auto-detect option
                     Material(
                       color: Colors.transparent,
@@ -322,9 +370,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             vertical: 10.s,
                           ),
                           decoration: BoxDecoration(
-                            color: deckProvider.isUsingManualCountry
-                                ? Colors.transparent
-                                : Colors.green.withOpacity(0.2),
+                            color:
+                                deckProvider.isUsingManualCountry
+                                    ? Colors.transparent
+                                    : Colors.green.withOpacity(0.2),
                             border: Border(
                               bottom: BorderSide(
                                 color: Colors.white.withOpacity(0.1),
@@ -344,9 +393,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   'Auto-detect',
                                   style: GoogleFonts.inter(
                                     fontSize: 13.sp,
-                                    fontWeight: deckProvider.isUsingManualCountry
-                                        ? FontWeight.normal
-                                        : FontWeight.bold,
+                                    fontWeight:
+                                        deckProvider.isUsingManualCountry
+                                            ? FontWeight.normal
+                                            : FontWeight.bold,
                                     color: Colors.white,
                                   ),
                                 ),
@@ -362,7 +412,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         ),
                       ),
                     ),
-                    
+
                     // Country list
                     Flexible(
                       child: ListView.builder(
@@ -371,19 +421,24 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         itemCount: _testCountries.length,
                         itemBuilder: (context, index) {
                           final country = _testCountries[index];
-                          final isSelected = 
+                          final isSelected =
                               deckProvider.userCountryCode == country['code'] &&
                               deckProvider.isUsingManualCountry;
-                          
+
                           return Material(
                             color: Colors.transparent,
                             child: InkWell(
                               onTap: () async {
-                                debugPrint('🧪 Switching to test country: ${country['code']}');
-                                await deckProvider.setUserCountry(country['code']);
+                                debugPrint(
+                                  '🧪 Switching to test country: ${country['code']}',
+                                );
+                                await deckProvider.setUserCountry(
+                                  country['code'],
+                                );
                                 setState(() {
                                   _debugPanelExpanded = false;
-                                  _currentFeaturedIndex = 0; // Reset featured index
+                                  _currentFeaturedIndex =
+                                      0; // Reset featured index
                                 });
                                 _debugPrintUserCountryInfo(deckProvider);
                               },
@@ -393,9 +448,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   vertical: 10.s,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? Colors.orange.withOpacity(0.2)
-                                      : Colors.transparent,
+                                  color:
+                                      isSelected
+                                          ? Colors.orange.withOpacity(0.2)
+                                          : Colors.transparent,
                                 ),
                                 child: Row(
                                   children: [
@@ -406,23 +462,32 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                     SizedBox(width: 10.s),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             country['code']!,
                                             style: GoogleFonts.robotoMono(
                                               fontSize: 12.sp,
                                               fontWeight: FontWeight.bold,
-                                              color: isSelected 
-                                                  ? Colors.orange 
-                                                  : Colors.white,
+                                              color:
+                                                  isSelected
+                                                      ? Colors.orange
+                                                      : Colors.white,
                                             ),
                                           ),
                                           Text(
-                                            country['name']!.replaceAll(RegExp(r'[^\w\s]'), '').trim(),
+                                            country['name']!
+                                                .replaceAll(
+                                                  RegExp(r'[^\w\s]'),
+                                                  '',
+                                                )
+                                                .trim(),
                                             style: GoogleFonts.inter(
                                               fontSize: 10.sp,
-                                              color: Colors.white.withOpacity(0.5),
+                                              color: Colors.white.withOpacity(
+                                                0.5,
+                                              ),
                                             ),
                                           ),
                                         ],
@@ -442,7 +507,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         },
                       ),
                     ),
-                    
+
                     // Footer disclaimer
                     Container(
                       width: double.infinity,
@@ -473,14 +538,15 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   // END DEBUG SECTION
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Get decks prioritized by user's country for better engagement
-  /// STRICT ORDER: Country-specific decks FIRST, then universal, then others
+  /// Get decks prioritized by user's country AND preferences for better engagement
+  /// ORDER: User preferences first (within country-specific), then country-specific, then universal, then others
   List<Deck> _getCountryPrioritizedDecks(DeckProvider deckProvider) {
     final userCountry = deckProvider.userCountryCode;
-    final decks = deckProvider.freeDecks.isNotEmpty
-        ? deckProvider.freeDecks
-        : deckProvider.allDecks;
-    
+    final decks =
+        deckProvider.freeDecks.isNotEmpty
+            ? deckProvider.freeDecks
+            : deckProvider.allDecks;
+
     if (decks.isEmpty) return decks;
 
     // Separate decks into strict tiers
@@ -499,22 +565,40 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       }
     }
 
-    // Sort each tier by priority
+    // Sort each tier by priority first
     countrySpecificDecks.sort((a, b) => a.priority.compareTo(b.priority));
     universalDecks.sort((a, b) => a.priority.compareTo(b.priority));
     otherDecks.sort((a, b) => a.priority.compareTo(b.priority));
 
-    // Return with STRICT priority order
+    // Apply user preference prioritization within each tier
+    // This moves preference-matching decks to the front while maintaining relative order
+    final prioritizedCountryDecks = deckProvider.getPreferencePrioritizedDecks(
+      countrySpecificDecks,
+    );
+    final prioritizedUniversalDecks = deckProvider
+        .getPreferencePrioritizedDecks(universalDecks);
+    final prioritizedOtherDecks = deckProvider.getPreferencePrioritizedDecks(
+      otherDecks,
+    );
+
+    // Return with STRICT priority order (country > universal > other)
+    // but with preference-matching decks prioritized within each tier
     return [
-      ...countrySpecificDecks,
-      ...universalDecks,
-      ...otherDecks,
+      ...prioritizedCountryDecks,
+      ...prioritizedUniversalDecks,
+      ...prioritizedOtherDecks,
     ];
   }
 
   void _startBadgeCollapseTimer() {
-    // Collapse the streak badge after 3.5 seconds to save space
-    _badgeCollapseTimer = Timer(const Duration(milliseconds: 3500), () {
+    // For premium users, collapse immediately for a cleaner premium look
+    // For regular users, collapse after 2 seconds
+    final collapseDelay =
+        PremiumUtils.hasPremium
+            ? const Duration(milliseconds: 500)
+            : const Duration(milliseconds: 2000);
+
+    _badgeCollapseTimer = Timer(collapseDelay, () {
       if (mounted) {
         setState(() {
           _streakBadgeExpanded = false;
@@ -542,15 +626,61 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     final newColor2 = Color.lerp(originalColor2, targetColor, easedProgress)!;
     final newColor3 = Color.lerp(originalColor3, targetColor, easedProgress)!;
 
-    // Throttle setState calls - only update if there's a meaningful change
+    // Track header visibility for animations - header visible when scroll < 350px
+    final headerVisible = offset < 350;
+
+    // Only update state if there's a meaningful change
+    bool needsUpdate = false;
+
+    // Check gradient changes
     if ((_gradientColor1.value - newColor1.value).abs() > 2 ||
         (_gradientColor2.value - newColor2.value).abs() > 2 ||
         (_gradientColor3.value - newColor3.value).abs() > 2) {
+      needsUpdate = true;
+    }
+
+    // Check visibility change
+    if (_headerAnimationsVisible != headerVisible) {
+      needsUpdate = true;
+    }
+
+    if (needsUpdate) {
       setState(() {
         _gradientColor1 = newColor1;
         _gradientColor2 = newColor2;
         _gradientColor3 = newColor3;
+        _headerAnimationsVisible = headerVisible;
       });
+    }
+  }
+
+  // Track if we've already auto-selected "For You" to avoid repeated updates
+  bool _hasAutoSelectedForYou = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Check if user preferences changed and we should switch to "For You"
+    // This handles the case where preferences are set after the home screen is built
+    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+
+    if (!_hasAutoSelectedForYou &&
+        deckProvider.hasUserPreferences &&
+        _selectedCategory == 'Trending') {
+      final forYouDecks = _getForYouDecks(deckProvider.allDecks);
+      if (forYouDecks.isNotEmpty) {
+        // Use post-frame callback to avoid setState during build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _selectedCategory == 'Trending') {
+            setState(() {
+              _selectedCategory = 'For You';
+              _hasAutoSelectedForYou = true;
+            });
+            // Auto-switched to "For You" category
+          }
+        });
+      }
     }
   }
 
@@ -569,9 +699,20 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       // Refresh daily deck and streak data when app resumes
-      debugPrint('🔄 App resumed - refreshing data');
+      // App resumed - refresh data
       _loadDailyDeck();
       _loadStreakData();
+      _checkDeckFeedback(); // Refresh feedback visibility
+      // Resume animations when app comes back to foreground
+      if (!_isAppActive) {
+        setState(() => _isAppActive = true);
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      // Pause all animations when app goes to background to save battery
+      if (_isAppActive) {
+        setState(() => _isAppActive = false);
+      }
     }
   }
 
@@ -682,6 +823,20 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     }
   }
 
+  /// Check if deck feedback section should be shown
+  Future<void> _checkDeckFeedback() async {
+    try {
+      final shouldShow = await _deckFeedbackService.shouldShowFeedbackSection();
+      if (mounted && shouldShow != _showDeckFeedback) {
+        setState(() {
+          _showDeckFeedback = shouldShow;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking deck feedback: $e');
+    }
+  }
+
   Future<void> _checkFirstTimeUser() async {
     final prefs = await SharedPreferences.getInstance();
     _hasSeenTutorial = prefs.getBool('tutorial_completed') ?? false;
@@ -722,7 +877,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   /// Scrolls to make the current tutorial target visible
   void _scrollToTutorialTarget(int stepIndex) {
     GlobalKey? targetKey;
-    
+
     switch (stepIndex) {
       case 0:
         targetKey = _featuredDeckKey;
@@ -737,45 +892,49 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         targetKey = _continuePlayingKey;
         break;
     }
-    
+
     if (targetKey == null) return;
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
-      
+
       final renderObject = targetKey!.currentContext?.findRenderObject();
       if (renderObject != null && renderObject is RenderBox) {
         final targetPosition = renderObject.localToGlobal(Offset.zero);
         final screenHeight = MediaQuery.of(context).size.height;
         final targetHeight = renderObject.size.height;
-        
+
         // Calculate the ideal scroll position to center the target
         // with some offset for the tutorial overlay at the bottom
         final targetCenterY = targetPosition.dy + (targetHeight / 2);
-        final idealViewportCenterY = screenHeight * 0.35; // Slightly above center
-        
+        final idealViewportCenterY =
+            screenHeight * 0.35; // Slightly above center
+
         // Calculate how much we need to scroll
         final scrollDelta = targetCenterY - idealViewportCenterY;
         final newScrollOffset = _scrollController.offset + scrollDelta;
-        
+
         // Clamp to valid scroll range
         final clampedOffset = newScrollOffset.clamp(
           0.0,
           _scrollController.position.maxScrollExtent,
         );
-        
+
         // Only scroll if the target is not already well-visible
-        if ((targetPosition.dy < 100 || targetPosition.dy > screenHeight * 0.5)) {
-          _scrollController.animateTo(
-            clampedOffset,
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeInOutCubic,
-          ).then((_) {
-            // Update the overlay after scrolling to refresh spotlight position
-            if (mounted && _showTutorial) {
-              _updateTutorialOverlay();
-            }
-          });
+        if ((targetPosition.dy < 100 ||
+            targetPosition.dy > screenHeight * 0.5)) {
+          _scrollController
+              .animateTo(
+                clampedOffset,
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeInOutCubic,
+              )
+              .then((_) {
+                // Update the overlay after scrolling to refresh spotlight position
+                if (mounted && _showTutorial) {
+                  _updateTutorialOverlay();
+                }
+              });
         } else {
           // Even if we don't scroll, update the overlay to ensure spotlight is correct
           if (mounted && _showTutorial) {
@@ -851,68 +1010,74 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   void _playDeck(Deck deck) async {
-    // Check if deck is premium and user doesn't have premium access
-    if (deck.isPremium && !PremiumUtils.hasPremium) {
+    // Show paywall for non-premium users before playing any deck
+    // Premium users can play directly without ads
+    final hasPremium = PremiumUtils.hasPremium;
+    final isDebugPremium = PurchasesService.isDebugPremiumActive;
+
+    debugPrint(
+      '🎮 _playDeck: hasPremium=$hasPremium, isDebugPremium=$isDebugPremium',
+    );
+
+    if (!hasPremium) {
       _showPaywall(deck);
       return;
     }
-    
-    // User has access - start game directly
+
+    // User has premium access - start game directly
     _startGameWithDeck(deck);
   }
-  
+
   void _showPaywall(Deck deck) {
     _hapticService.lightImpact();
-    
+
     Navigator.of(context).push(
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => PaywallScreen(
-          selectedDeck: deck,
-          onWatchAd: () {
-            Navigator.pop(context);
-            // Simulate ad watched - in production, integrate actual ad SDK
-            _onAdWatched(deck);
-          },
-          onPurchasePremium: () {
-            Navigator.pop(context);
-            // Show premium purchase dialog
-            _showPremiumPurchaseDialog(deck);
-          },
-          onClose: () {
-            Navigator.pop(context);
-          },
-        ),
+        pageBuilder:
+            (context, animation, secondaryAnimation) => PaywallScreen(
+              selectedDeck: deck,
+              onWatchAd: () {
+                Navigator.pop(context);
+                // Simulate ad watched - in production, integrate actual ad SDK
+                _onAdWatched(deck);
+              },
+              onPurchasePremium: () {
+                Navigator.pop(context);
+                // Show premium purchase dialog
+                _showPremiumPurchaseDialog(deck);
+              },
+              onClose: () {
+                Navigator.pop(context);
+              },
+            ),
         transitionDuration: const Duration(milliseconds: 500),
         reverseTransitionDuration: const Duration(milliseconds: 400),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           const curve = Curves.easeInOutCubic;
-          
+
           final fadeAnimation = Tween<double>(
             begin: 0.0,
             end: 1.0,
           ).chain(CurveTween(curve: curve)).animate(animation);
-          
+
           final scaleAnimation = Tween<double>(
             begin: 0.92,
             end: 1.0,
           ).chain(CurveTween(curve: Curves.easeOutCubic)).animate(animation);
-          
+
           return FadeTransition(
             opacity: fadeAnimation,
-            child: ScaleTransition(
-              scale: scaleAnimation,
-              child: child,
-            ),
+            child: ScaleTransition(scale: scaleAnimation, child: child),
           );
         },
       ),
     );
   }
-  
+
   void _onAdWatched(Deck deck) async {
     // Show loading indicator briefly
     _hapticService.mediumImpact();
-    
+
     // Show success message
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -932,14 +1097,14 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         duration: const Duration(seconds: 2),
       ),
     );
-    
+
     // Small delay for UX, then start game
     await Future.delayed(const Duration(milliseconds: 500));
     if (mounted) {
       _startGameWithDeck(deck);
     }
   }
-  
+
   void _showPremiumPurchaseDialog(Deck deck) {
     // For now, show a coming soon message
     // In production, integrate with StoreKit/Play Billing
@@ -966,7 +1131,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         duration: const Duration(seconds: 3),
       ),
     );
-    
+
     // Show paywall again for user to watch ad
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
@@ -974,7 +1139,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       }
     });
   }
-  
+
   void _startGameWithDeck(Deck deck) async {
     final gameProvider = Provider.of<GameProvider>(context, listen: false);
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
@@ -999,6 +1164,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
 
     switch (_selectedCategory) {
+      case 'For You':
+        return _getForYouDecks(decks);
       case 'Trending':
         return _getTrendingDecks(decks);
       case 'Quick':
@@ -1020,6 +1187,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     final l10n = AppLocalizations.of(context)!;
 
     switch (_selectedCategory) {
+      case 'For You':
+        return 'Picked For You';
       case 'Trending':
         return l10n.trendingNow;
       case 'Quick':
@@ -1039,6 +1208,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
   IconData _getCategoryIcon() {
     switch (_selectedCategory) {
+      case 'For You':
+        return Icons.auto_awesome_rounded;
       case 'Trending':
         return Icons.local_fire_department_rounded;
       case 'Quick':
@@ -1056,6 +1227,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
   Color _getCategoryColor() {
     switch (_selectedCategory) {
+      case 'For You':
+        return const Color(0xFF7C3AED);
       case 'Trending':
         return const Color(0xFFFF6B35);
       case 'Quick':
@@ -1075,6 +1248,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   String _getLocalizedCategoryName(String categoryName) {
     final l10n = AppLocalizations.of(context)!;
     switch (categoryName) {
+      case 'For You':
+        return 'For You';
       case 'Trending':
         return l10n.trending;
       case 'Quick':
@@ -1098,6 +1273,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
 
     // Calculate filtered deck counts
     final trendingDecks = _getTrendingDecks(allDecks);
+    final forYouDecks = _getForYouDecks(allDecks);
     final quickDecks = _getQuickDecks(allDecks);
     final partyDecks = _getPartyDecks(allDecks);
     final favoriteCount = deckProvider.favoriteDecks.length;
@@ -1109,7 +1285,22 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     final newPartyCount =
         partyDecks.where((d) => d.createdAt.isAfter(threeDaysAgo)).length;
 
-    return [
+    final categories = <Map<String, dynamic>>[];
+
+    // Add "For You" category first if user has preferences and there are matching decks
+    if (deckProvider.hasUserPreferences && forYouDecks.isNotEmpty) {
+      categories.add({
+        'name': 'For You',
+        'icon': Icons.auto_awesome_rounded,
+        'color': const Color(0xFF7C3AED),
+        'count': forYouDecks.length,
+        'hasNew': false,
+        'isPersonalized': true,
+      });
+    }
+
+    // FIXED ORDER: Trending → Party → Quick (enforced at data level)
+    categories.addAll([
       {
         'name': 'Trending',
         'icon': Icons.local_fire_department_rounded,
@@ -1119,19 +1310,19 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         'newCount': newTrendingCount,
       },
       {
-        'name': 'Quick',
-        'icon': Icons.bolt_rounded,
-        'color': const Color(0xFFFFC107),
-        'count': quickDecks.length,
-        'hasNew': false,
-      },
-      {
         'name': 'Party',
         'icon': Icons.celebration_rounded,
         'color': const Color(0xFFE91E63),
         'count': partyDecks.length,
         'hasNew': newPartyCount > 0,
         'newCount': newPartyCount,
+      },
+      {
+        'name': 'Quick',
+        'icon': Icons.bolt_rounded,
+        'color': const Color(0xFFFFC107),
+        'count': quickDecks.length,
+        'hasNew': false,
       },
       {
         'name': 'My Decks',
@@ -1159,11 +1350,13 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         'isEmpty': favoriteCount == 0,
         'hasNew': false,
       },
-    ];
+    ]);
+
+    return categories;
   }
 
   /// Get trending decks with smart scoring algorithm
-  /// STRICTLY prioritizes user's country for better engagement
+  /// STRICTLY prioritizes user's country AND preferences for better engagement
   List<Deck> _getTrendingDecks(List<Deck> decks) {
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
     final userCountry = deckProvider.userCountryCode;
@@ -1188,16 +1381,16 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     // Sort each tier by secondary criteria
     int scoreDeck(Deck deck) {
       int score = (10 - deck.priority) * 100;
-      
+
       // Boost new decks
       if (deck.createdAt.isAfter(sevenDaysAgo)) score += 300;
-      
+
       // Favor sweet spot card count
       if (deck.cards.length >= 10 && deck.cards.length <= 30) score += 150;
-      
+
       // Popularity boost
       score += (deck.playCount ~/ 10).clamp(0, 100);
-      
+
       return score;
     }
 
@@ -1212,7 +1405,32 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       ...otherDecks,
     ];
 
-    return sortedDecks.take(15).toList();
+    // Apply user preference prioritization for final ordering
+    final preferencePrioritized = deckProvider.getPreferencePrioritizedDecks(
+      sortedDecks,
+    );
+
+    return preferencePrioritized.take(15).toList();
+  }
+
+  /// Get personalized "For You" decks based on user preferences
+  /// Shows decks that match user's selected interests
+  List<Deck> _getForYouDecks(List<Deck> decks) {
+    final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+
+    // If no preferences set, return empty (this category won't show)
+    if (!deckProvider.hasUserPreferences) {
+      return [];
+    }
+
+    // Get preference-matching decks
+    final matchingDecks = deckProvider.getPreferenceMatchingDecks(
+      decks,
+      minScore: 1,
+    );
+
+    // Sort by preference score (already handled by the method)
+    return matchingDecks.take(20).toList();
   }
 
   /// Get quick play decks (5-12 cards for 3-8 minute games)
@@ -1228,7 +1446,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   List<Deck> _getPartyDecks(List<Deck> decks) {
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
     final userCountry = deckProvider.userCountryCode;
-    
+
     const partyKeywords = [
       'party',
       'group',
@@ -1240,36 +1458,37 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       'charades',
     ];
 
-    final partyDecks = decks.where((d) {
-        final goodLength = d.cards.length >= 20 && d.cards.length <= 40;
-        final hasPartyTag = d.tags.any(
-          (tag) => partyKeywords.any(
-            (keyword) => tag.toLowerCase().contains(keyword),
-          ),
-        );
-        return goodLength || hasPartyTag;
-      }).toList();
-    
+    final partyDecks =
+        decks.where((d) {
+          final goodLength = d.cards.length >= 20 && d.cards.length <= 40;
+          final hasPartyTag = d.tags.any(
+            (tag) => partyKeywords.any(
+              (keyword) => tag.toLowerCase().contains(keyword),
+            ),
+          );
+          return goodLength || hasPartyTag;
+        }).toList();
+
     // Sort with country prioritization
     partyDecks.sort((a, b) {
       int scoreA = 0;
       int scoreB = 0;
-      
+
       // 🌍 Country-specific decks first
       if (a.effectiveCountries.contains(userCountry)) scoreA += 100;
       if (b.effectiveCountries.contains(userCountry)) scoreB += 100;
-      
+
       // Universal decks second
       if (a.effectiveCountries.contains('UNIVERSAL')) scoreA += 50;
       if (b.effectiveCountries.contains('UNIVERSAL')) scoreB += 50;
-      
+
       // Then by card count
       scoreA += a.cards.length;
       scoreB += b.cards.length;
-      
+
       return scoreB.compareTo(scoreA);
     });
-    
+
     return partyDecks;
   }
 
@@ -1371,10 +1590,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               children: [
                 // Black background
                 Container(color: Colors.black),
-                
-                // 🧪 DEBUG ONLY: Country selector for testing recommendations
-                // This will be automatically excluded in release builds
-                if (kDebugMode) _buildDebugCountrySelector(deckProvider),
+
                 // Gradient overlay with fixed height - animates smoothly
                 Positioned(
                   top: 0,
@@ -1434,7 +1650,8 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             Consumer<DeckProvider>(
                               builder: (context, deckProvider, _) {
                                 // 🌍 Use country-prioritized decks for featured section
-                                final availableDecks = _getCountryPrioritizedDecks(deckProvider);
+                                final availableDecks =
+                                    _getCountryPrioritizedDecks(deckProvider);
 
                                 return FeaturedDeckWidget(
                                   availableDecks: availableDecks,
@@ -1444,7 +1661,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                         direction,
                                         availableDecks,
                                       ),
-                                  onPlayDeck: _playDeck,
+                                  onPlayDeck: (deck) {
+                                    final heroTag =
+                                        'deck_featured_${deck.id}_${DateTime.now().millisecondsSinceEpoch}';
+                                    _showDeckDetails(deck, heroTag: heroTag);
+                                  },
                                   onShowDeckDetails:
                                       (deck, {required heroTag}) =>
                                           _showDeckDetails(
@@ -1549,6 +1770,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                     decks: filteredDecks.take(10).toList(),
                                     icon: _getCategoryIcon(),
                                     iconColor: _getCategoryColor(),
+                                    categoryKey: _selectedCategory,
                                   );
                                 },
                               ),
@@ -1584,6 +1806,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                           .toList(),
                                   icon: Icons.celebration_rounded,
                                   iconColor: Colors.pink,
+                                  categoryKey: 'Party Favorites',
                                 );
                               },
                             ),
@@ -1598,7 +1821,26 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             // Settings quick access
                             _buildSettingsCard(),
 
-                            SizedBox(height: 24.s),
+                            SizedBox(height: 16.s),
+
+                            // Deck Preference Feedback Section
+                            if (_showDeckFeedback)
+                              Consumer<DeckProvider>(
+                                builder: (context, deckProvider, _) {
+                                  return Column(
+                                    children: [
+                                      DeckPreferenceFeedbackWidget(
+                                        userCountry:
+                                            deckProvider.userCountryCode,
+                                        onNavigationReturn: _checkDeckFeedback,
+                                      ),
+                                      SizedBox(height: 24.s),
+                                    ],
+                                  );
+                                },
+                              ),
+
+                            if (!_showDeckFeedback) SizedBox(height: 8.s),
 
                             // Custom decks with better presentation
                             Consumer<DeckProvider>(
@@ -1615,6 +1857,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   icon: Icons.create_rounded,
                                   iconColor: Colors.blue,
                                   showSeeAll: true,
+                                  categoryKey: 'custom',
                                 );
                               },
                             ),
@@ -1634,6 +1877,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                     icon: Icons.star_rounded,
                                     iconColor: Colors.amber,
                                     isPremium: true,
+                                    categoryKey: 'Premium',
                                   );
                                 }
                                 return const SizedBox();
@@ -1656,11 +1900,14 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   Widget _buildHeader() {
+    final isPremiumUser = PremiumUtils.hasPremium;
+
     return Container(
       padding: EdgeInsets.fromLTRB(
-        24.s,
+        // Slightly reduced padding for premium users to accommodate badge
+        isPremiumUser ? 20.s : 24.s,
         MediaQuery.of(context).padding.top + 8.s,
-        24.s,
+        isPremiumUser ? 16.s : 24.s,
         0,
       ),
       child: Column(
@@ -1675,9 +1922,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               Expanded(
                 child: Row(
                   children: [
-                    // Animated wave icon container
+                    // Animated wave icon container - more compact for premium
                     Container(
-                          padding: EdgeInsets.all(10.s),
+                          padding: EdgeInsets.all(isPremiumUser ? 8.s : 10.s),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
@@ -1687,7 +1934,9 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                 Colors.white.withOpacity(0.05),
                               ],
                             ),
-                            borderRadius: BorderRadius.circular(16.s),
+                            borderRadius: BorderRadius.circular(
+                              isPremiumUser ? 14.s : 16.s,
+                            ),
                             border: Border.all(
                               color: Colors.white.withOpacity(0.1),
                               width: 1.s,
@@ -1695,13 +1944,17 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                           ),
                           child: Icon(
                             Icons.waving_hand_rounded,
-                            color: Color(0xFFFFD700),
-                            size: 24.s,
+                            color: const Color(0xFFFFD700),
+                            size: isPremiumUser ? 20.s : 24.s,
                           ),
                         )
                         .animate(
+                          autoPlay: _headerAnimationsVisible && _isAppActive,
                           onPlay:
-                              (controller) => controller.repeat(reverse: true),
+                              (_headerAnimationsVisible && _isAppActive)
+                                  ? (controller) =>
+                                      controller.repeat(reverse: true)
+                                  : null,
                         )
                         .rotate(
                           begin: 0,
@@ -1717,108 +1970,121 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                           curve: Curves.easeInOut,
                         ),
 
-                    SizedBox(width: 16.s),
+                    SizedBox(width: isPremiumUser ? 12.s : 16.s),
 
                     // Text content
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Text(
-                                    AppLocalizations.of(context)!.welcomeBack,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 26.sp,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
-                                      letterSpacing: -0.8,
-                                      height: 1.1,
-                                    ),
-                                  )
-                                  .animate()
-                                  .fadeIn(
-                                    delay: 100.ms,
-                                    duration: 600.ms,
-                                    curve: Curves.easeOut,
-                                  )
-                                  .slideX(
-                                    begin: -0.2,
-                                    end: 0,
-                                    delay: 100.ms,
-                                    duration: 600.ms,
-                                    curve: Curves.easeOutCubic,
-                                  ),
-                              Builder(
-                                builder: (context) {
-                                  // Show premium badge if user has premium subscription
-                                  if (!PremiumUtils.hasPremium) {
-                                    return const SizedBox();
-                                  }
-                                  return Container(
-                                        margin: EdgeInsets.only(left: 12.s),
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 10.s,
-                                          vertical: 4.s,
+                          // Premium-aware header row with proper overflow handling
+                          Builder(
+                            builder: (context) {
+                              final isPremium = PremiumUtils.hasPremium;
+
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Welcome text - flexible to prevent overflow
+                                  Flexible(
+                                    child: Text(
+                                          AppLocalizations.of(
+                                            context,
+                                          )!.welcomeBack,
+                                          style: GoogleFonts.poppins(
+                                            // Slightly smaller font for premium to fit badge elegantly
+                                            fontSize: isPremium ? 22.sp : 26.sp,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                            letterSpacing: -0.8,
+                                            height: 1.1,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        )
+                                        .animate()
+                                        .fadeIn(
+                                          delay: 100.ms,
+                                          duration: 600.ms,
+                                          curve: Curves.easeOut,
+                                        )
+                                        .slideX(
+                                          begin: -0.2,
+                                          end: 0,
+                                          delay: 100.ms,
+                                          duration: 600.ms,
+                                          curve: Curves.easeOutCubic,
                                         ),
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            colors: [
-                                              const Color(0xFFFFD700),
-                                              const Color(0xFFFFA500),
+                                  ),
+                                  // Premium VIP Badge - elegant and properly positioned
+                                  if (isPremium)
+                                    Container(
+                                          margin: EdgeInsets.only(left: 10.s),
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 8.s,
+                                            vertical: 3.s,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                              colors: [
+                                                Color(0xFFFFD700),
+                                                Color(0xFFFFA500),
+                                              ],
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              12.s,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: const Color(
+                                                  0xFFFFD700,
+                                                ).withOpacity(0.4),
+                                                blurRadius: 10.s,
+                                                offset: Offset(0, 2.s),
+                                                spreadRadius: 1.s,
+                                              ),
                                             ],
                                           ),
-                                          borderRadius: BorderRadius.circular(
-                                            16.s,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: const Color(
-                                                0xFFFFD700,
-                                              ).withOpacity(0.3),
-                                              blurRadius: 8.s,
-                                              offset: Offset(0, 2.s),
-                                            ),
-                                          ],
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Icons.workspace_premium_rounded,
-                                              size: 14.s,
-                                              color: Colors.black,
-                                            ),
-                                            SizedBox(width: 4.s),
-                                            Text(
-                                              'VIP',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 11.sp,
-                                                fontWeight: FontWeight.w800,
-                                                color: Colors.black,
-                                                letterSpacing: 0.5,
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.workspace_premium_rounded,
+                                                size: 12.s,
+                                                color: Colors.black87,
                                               ),
-                                            ),
-                                          ],
+                                              SizedBox(width: 3.s),
+                                              Text(
+                                                'VIP',
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 10.sp,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Colors.black87,
+                                                  letterSpacing: 0.8,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                        .animate()
+                                        .fadeIn(delay: 300.ms, duration: 600.ms)
+                                        .scale(
+                                          begin: const Offset(0.8, 0.8),
+                                          end: const Offset(1, 1),
+                                          delay: 300.ms,
+                                          duration: 400.ms,
+                                          curve: Curves.easeOutBack,
+                                        )
+                                        .shimmer(
+                                          duration: 2500.ms,
+                                          delay: 1200.ms,
+                                          color: Colors.white.withOpacity(0.6),
                                         ),
-                                      )
-                                      .animate()
-                                      .fadeIn(delay: 300.ms, duration: 600.ms)
-                                      .scale(
-                                        begin: const Offset(0.8, 0.8),
-                                        end: const Offset(1, 1),
-                                        delay: 300.ms,
-                                        duration: 400.ms,
-                                        curve: Curves.easeOutBack,
-                                      )
-                                      .shimmer(
-                                        duration: 2000.ms,
-                                        delay: 1000.ms,
-                                        color: Colors.white.withOpacity(0.5),
-                                      );
-                                },
-                              ),
-                            ],
+                                ],
+                              );
+                            },
                           ),
 
                           SizedBox(height: 4.s),
@@ -1861,124 +2127,138 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               ),
 
               // Elegant stats badge with glow effect (collapsible)
-              GestureDetector(
-                onTap: () {
-                  _hapticService.selection();
-                  setState(() {
-                    _streakBadgeExpanded = !_streakBadgeExpanded;
-                    _badgeCollapseTimer?.cancel();
-                  });
-                },
-                child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 400),
-                      curve: Curves.easeInOutCubic,
-                      margin: EdgeInsets.only(left: 12.s),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: _streakBadgeExpanded ? 14.s : 10.s,
-                        vertical: 8.s,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            const Color(0xFFFFB800).withOpacity(0.2),
-                            const Color(0xFFFF8C00).withOpacity(0.15),
+              // Constrain the badge to prevent overflow
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: _streakBadgeExpanded ? 120.s : 60.s,
+                ),
+                child: GestureDetector(
+                  onTap: () {
+                    _hapticService.selection();
+                    setState(() {
+                      _streakBadgeExpanded = !_streakBadgeExpanded;
+                      _badgeCollapseTimer?.cancel();
+                    });
+                  },
+                  child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.easeInOutCubic,
+                        margin: EdgeInsets.only(left: 8.s),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: _streakBadgeExpanded ? 12.s : 8.s,
+                          vertical: 6.s,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              const Color(0xFFFFB800).withOpacity(0.25),
+                              const Color(0xFFFF8C00).withOpacity(0.2),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16.s),
+                          border: Border.all(
+                            color: const Color(0xFFFFD700).withOpacity(0.4),
+                            width: 1.5.s,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFFFD700).withOpacity(0.25),
+                              blurRadius: 8.s,
+                              offset: Offset(0, 2.s),
+                            ),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(20.s),
-                        border: Border.all(
-                          color: const Color(0xFFFFD700).withOpacity(0.3),
-                          width: 1.5.s,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFFFD700).withOpacity(0.3),
-                            blurRadius: 12.s,
-                            offset: Offset(0, 4.s),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                                Icons.local_fire_department_rounded,
-                                color: const Color(0xFFFFD700),
-                                size: 18.s,
-                              )
-                              .animate(
-                                onPlay: (controller) => controller.repeat(),
-                              )
-                              .scale(
-                                begin: const Offset(1, 1),
-                                end: const Offset(1.15, 1.15),
-                                duration: 1000.ms,
-                                curve: Curves.easeInOut,
-                              )
-                              .then()
-                              .scale(
-                                begin: const Offset(1.15, 1.15),
-                                end: const Offset(1, 1),
-                                duration: 1000.ms,
-                                curve: Curves.easeInOut,
-                              ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                                  Icons.local_fire_department_rounded,
+                                  color: const Color(0xFFFFD700),
+                                  size: 16.s,
+                                )
+                                .animate(
+                                  autoPlay:
+                                      _headerAnimationsVisible && _isAppActive,
+                                  onPlay:
+                                      (_headerAnimationsVisible && _isAppActive)
+                                          ? (controller) => controller.repeat()
+                                          : null,
+                                )
+                                .scale(
+                                  begin: const Offset(1, 1),
+                                  end: const Offset(1.15, 1.15),
+                                  duration: 1000.ms,
+                                  curve: Curves.easeInOut,
+                                )
+                                .then()
+                                .scale(
+                                  begin: const Offset(1.15, 1.15),
+                                  end: const Offset(1, 1),
+                                  duration: 1000.ms,
+                                  curve: Curves.easeInOut,
+                                ),
 
-                          AnimatedSize(
-                            duration: const Duration(milliseconds: 400),
-                            curve: Curves.easeInOutCubic,
-                            child:
-                                _streakBadgeExpanded
-                                    ? Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        SizedBox(width: 7.s),
-                                        Text(
-                                          AppLocalizations.of(
-                                            context,
-                                          )!.dayCount(_currentStreak),
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 12.5.sp,
-                                            fontWeight: FontWeight.w600,
-                                            color: const Color(0xFFFFD700),
-                                            letterSpacing: 0.2,
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 400),
+                              curve: Curves.easeInOutCubic,
+                              child:
+                                  _streakBadgeExpanded
+                                      ? Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          SizedBox(width: 5.s),
+                                          Text(
+                                            AppLocalizations.of(
+                                              context,
+                                            )!.dayCount(_currentStreak),
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 11.sp,
+                                              fontWeight: FontWeight.w600,
+                                              color: const Color(0xFFFFD700),
+                                              letterSpacing: 0.2,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                        ),
-                                      ],
-                                    )
-                                    : Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        SizedBox(width: 6.s),
-                                        Text(
-                                          '$_currentStreak',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 13.sp,
-                                            fontWeight: FontWeight.w700,
-                                            color: const Color(0xFFFFD700),
-                                            letterSpacing: 0.1,
+                                        ],
+                                      )
+                                      : Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          SizedBox(width: 4.s),
+                                          Text(
+                                            '$_currentStreak',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 12.sp,
+                                              fontWeight: FontWeight.w700,
+                                              color: const Color(0xFFFFD700),
+                                              letterSpacing: 0.1,
+                                            ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                          ),
-                        ],
+                                        ],
+                                      ),
+                            ),
+                          ],
+                        ),
+                      )
+                      .animate()
+                      .fadeIn(delay: 500.ms, duration: 700.ms)
+                      .scale(
+                        begin: const Offset(0.7, 0.7),
+                        end: const Offset(1, 1),
+                        delay: 500.ms,
+                        duration: 800.ms,
+                        curve: Curves.easeOutBack,
+                      )
+                      .shimmer(
+                        delay: 1500.ms,
+                        duration: 1500.ms,
+                        color: Colors.white.withOpacity(0.3),
                       ),
-                    )
-                    .animate()
-                    .fadeIn(delay: 500.ms, duration: 700.ms)
-                    .scale(
-                      begin: const Offset(0.7, 0.7),
-                      end: const Offset(1, 1),
-                      delay: 500.ms,
-                      duration: 800.ms,
-                      curve: Curves.easeOutBack,
-                    )
-                    .shimmer(
-                      delay: 1500.ms,
-                      duration: 1500.ms,
-                      color: Colors.white.withOpacity(0.3),
-                    ),
+                ),
               ),
             ],
           ),
@@ -2146,7 +2426,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                 // Scroll to category content smoothly
                 _scrollToCategoryContent();
               },
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(24.s),
               splashColor: categoryColor.withOpacity(0.1),
               highlightColor: categoryColor.withOpacity(0.05),
               child: AnimatedContainer(
@@ -2154,7 +2434,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                 curve: Curves.easeOutCubic,
                 padding: EdgeInsets.symmetric(horizontal: 18.s, vertical: 10.s),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(24.s),
                   gradient:
                       isSelected
                           ? LinearGradient(
@@ -2179,38 +2459,46 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             : isEmpty && !isSelected
                             ? Colors.white.withOpacity(0.08)
                             : Colors.white.withOpacity(0.12),
-                    width: isSelected ? 1.5 : 1,
+                    width: isSelected ? 1.5.s : 1.s,
                   ),
                   boxShadow:
                       isSelected
                           ? [
                             BoxShadow(
                               color: categoryColor.withOpacity(0.25),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
+                              blurRadius: 12.s,
+                              offset: Offset(0, 4.s),
                             ),
                           ]
                           : null,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    AnimatedScale(
-                      scale: isSelected ? 1.1 : 1.0,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOutBack,
-                      child: Icon(
-                        categoryIcon,
-                        color:
-                            isSelected
-                                ? categoryColor
-                                : isEmpty && !isSelected
-                                ? Colors.white.withOpacity(0.4)
-                                : Colors.white.withOpacity(0.7),
-                        size: 18,
+                    // Use SizedBox to maintain consistent bounds during scale animation
+                    SizedBox(
+                      width: 18.s,
+                      height: 18.s,
+                      child: Center(
+                        child: AnimatedScale(
+                          scale: isSelected ? 1.1 : 1.0,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOutBack,
+                          child: Icon(
+                            categoryIcon,
+                            color:
+                                isSelected
+                                    ? categoryColor
+                                    : isEmpty && !isSelected
+                                    ? Colors.white.withOpacity(0.4)
+                                    : Colors.white.withOpacity(0.7),
+                            size: 18.s,
+                          ),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8.s),
                     Text(
                       _getLocalizedCategoryName(categoryName),
                       style: GoogleFonts.poppins(
@@ -2224,6 +2512,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             isSelected ? FontWeight.w600 : FontWeight.w400,
                         fontSize: 13.5.sp,
                         letterSpacing: 0.1,
+                        height: 1.0,
                       ),
                     ),
                     // Show "NEW" badge for categories with new content
@@ -2236,7 +2525,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         ),
                         decoration: BoxDecoration(
                           color: Colors.red,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(10.s),
                         ),
                         child: Text(
                           AppLocalizations.of(context)!.newBadge,
@@ -2245,6 +2534,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             fontSize: 9.sp,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.5,
+                            height: 1.0,
                           ),
                         ),
                       ),
@@ -2259,7 +2549,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(10.s),
                         ),
                         child: Text(
                           '$count',
@@ -2267,6 +2557,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             color: Colors.white,
                             fontSize: 10.sp,
                             fontWeight: FontWeight.w600,
+                            height: 1.0,
                           ),
                         ),
                       ),
@@ -2388,22 +2679,15 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                     size: 32.s,
                                   ),
                                 )
-                                .animate(
-                                  onPlay:
-                                      (controller) =>
-                                          controller.repeat(reverse: true),
-                                )
+                                // Animate once on load, don't repeat to save CPU
+                                .animate()
                                 .scale(
-                                  begin: const Offset(1, 1),
-                                  end: const Offset(1.1, 1.1),
-                                  duration: 2000.ms,
-                                  curve: Curves.easeInOut,
+                                  begin: const Offset(0.8, 0.8),
+                                  end: const Offset(1, 1),
+                                  duration: 600.ms,
+                                  curve: Curves.easeOutBack,
                                 )
-                                .then()
-                                .shimmer(
-                                  duration: 1500.ms,
-                                  color: Colors.white.withOpacity(0.2),
-                                ),
+                                .fadeIn(duration: 500.ms),
 
                             SizedBox(height: 20.s),
 
@@ -2607,7 +2891,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   Widget _buildSearchChip() {
     const searchColor = Color(0xFF9B59B6); // Elegant purple
 
-    return Hero(
+    return Semantics(
+      label: 'Search decks',
+      button: true,
+      child: Hero(
       tag: 'search_chip',
       placeholderBuilder: (context, heroSize, child) {
         // Return a placeholder that matches the child during hero flight
@@ -2717,38 +3004,53 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 // Elegant search icon with subtle animation
-                ShaderMask(
-                      shaderCallback:
-                          (bounds) => LinearGradient(
-                            colors: [
-                              searchColor.withOpacity(0.9),
-                              searchColor.withOpacity(0.6),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ).createShader(bounds),
-                      child: Icon(
-                        Icons.search_rounded,
-                        color: Colors.white,
-                        size: 20.s,
-                      ),
-                    )
-                    .animate(
-                      onPlay: (controller) => controller.repeat(reverse: true),
-                    )
-                    .scale(
-                      begin: const Offset(1.0, 1.0),
-                      end: const Offset(1.08, 1.08),
-                      duration: 2000.ms,
-                      curve: Curves.easeInOut,
-                    ),
+                // Only animate when header is visible and app is active
+                // Use SizedBox to maintain consistent bounds during scale animation
+                SizedBox(
+                  width: 20.s,
+                  height: 20.s,
+                  child: Center(
+                    child: ShaderMask(
+                          shaderCallback:
+                              (bounds) => LinearGradient(
+                                colors: [
+                                  searchColor.withOpacity(0.9),
+                                  searchColor.withOpacity(0.6),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ).createShader(bounds),
+                          child: Icon(
+                            Icons.search_rounded,
+                            color: Colors.white,
+                            size: 20.s,
+                          ),
+                        )
+                        .animate(
+                          autoPlay: _headerAnimationsVisible && _isAppActive,
+                          onPlay:
+                              (_headerAnimationsVisible && _isAppActive)
+                                  ? (controller) =>
+                                      controller.repeat(reverse: true)
+                                  : null,
+                        )
+                        .scale(
+                          begin: const Offset(1.0, 1.0),
+                          end: const Offset(1.08, 1.08),
+                          duration: 2000.ms,
+                          curve: Curves.easeInOut,
+                        ),
+                  ),
+                ),
               ],
             ),
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -2865,14 +3167,18 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   Widget _buildContinueCard(Deck deck) {
-    final heroTag = 'continue_card_${deck.id}_${DateTime.now().millisecondsSinceEpoch}';
-    
+    final heroTag =
+        'continue_card_${deck.id}_${DateTime.now().millisecondsSinceEpoch}';
+
     return Container(
       width: 200.s,
       margin: EdgeInsets.only(right: 8.s),
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
+        child: Semantics(
+          label: 'Continue playing ${deck.name}, ${deck.cards.length} cards',
+          button: true,
+          child: InkWell(
           onTap: () {
             _hapticService.lightImpact();
             _playDeck(deck);
@@ -2959,7 +3265,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                 Positioned(
                   bottom: 8.s,
                   left: 8.s,
-                  child: GestureDetector(
+                  child: Semantics(
+                    label: 'Deck details for ${deck.name}',
+                    button: true,
+                    child: GestureDetector(
                     onTap: () {
                       _hapticService.lightImpact();
                       _showDeckDetails(deck, heroTag: heroTag);
@@ -2978,13 +3287,17 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                       ),
                     ),
                   ),
+                  ),
                 ),
 
                 // More button (bottom right) - Shows options menu
                 Positioned(
                   bottom: 8.s,
                   right: 8.s,
-                  child: GestureDetector(
+                  child: Semantics(
+                    label: 'More options for ${deck.name}',
+                    button: true,
+                    child: GestureDetector(
                     onTap: () {
                       _hapticService.lightImpact();
                       _showContinueCardOptions(deck);
@@ -3003,183 +3316,195 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                       ),
                     ),
                   ),
+                  ),
                 ),
               ],
             ),
           ),
         ),
       ),
+      ),
     ).animate().fadeIn(duration: 400.ms);
   }
-  
+
   /// Show options menu for continue playing card
   void _showContinueCardOptions(Deck deck) {
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
     final isFavorite = deckProvider.isFavorite(deck.id);
-    
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF1C1C1E),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.1),
-            width: 1,
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Handle bar
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
+      builder:
+          (context) => Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1C1E),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
               ),
-              
-              // Deck info header
-              Padding(
-                padding: EdgeInsets.all(16.s),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 48.s,
-                      height: 48.s,
-                      decoration: BoxDecoration(
-                        color: deck.color.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: deck.color.withOpacity(0.3),
-                          width: 1,
+              border: Border.all(
+                color: Colors.white.withOpacity(0.1),
+                width: 1,
+              ),
+            ),
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Handle bar
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+
+                  // Deck info header
+                  Padding(
+                    padding: EdgeInsets.all(16.s),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 48.s,
+                          height: 48.s,
+                          decoration: BoxDecoration(
+                            color: deck.color.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: deck.color.withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child:
+                              deck.imageUrl != null && deck.imageUrl!.isNotEmpty
+                                  ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(11),
+                                    child: CachedNetworkImage(
+                                      imageUrl: deck.imageUrl!,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                  : FaIcon(
+                                    deck.icon,
+                                    color: deck.color,
+                                    size: 24.s,
+                                  ),
                         ),
-                      ),
-                      child: deck.imageUrl != null && deck.imageUrl!.isNotEmpty
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(11),
-                              child: CachedNetworkImage(
-                                imageUrl: deck.imageUrl!,
-                                fit: BoxFit.cover,
+                        SizedBox(width: 12.s),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                deck.name,
+                                style: GoogleFonts.inter(
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            )
-                          : Icon(
-                              deck.icon,
-                              color: deck.color,
-                              size: 24.s,
-                            ),
-                    ),
-                    SizedBox(width: 12.s),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            deck.name,
-                            style: GoogleFonts.inter(
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            '${deck.cards.length} cards',
-                            style: GoogleFonts.inter(
-                              fontSize: 13.sp,
-                              color: Colors.white.withOpacity(0.5),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              Divider(color: Colors.white.withOpacity(0.1), height: 1),
-              
-              // Options
-              _buildBottomSheetOption(
-                icon: Icons.play_arrow_rounded,
-                label: AppLocalizations.of(context)!.play,
-                color: deck.color,
-                onTap: () {
-                  Navigator.pop(context);
-                  _playDeck(deck);
-                },
-              ),
-              
-              _buildBottomSheetOption(
-                icon: isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
-                label: isFavorite 
-                    ? AppLocalizations.of(context)!.removeFromFavorites 
-                    : AppLocalizations.of(context)!.addToFavorites,
-                color: const Color(0xFFFFD700),
-                onTap: () async {
-                  Navigator.pop(context);
-                  if (isFavorite) {
-                    await deckProvider.removeFromFavorites(deck.id);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            AppLocalizations.of(context)!.removedFromFavorites,
-                            style: GoogleFonts.inter(),
-                          ),
-                          backgroundColor: Colors.grey[800],
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                              Text(
+                                '${deck.cards.length} cards',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13.sp,
+                                  color: Colors.white.withOpacity(0.5),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      );
-                    }
-                  } else {
-                    await deckProvider.addToFavorites(deck.id);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            AppLocalizations.of(context)!.addedToFavorites,
-                            style: GoogleFonts.inter(),
-                          ),
-                          backgroundColor: const Color(0xFFFFD700),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      );
-                    }
-                  }
-                },
+                      ],
+                    ),
+                  ),
+
+                  Divider(color: Colors.white.withOpacity(0.1), height: 1),
+
+                  // Options
+                  _buildBottomSheetOption(
+                    icon: Icons.play_arrow_rounded,
+                    label: AppLocalizations.of(context)!.play,
+                    color: deck.color,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _playDeck(deck);
+                    },
+                  ),
+
+                  _buildBottomSheetOption(
+                    icon:
+                        isFavorite
+                            ? Icons.star_rounded
+                            : Icons.star_outline_rounded,
+                    label:
+                        isFavorite
+                            ? AppLocalizations.of(context)!.removeFromFavorites
+                            : AppLocalizations.of(context)!.addToFavorites,
+                    color: const Color(0xFFFFD700),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      if (isFavorite) {
+                        await deckProvider.removeFromFavorites(deck.id);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                AppLocalizations.of(
+                                  context,
+                                )!.removedFromFavorites,
+                                style: GoogleFonts.inter(),
+                              ),
+                              backgroundColor: Colors.grey[800],
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          );
+                        }
+                      } else {
+                        await deckProvider.addToFavorites(deck.id);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                AppLocalizations.of(context)!.addedToFavorites,
+                                style: GoogleFonts.inter(),
+                              ),
+                              backgroundColor: const Color(0xFFFFD700),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                  ),
+
+                  _buildBottomSheetOption(
+                    icon: Icons.remove_circle_outline_rounded,
+                    label: AppLocalizations.of(context)!.removeFromRecent,
+                    color: Colors.red.withOpacity(0.8),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await _removeFromRecentDecks(deck.id);
+                    },
+                  ),
+
+                  SizedBox(height: 8.s),
+                ],
               ),
-              
-              _buildBottomSheetOption(
-                icon: Icons.remove_circle_outline_rounded,
-                label: AppLocalizations.of(context)!.removeFromRecent,
-                color: Colors.red.withOpacity(0.8),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await _removeFromRecentDecks(deck.id);
-                },
-              ),
-              
-              SizedBox(height: 8.s),
-            ],
+            ),
           ),
-        ),
-      ),
     );
   }
-  
+
   Widget _buildBottomSheetOption({
     required IconData icon,
     required String label,
@@ -3218,19 +3543,19 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       ),
     );
   }
-  
+
   /// Remove deck from recent decks list
   Future<void> _removeFromRecentDecks(String deckId) async {
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
-    
+
     // Remove from local list
     setState(() {
       _recentDecks.removeWhere((d) => d.id == deckId);
     });
-    
+
     // Remove from storage
     await deckProvider.removeFromRecentDecks(deckId);
-    
+
     // Show feedback
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3256,6 +3581,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     Color? iconColor,
     bool showSeeAll = false,
     bool isPremium = false,
+    String? categoryKey, // Key for navigation to category page
   }) {
     final deckProvider = Provider.of<DeckProvider>(context, listen: true);
 
@@ -3269,6 +3595,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     }
 
     if (decks.isEmpty) return const SizedBox();
+
+    // Determine if this section should show the Explore button
+    // Show for all categories except "Your Creations" (which shows "See All")
+    final bool showExploreButton =
+        categoryKey != null && categoryKey != 'custom';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3284,12 +3615,12 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                       height: 36.s,
                       decoration: BoxDecoration(
                         color: (iconColor ?? Colors.white).withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(10.s),
                       ),
                       child: Icon(
                         icon,
                         color: iconColor ?? Colors.white,
-                        size: 20,
+                        size: 20.s,
                       ),
                     )
                     .animate()
@@ -3303,27 +3634,35 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                     ),
                 SizedBox(width: 12.s),
               ],
-              Text(
-                    title,
-                    style: GoogleFonts.inter(
-                      fontSize: 22.sp,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                      letterSpacing: -0.5,
-                      height: 1.2,
+              Expanded(
+                child: Text(
+                      title,
+                      style: GoogleFonts.inter(
+                        fontSize: 22.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
+                        height: 1.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    )
+                    .animate()
+                    .fadeIn(delay: 250.ms, duration: 500.ms)
+                    .slideY(
+                      begin: 0.2,
+                      end: 0,
+                      delay: 250.ms,
+                      duration: 500.ms,
                     ),
-                  )
-                  .animate()
-                  .fadeIn(delay: 250.ms, duration: 500.ms)
-                  .slideY(begin: 0.2, end: 0, delay: 250.ms, duration: 500.ms),
-              const Spacer(),
-              // Premium "Explore more" for Trending Now
-              if (title == 'Trending Now')
+              ),
+              // "Explore →" button for all category sections
+              if (showExploreButton)
                 GestureDetector(
                       onTap: () {
                         _hapticService.lightImpact();
                         context.push(
-                          '/explore?category=${Uri.encodeComponent('Trending Now')}',
+                          '/explore?category=${Uri.encodeComponent(categoryKey)}',
                         );
                       },
                       child: Container(
@@ -3340,17 +3679,17 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(20.s),
                           border: Border.all(
                             color: Colors.white.withOpacity(0.1),
-                            width: 1,
+                            width: 1.s,
                           ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              'Explore',
+                              AppLocalizations.of(context)!.explore,
                               style: GoogleFonts.inter(
                                 color: Colors.white.withOpacity(0.85),
                                 fontWeight: FontWeight.w500,
@@ -3358,11 +3697,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                 letterSpacing: 0.2,
                               ),
                             ),
-                            const SizedBox(width: 4),
+                            SizedBox(width: 4.s),
                             Icon(
                               Icons.arrow_forward_rounded,
                               color: Colors.white.withOpacity(0.85),
-                              size: 16,
+                              size: 16.s,
                             ),
                           ],
                         ),
@@ -3376,26 +3715,17 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                       delay: 300.ms,
                       duration: 600.ms,
                       curve: Curves.easeOutCubic,
-                    )
-                    .shimmer(
-                      delay: 800.ms,
-                      duration: 1500.ms,
-                      color: Colors.white.withOpacity(0.1),
                     ),
-              // Original "See All" for other sections
-              if (showSeeAll && title != 'Trending Now')
+              // "See All" for custom decks section
+              if (categoryKey == 'custom')
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: () {
                       _hapticService.lightImpact();
-                      if (title.contains('Creations')) {
-                        context.push('/custom-decks');
-                      } else {
-                        context.push('/categories');
-                      }
+                      context.push('/explore?category=${Uri.encodeComponent('My Decks')}');
                     },
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(8.s),
                     child: Padding(
                       padding: EdgeInsets.symmetric(
                         horizontal: 12.s,
@@ -3405,7 +3735,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            'See All',
+                            AppLocalizations.of(context)!.seeAll,
                             style: GoogleFonts.inter(
                               color: Colors.white.withOpacity(0.6),
                               fontWeight: FontWeight.w500,
@@ -3413,11 +3743,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               letterSpacing: -0.1,
                             ),
                           ),
-                          const SizedBox(width: 6),
+                          SizedBox(width: 6.s),
                           Icon(
                             Icons.arrow_forward_ios_rounded,
                             color: Colors.white.withOpacity(0.6),
-                            size: 12,
+                            size: 12.s,
                           ),
                         ],
                       ),
@@ -3456,8 +3786,16 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               physics: const BouncingScrollPhysics(
                 parent: AlwaysScrollableScrollPhysics(),
               ),
-              itemCount: decks.length,
+              itemCount:
+                  (categoryKey == 'custom' || categoryKey == 'My Decks')
+                      ? decks.length + 1
+                      : decks.length,
               itemBuilder: (context, index) {
+                if ((categoryKey == 'custom' ||
+                        categoryKey == 'My Decks') &&
+                    index == decks.length) {
+                  return _buildCreateNewDeckCard();
+                }
                 return _buildDeckCard(
                   decks[index],
                   isPremium: isPremium,
@@ -3489,7 +3827,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             margin: EdgeInsets.only(right: 16.s),
             child: Material(
               color: Colors.transparent,
-              child: InkWell(
+              child: Semantics(
+                label: '${deck.name} deck, ${deck.cards.length} cards${isPremium && !isUnlocked ? ', premium locked' : ''}',
+                button: true,
+                child: InkWell(
                 splashColor: deck.color.withOpacity(0.2),
                 highlightColor: deck.color.withOpacity(0.1),
                 onTap: () {
@@ -3500,7 +3841,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                     _showDeckDetails(deck, heroTag: heroTag);
                   }
                 },
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(16.s),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -3510,7 +3851,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                       width: 150.s,
                       decoration: BoxDecoration(
                         color: const Color(0xFF2C2C2E),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(16.s),
                         border: Border.all(
                           color:
                               isPremium && !isUnlocked
@@ -3518,76 +3859,72 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                   : isPremium && isUnlocked
                                   ? const Color(0xFFFFD700).withOpacity(0.3)
                                   : Colors.white.withOpacity(0.08),
-                          width: isPremium ? 2 : 1,
+                          width: isPremium ? 2.s : 1.s,
                         ),
                         boxShadow: [
                           if (isPremium)
                             BoxShadow(
                               color: const Color(0xFFFFD700).withOpacity(0.15),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                              spreadRadius: -2,
+                              blurRadius: 20.s,
+                              offset: Offset(0, 8.s),
+                              spreadRadius: -2.s,
                             ),
                           BoxShadow(
                             color: Colors.black.withOpacity(0.3),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                            spreadRadius: -4,
+                            blurRadius: 16.s,
+                            offset: Offset(0, 6.s),
+                            spreadRadius: -4.s,
                           ),
                         ],
                       ),
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(15),
+                        borderRadius: BorderRadius.circular(15.s),
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
                             // Background image or color
                             if (deck.imageUrl != null &&
                                 deck.imageUrl!.isNotEmpty)
-                              CachedNetworkImage(
-                                imageUrl: deck.imageUrl!,
-                                fit: BoxFit.cover,
-                                memCacheWidth: 158,
-                                memCacheHeight: 210,
-                                maxWidthDiskCache: 600,
-                                maxHeightDiskCache: 800,
-                                placeholder:
-                                    (context, url) => Container(
-                                      decoration: BoxDecoration(
+                              Positioned.fill(
+                                child: CachedNetworkImage(
+                                  imageUrl: deck.imageUrl!,
+                                  fit: BoxFit.cover,
+                                  memCacheWidth: 158,
+                                  memCacheHeight: 210,
+                                  maxWidthDiskCache: 600,
+                                  maxHeightDiskCache: 800,
+                                  placeholder:
+                                      (context, url) => Container(
                                         color: deck.color.withOpacity(0.15),
-                                      ),
-                                      child: Center(
-                                        child: CircularProgressIndicator(
-                                          color: deck.color.withOpacity(0.5),
-                                          strokeWidth: 2,
+                                        child: Center(
+                                          child: CircularProgressIndicator(
+                                            color: deck.color.withOpacity(0.5),
+                                            strokeWidth: 2.s,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                fadeInDuration: const Duration(
-                                  milliseconds: 300,
-                                ),
-                                errorWidget: (context, url, error) {
-                                  return Container(
-                                    decoration: BoxDecoration(
+                                  fadeInDuration: const Duration(
+                                    milliseconds: 300,
+                                  ),
+                                  errorWidget: (context, url, error) {
+                                    return Container(
                                       color: deck.color.withOpacity(0.2),
-                                    ),
-                                    child: Center(
-                                      child: Icon(
+                                      alignment: Alignment.center,
+                                      child: FaIcon(
                                         deck.icon,
                                         color: deck.color,
-                                        size: 40,
+                                        size: 40.s,
                                       ),
-                                    ),
-                                  );
-                                },
+                                    );
+                                  },
+                                ),
                               )
                             else
-                              Container(
-                                decoration: BoxDecoration(
+                              Positioned.fill(
+                                child: Container(
                                   color: deck.color.withOpacity(0.15),
-                                ),
-                                child: Center(
-                                  child: Icon(
+                                  alignment: Alignment.center,
+                                  child: FaIcon(
                                     deck.icon,
                                     color: deck.color,
                                     size: 40.s,
@@ -3661,7 +3998,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                         color: const Color(
                                           0xFFFFC107,
                                         ).withOpacity(0.3),
-                                        width: 2,
+                                        width: 2.s,
                                       ),
                                     ),
                                     child: Icon(
@@ -3683,12 +4020,14 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                       height: 32.s,
                                       decoration: BoxDecoration(
                                         color: Colors.white.withOpacity(0.9),
-                                        borderRadius: BorderRadius.circular(8),
+                                        borderRadius: BorderRadius.circular(
+                                          8.s,
+                                        ),
                                       ),
                                       child: Icon(
                                         Icons.play_arrow_rounded,
                                         color: deck.color,
-                                        size: 20,
+                                        size: 20.s,
                                       ),
                                     )
                                     .animate(delay: (500 + index * 100).ms)
@@ -3720,14 +4059,16 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                           begin: Alignment.topLeft,
                                           end: Alignment.bottomRight,
                                         ),
-                                        borderRadius: BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(
+                                          12.s,
+                                        ),
                                         boxShadow: [
                                           BoxShadow(
                                             color: Colors.black.withOpacity(
                                               0.3,
                                             ),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 2),
+                                            blurRadius: 4.s,
+                                            offset: Offset(0, 2.s),
                                           ),
                                         ],
                                       ),
@@ -3736,10 +4077,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                         children: [
                                           Icon(
                                             Icons.workspace_premium_rounded,
-                                            size: 12,
+                                            size: 12.s,
                                             color: Colors.black,
                                           ),
-                                          const SizedBox(width: 2),
+                                          SizedBox(width: 2.s),
                                           Text(
                                             'PREMIUM',
                                             style: GoogleFonts.poppins(
@@ -3767,15 +4108,21 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               Positioned(
                                 top: 8.s,
                                 left: 8.s,
-                                child: _buildStatusBadge(deck.statusTag!, index),
+                                child: _buildStatusBadge(
+                                  deck.statusTag!,
+                                  index,
+                                ),
                               ),
-                            
+
                             // NEW / UPDATED status badge for premium decks (positioned below premium badge)
                             if (isPremium && deck.statusTag != null)
                               Positioned(
                                 top: 36.s,
                                 left: 8.s,
-                                child: _buildStatusBadge(deck.statusTag!, index),
+                                child: _buildStatusBadge(
+                                  deck.statusTag!,
+                                  index,
+                                ),
                               ),
                           ],
                         ),
@@ -3785,6 +4132,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                 ),
               ),
             ),
+          ),
           ),
         )
         .animate()
@@ -4047,18 +4395,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                 onTap: () {
                                   Navigator.pop(context);
                                   _hapticService.mediumImpact();
-                                  // TODO: Implement unlock functionality
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        AppLocalizations.of(
-                                          context,
-                                        )!.premiumUnlockComingSoon,
-                                        style: GoogleFonts.poppins(),
-                                      ),
-                                      backgroundColor: const Color(0xFFFFD700),
-                                    ),
-                                  );
+                                  _showPaywall(deck);
                                 },
                                 borderRadius: BorderRadius.circular(16),
                                 child: Container(
@@ -4113,9 +4450,51 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                               ),
                               const SizedBox(width: 16),
                               TextButton(
-                                onPressed: () {
+                                onPressed: () async {
                                   Navigator.pop(context);
-                                  // TODO: Implement restore purchases
+                                  _hapticService.lightImpact();
+                                  try {
+                                    final result = await PurchasesService().restorePurchases();
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Row(
+                                          children: [
+                                            Icon(
+                                              result == RestoreResult.success
+                                                  ? Icons.check_circle
+                                                  : Icons.info_outline,
+                                              color: Colors.white,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(child: Text(result.message)),
+                                          ],
+                                        ),
+                                        backgroundColor: result == RestoreResult.success
+                                            ? Colors.green.shade700
+                                            : Colors.blueGrey.shade700,
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: const Row(
+                                          children: [
+                                            Icon(Icons.error_outline, color: Colors.white, size: 20),
+                                            SizedBox(width: 12),
+                                            Expanded(child: Text('Failed to restore purchases')),
+                                          ],
+                                        ),
+                                        backgroundColor: Colors.red.shade700,
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                    );
+                                  }
                                 },
                                 child: Text(
                                   AppLocalizations.of(
@@ -4151,6 +4530,94 @@ class _HomeScreenV2State extends State<HomeScreenV2>
         );
       },
       transitionDuration: const Duration(milliseconds: 300),
+    );
+  }
+
+  Widget _buildCreateNewDeckCard() {
+    return Container(
+      width: 150.s,
+      height: 200.s,
+      margin: EdgeInsets.only(right: 16.s),
+      child: Material(
+        color: Colors.transparent,
+        child: Semantics(
+          label: 'Create a new custom deck',
+          button: true,
+          child: InkWell(
+          onTap: () {
+            _hapticService.mediumImpact();
+            context.push('/custom-deck-create');
+          },
+          borderRadius: BorderRadius.circular(16.s),
+          splashColor: const Color(0xFF3B82F6).withOpacity(0.15),
+          highlightColor: const Color(0xFF3B82F6).withOpacity(0.05),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1C1E),
+              borderRadius: BorderRadius.circular(16.s),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.1),
+                width: 1.5.s,
+                strokeAlign: BorderSide.strokeAlignInside,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 16.s,
+                  offset: Offset(0, 6.s),
+                  spreadRadius: -4.s,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 52.s,
+                  height: 52.s,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF3B82F6).withOpacity(0.2),
+                        const Color(0xFF8B5CF6).withOpacity(0.2),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.12),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.add_rounded,
+                    color: Colors.white,
+                    size: 28.s,
+                  ),
+                ),
+                SizedBox(height: 12.s),
+                Text(
+                  AppLocalizations.of(context)?.createDeck ?? 'Create Deck',
+                  style: GoogleFonts.inter(
+                    color: Colors.white.withOpacity(0.8),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13.sp,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      ),
+    ).animate().fadeIn(delay: 400.ms, duration: 500.ms).scale(
+      begin: const Offset(0.9, 0.9),
+      end: const Offset(1, 1),
+      delay: 400.ms,
+      duration: 500.ms,
+      curve: Curves.easeOutBack,
     );
   }
 
@@ -4261,7 +4728,10 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   Widget _buildSettingsCard() {
-    return GestureDetector(
+    return Semantics(
+      label: 'Settings, customize your experience',
+      button: true,
+      child: GestureDetector(
       onTap: () {
         _hapticService.lightImpact();
         _audioService.playClick();
@@ -4356,6 +4826,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
             duration: 600.ms,
             curve: Curves.easeOutCubic,
           ),
+    ),
     );
   }
 
@@ -4545,22 +5016,15 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                                     size: 28.s,
                                   ),
                                 )
-                                .animate(
-                                  onPlay:
-                                      (controller) =>
-                                          controller.repeat(reverse: true),
-                                )
+                                // Animate once on load, don't repeat to save CPU
+                                .animate()
                                 .scale(
-                                  begin: const Offset(1, 1),
-                                  end: const Offset(1.08, 1.08),
-                                  duration: 2000.ms,
-                                  curve: Curves.easeInOut,
+                                  begin: const Offset(0.8, 0.8),
+                                  end: const Offset(1, 1),
+                                  duration: 600.ms,
+                                  curve: Curves.easeOutBack,
                                 )
-                                .then()
-                                .shimmer(
-                                  duration: 1500.ms,
-                                  color: Colors.white.withOpacity(0.1),
-                                ),
+                                .fadeIn(duration: 500.ms),
 
                             const SizedBox(height: 16),
 
@@ -4750,44 +5214,44 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   Widget _buildStatusBadge(String status, int index) {
     final l10n = AppLocalizations.of(context)!;
     final isNew = status == 'new';
-    
+
     // Colors for NEW (green) and UPDATED (blue)
-    final gradientColors = isNew
-        ? [const Color(0xFF00C853), const Color(0xFF00E676)]  // Vibrant green
-        : [const Color(0xFF2196F3), const Color(0xFF42A5F5)]; // Vibrant blue
-    
+    final gradientColors =
+        isNew
+            ? [
+              const Color(0xFF00C853),
+              const Color(0xFF00E676),
+            ] // Vibrant green
+            : [
+              const Color(0xFF2196F3),
+              const Color(0xFF42A5F5),
+            ]; // Vibrant blue
+
     final badgeText = isNew ? l10n.newBadge : l10n.updatedBadge;
     final badgeIcon = isNew ? Icons.fiber_new_rounded : Icons.update_rounded;
 
     return Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: 7.s,
-            vertical: 3.s,
-          ),
+          padding: EdgeInsets.symmetric(horizontal: 7.s, vertical: 3.s),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: gradientColors,
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(10.s),
             boxShadow: [
               BoxShadow(
                 color: gradientColors[0].withOpacity(0.4),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
+                blurRadius: 6.s,
+                offset: Offset(0, 2.s),
               ),
             ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                badgeIcon,
-                size: 10,
-                color: Colors.white,
-              ),
-              const SizedBox(width: 3),
+              Icon(badgeIcon, size: 10.s, color: Colors.white),
+              SizedBox(width: 3.s),
               Text(
                 badgeText,
                 style: GoogleFonts.poppins(
@@ -4857,85 +5321,396 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   }
 
   Widget _buildErrorState(BuildContext context, DeckProvider deckProvider) {
+    // Get screen dimensions for responsive calculations
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isCompactDevice = screenHeight < 700;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF0A0E14),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF1a1a1a), Colors.black],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0A0E14), Color(0xFF0D1117), Color(0xFF0A0E14)],
+            stops: [0.0, 0.5, 1.0],
           ),
         ),
         child: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.wifi_off_rounded,
-                    size: 80.s,
-                    color: Colors.white.withOpacity(0.5),
-                  ),
-                  SizedBox(height: 24.s),
-                  Text(
-                    AppLocalizations.of(context)!.unableToLoadDecks,
-                    style: GoogleFonts.poppins(
-                      fontSize: 24.sp,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 28.s,
+                      vertical: 16.h,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    AppLocalizations.of(context)!.checkInternetAndRetry,
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      color: Colors.white.withOpacity(0.7),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  SizedBox(height: 32.s),
-                  ElevatedButton(
-                    onPressed: () {
-                      _hapticService.selection();
-                      deckProvider.retryLoading();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 16,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.refresh_rounded),
-                        const SizedBox(width: 8),
+                        SizedBox(height: 24.h),
+
+                        // Animated Icon with Glow Effect
+                        _buildAnimatedConnectionIcon(isCompactDevice),
+
+                        SizedBox(height: isCompactDevice ? 24.h : 32.h),
+
+                        // Title with elegant typography
                         Text(
-                          AppLocalizations.of(context)!.retry,
-                          style: GoogleFonts.poppins(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                              AppLocalizations.of(context)!.unableToLoadDecks,
+                              style: GoogleFonts.inter(
+                                fontSize: isCompactDevice ? 22.sp : 24.sp,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                letterSpacing: -0.5,
+                                height: 1.2,
+                              ),
+                              textAlign: TextAlign.center,
+                            )
+                            .animate()
+                            .fadeIn(duration: 600.ms, delay: 300.ms)
+                            .slideY(
+                              begin: 0.2,
+                              end: 0,
+                              duration: 600.ms,
+                              curve: Curves.easeOutQuart,
+                            ),
+
+                        SizedBox(height: 10.h),
+
+                        // Subtitle with softer styling
+                        Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 12.s),
+                              child: Text(
+                                AppLocalizations.of(
+                                  context,
+                                )!.checkInternetAndRetry,
+                                style: GoogleFonts.inter(
+                                  fontSize: isCompactDevice ? 13.sp : 14.sp,
+                                  fontWeight: FontWeight.w400,
+                                  color: Colors.white.withOpacity(0.55),
+                                  height: 1.5,
+                                  letterSpacing: 0.1,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            )
+                            .animate()
+                            .fadeIn(duration: 600.ms, delay: 450.ms)
+                            .slideY(
+                              begin: 0.2,
+                              end: 0,
+                              duration: 600.ms,
+                              curve: Curves.easeOutQuart,
+                            ),
+
+                        SizedBox(height: isCompactDevice ? 24.h : 32.h),
+
+                        // Retry Button with subtle gradient
+                        _buildRetryButton(deckProvider, isCompactDevice),
+
+                        SizedBox(height: isCompactDevice ? 28.h : 40.h),
+
+                        // Tips Section with glassmorphism
+                        _buildConnectionTipsCard(isCompactDevice),
+
+                        SizedBox(height: 24.h),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildAnimatedConnectionIcon(bool isCompact) {
+    final outerSize = isCompact ? 110.s : 130.s;
+    final innerSize = isCompact ? 80.s : 92.s;
+    final iconSize = isCompact ? 36.s : 42.s;
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Outer glow ring - pulsing
+        Container(
+              width: outerSize,
+              height: outerSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFFE85A5A).withOpacity(0.15),
+                    const Color(0xFFE85A5A).withOpacity(0.05),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.6, 1.0],
+                ),
+              ),
+            )
+            .animate(onPlay: (controller) => controller.repeat(reverse: true))
+            .scale(
+              begin: const Offset(0.92, 0.92),
+              end: const Offset(1.08, 1.08),
+              duration: 2200.ms,
+              curve: Curves.easeInOut,
+            )
+            .fadeIn(duration: 800.ms),
+
+        // Main icon container
+        Container(
+              width: innerSize,
+              height: innerSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF3D2A2A), Color(0xFF2A1F1F)],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFE85A5A).withOpacity(0.18),
+                    blurRadius: 24.s,
+                    spreadRadius: 0,
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.35),
+                    blurRadius: 16.s,
+                    offset: Offset(0, 8.s),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.wifi_off_rounded,
+                size: iconSize,
+                color: const Color(0xFFE85A5A).withOpacity(0.85),
+              ),
+            )
+            .animate()
+            .fadeIn(duration: 600.ms)
+            .scale(
+              begin: const Offset(0.85, 0.85),
+              end: const Offset(1.0, 1.0),
+              duration: 600.ms,
+              curve: Curves.easeOutBack,
+            ),
+      ],
+    );
+  }
+
+  Widget _buildRetryButton(DeckProvider deckProvider, bool isCompact) {
+    return GestureDetector(
+          onTap: () {
+            _hapticService.selection();
+            deckProvider.retryLoading();
+          },
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isCompact ? 28.s : 32.s,
+              vertical: isCompact ? 12.h : 14.h,
+            ),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+              ),
+              borderRadius: BorderRadius.circular(14.s),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6366F1).withOpacity(0.3),
+                  blurRadius: 20.s,
+                  offset: Offset(0, 6.s),
+                  spreadRadius: -2,
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 10.s,
+                  offset: Offset(0, 3.s),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                      Icons.refresh_rounded,
+                      size: isCompact ? 18.s : 20.s,
+                      color: Colors.white,
+                    )
+                    .animate(onPlay: (controller) => controller.repeat())
+                    .rotate(duration: 2000.ms, curve: Curves.linear),
+                SizedBox(width: 8.s),
+                Text(
+                  AppLocalizations.of(context)!.retry,
+                  style: GoogleFonts.inter(
+                    fontSize: isCompact ? 14.sp : 15.sp,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        )
+        .animate()
+        .fadeIn(duration: 600.ms, delay: 600.ms)
+        .slideY(
+          begin: 0.3,
+          end: 0,
+          duration: 600.ms,
+          curve: Curves.easeOutQuart,
+        )
+        .then()
+        .animate(onPlay: (controller) => controller.repeat(reverse: true))
+        .scale(
+          begin: const Offset(1.0, 1.0),
+          end: const Offset(1.02, 1.02),
+          duration: 1800.ms,
+          curve: Curves.easeInOut,
+        );
+  }
+
+  Widget _buildConnectionTipsCard(bool isCompact) {
+    final tips = [
+      _ConnectionTip(
+        icon: Icons.wifi_rounded,
+        text: 'Check if WiFi is enabled',
+      ),
+      _ConnectionTip(
+        icon: Icons.signal_cellular_alt_rounded,
+        text: 'Try switching to mobile data',
+      ),
+      _ConnectionTip(
+        icon: Icons.router_rounded,
+        text: 'Move closer to your router',
+      ),
+    ];
+
+    return ClipRRect(
+          borderRadius: BorderRadius.circular(16.s),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                horizontal: isCompact ? 16.s : 18.s,
+                vertical: isCompact ? 14.h : 16.h,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.04),
+                borderRadius: BorderRadius.circular(16.s),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.06),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: isCompact ? 24.s : 26.s,
+                        height: isCompact ? 24.s : 26.s,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFBBF24).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(7.s),
+                        ),
+                        child: Icon(
+                          Icons.lightbulb_outline_rounded,
+                          size: isCompact ? 14.s : 15.s,
+                          color: const Color(0xFFFBBF24),
+                        ),
+                      ),
+                      SizedBox(width: 10.s),
+                      Text(
+                        'Tips to reconnect',
+                        style: GoogleFonts.inter(
+                          fontSize: isCompact ? 13.sp : 14.sp,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withOpacity(0.85),
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: isCompact ? 12.h : 14.h),
+                  ...tips.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final tip = entry.value;
+                    return Padding(
+                      padding: EdgeInsets.only(
+                        bottom:
+                            index < tips.length - 1
+                                ? (isCompact ? 8.h : 10.h)
+                                : 0,
+                      ),
+                      child: _buildTipRow(tip, index, isCompact),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+        )
+        .animate()
+        .fadeIn(duration: 600.ms, delay: 800.ms)
+        .slideY(
+          begin: 0.15,
+          end: 0,
+          duration: 600.ms,
+          curve: Curves.easeOutQuart,
+        );
+  }
+
+  Widget _buildTipRow(_ConnectionTip tip, int index, bool isCompact) {
+    return Row(
+          children: [
+            Container(
+              width: 5.s,
+              height: 5.s,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.35),
+                shape: BoxShape.circle,
+              ),
+            ),
+            SizedBox(width: 10.s),
+            Icon(
+              tip.icon,
+              size: isCompact ? 16.s : 17.s,
+              color: Colors.white.withOpacity(0.45),
+            ),
+            SizedBox(width: 9.s),
+            Expanded(
+              child: Text(
+                tip.text,
+                style: GoogleFonts.inter(
+                  fontSize: isCompact ? 12.sp : 13.sp,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.white.withOpacity(0.55),
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        )
+        .animate()
+        .fadeIn(duration: 400.ms, delay: (900 + index * 80).ms)
+        .slideX(
+          begin: -0.08,
+          end: 0,
+          duration: 400.ms,
+          curve: Curves.easeOutQuart,
+        );
   }
 
   Widget _buildNoDecksMessage() {
@@ -5082,7 +5857,13 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                   ),
                 ),
               )
-              .animate(onPlay: (controller) => controller.repeat())
+              // Limited shimmer animation for loading state - not infinite
+              .animate(
+                autoPlay: _isAppActive,
+                onPlay:
+                    _isAppActive ? (controller) => controller.repeat() : null,
+                onComplete: (controller) => controller.stop(),
+              )
               .shimmer(
                 duration: 1500.ms,
                 color: Colors.white.withOpacity(0.05),
@@ -5092,4 +5873,12 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       ),
     );
   }
+}
+
+/// Helper class for connection tips
+class _ConnectionTip {
+  final IconData icon;
+  final String text;
+
+  const _ConnectionTip({required this.icon, required this.text});
 }

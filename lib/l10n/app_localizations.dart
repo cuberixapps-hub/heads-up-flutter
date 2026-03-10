@@ -2011,6 +2011,372 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} cards'**
   String cardsCount(int count);
+
+  /// No description provided for @helpUsImprove.
+  ///
+  /// In en, this message translates to:
+  /// **'Help Us Improve'**
+  String get helpUsImprove;
+
+  /// No description provided for @tellUsWhatDecksYouWant.
+  ///
+  /// In en, this message translates to:
+  /// **'Tell us what decks you want to see'**
+  String get tellUsWhatDecksYouWant;
+
+  /// No description provided for @whatInterestsYouMost.
+  ///
+  /// In en, this message translates to:
+  /// **'What interests you most?'**
+  String get whatInterestsYouMost;
+
+  /// No description provided for @selectAllThatApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all that apply'**
+  String get selectAllThatApply;
+
+  /// No description provided for @haveSpecificIdea.
+  ///
+  /// In en, this message translates to:
+  /// **'Have a specific idea?'**
+  String get haveSpecificIdea;
+
+  /// No description provided for @deckSuggestionPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g., \"K-Pop Artists\", \"Marvel Characters\", \"90s Cartoons\"'**
+  String get deckSuggestionPlaceholder;
+
+  /// No description provided for @submitFeedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit Feedback'**
+  String get submitFeedback;
+
+  /// No description provided for @thankYou.
+  ///
+  /// In en, this message translates to:
+  /// **'Thank You!'**
+  String get thankYou;
+
+  /// No description provided for @feedbackHelpsBetterDecks.
+  ///
+  /// In en, this message translates to:
+  /// **'Your feedback helps us create better decks for you'**
+  String get feedbackHelpsBetterDecks;
+
+  /// No description provided for @trendingPopCulture.
+  ///
+  /// In en, this message translates to:
+  /// **'Trending & Pop Culture'**
+  String get trendingPopCulture;
+
+  /// No description provided for @trendingPopCultureDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Latest viral trends, memes, and pop culture moments'**
+  String get trendingPopCultureDesc;
+
+  /// No description provided for @classicNostalgia.
+  ///
+  /// In en, this message translates to:
+  /// **'90s & 2000s Nostalgia'**
+  String get classicNostalgia;
+
+  /// No description provided for @classicNostalgiaDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Throwback content from the golden eras'**
+  String get classicNostalgiaDesc;
+
+  /// No description provided for @regionalContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Regional & Cultural'**
+  String get regionalContent;
+
+  /// No description provided for @regionalContentDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Content specific to your country or culture'**
+  String get regionalContentDesc;
+
+  /// No description provided for @partySocial.
+  ///
+  /// In en, this message translates to:
+  /// **'Party & Social'**
+  String get partySocial;
+
+  /// No description provided for @partySocialDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Fun decks perfect for parties and gatherings'**
+  String get partySocialDesc;
+
+  /// No description provided for @learningTrivia.
+  ///
+  /// In en, this message translates to:
+  /// **'Learning & Trivia'**
+  String get learningTrivia;
+
+  /// No description provided for @learningTriviaDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Educational content that\'s fun to play'**
+  String get learningTriviaDesc;
+
+  /// No description provided for @kidsFamily.
+  ///
+  /// In en, this message translates to:
+  /// **'Kids & Family'**
+  String get kidsFamily;
+
+  /// No description provided for @kidsFamilyDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Family-friendly content for all ages'**
+  String get kidsFamilyDesc;
+
+  /// No description provided for @sportsAthletes.
+  ///
+  /// In en, this message translates to:
+  /// **'Sports & Athletes'**
+  String get sportsAthletes;
+
+  /// No description provided for @sportsAthletesDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Sports legends, teams, and memorable moments'**
+  String get sportsAthletesDesc;
+
+  /// No description provided for @gamingEsports.
+  ///
+  /// In en, this message translates to:
+  /// **'Gaming & Esports'**
+  String get gamingEsports;
+
+  /// No description provided for @gamingEsportsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Video games, streamers, and esports'**
+  String get gamingEsportsDesc;
+
+  /// No description provided for @musicArtists.
+  ///
+  /// In en, this message translates to:
+  /// **'Music & Artists'**
+  String get musicArtists;
+
+  /// No description provided for @musicArtistsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Songs, albums, and musical artists'**
+  String get musicArtistsDesc;
+
+  /// No description provided for @moviesShows.
+  ///
+  /// In en, this message translates to:
+  /// **'Movies & TV Shows'**
+  String get moviesShows;
+
+  /// No description provided for @moviesShowsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Films, series, and entertainment'**
+  String get moviesShowsDesc;
+
+  /// No description provided for @foodTravel.
+  ///
+  /// In en, this message translates to:
+  /// **'Food & Travel'**
+  String get foodTravel;
+
+  /// No description provided for @foodTravelDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Cuisines, destinations, and experiences'**
+  String get foodTravelDesc;
+
+  /// No description provided for @themedEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'Themed Events'**
+  String get themedEvents;
+
+  /// No description provided for @themedEventsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Holiday specials, seasonal content'**
+  String get themedEventsDesc;
+
+  /// No description provided for @bulkAddCards.
+  ///
+  /// In en, this message translates to:
+  /// **'Bulk Add'**
+  String get bulkAddCards;
+
+  /// No description provided for @bulkAddCardsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Multiple Cards'**
+  String get bulkAddCardsTitle;
+
+  /// No description provided for @bulkAddCardsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter one card per line'**
+  String get bulkAddCardsHint;
+
+  /// No description provided for @addCards.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Cards'**
+  String get addCards;
+
+  /// No description provided for @cardsAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} cards added'**
+  String cardsAdded(int count);
+
+  /// No description provided for @tapToEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to edit'**
+  String get tapToEdit;
+
+  /// No description provided for @editCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Card'**
+  String get editCard;
+
+  /// No description provided for @cardUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Card updated'**
+  String get cardUpdated;
+
+  /// No description provided for @holdToDrag.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold to reorder'**
+  String get holdToDrag;
+
+  /// No description provided for @deckPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get deckPreview;
+
+  /// No description provided for @yourDeckName.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Deck Name'**
+  String get yourDeckName;
+
+  /// No description provided for @cardsProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'{current} of {required} cards'**
+  String cardsProgress(int current, int required);
+
+  /// No description provided for @duplicateCard.
+  ///
+  /// In en, this message translates to:
+  /// **'This card already exists'**
+  String get duplicateCard;
+
+  /// No description provided for @emptyCardName.
+  ///
+  /// In en, this message translates to:
+  /// **'Card name cannot be empty'**
+  String get emptyCardName;
+
+  /// No description provided for @nameYourDeck.
+  ///
+  /// In en, this message translates to:
+  /// **'Name Your\nDeck'**
+  String get nameYourDeck;
+
+  /// No description provided for @giveItAName.
+  ///
+  /// In en, this message translates to:
+  /// **'Give it a name that stands out'**
+  String get giveItAName;
+
+  /// No description provided for @styleYourDeck.
+  ///
+  /// In en, this message translates to:
+  /// **'Style Your\nDeck'**
+  String get styleYourDeck;
+
+  /// No description provided for @makeItYours.
+  ///
+  /// In en, this message translates to:
+  /// **'Make it uniquely yours'**
+  String get makeItYours;
+
+  /// No description provided for @addYourCards.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Your\nCards'**
+  String get addYourCards;
+
+  /// No description provided for @youNeedAtLeast.
+  ///
+  /// In en, this message translates to:
+  /// **'You need at least {count} to play'**
+  String youNeedAtLeast(String count);
+
+  /// No description provided for @continueText.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get continueText;
+
+  /// No description provided for @createDeckAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Deck'**
+  String get createDeckAction;
+
+  /// No description provided for @saveChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Save Changes'**
+  String get saveChanges;
+
+  /// No description provided for @stepOf.
+  ///
+  /// In en, this message translates to:
+  /// **'{current} of {total}'**
+  String stepOf(int current, int total);
+
+  /// No description provided for @chooseAnIcon.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose an icon'**
+  String get chooseAnIcon;
+
+  /// No description provided for @pickAColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a color'**
+  String get pickAColor;
+
+  /// No description provided for @looksGreat.
+  ///
+  /// In en, this message translates to:
+  /// **'Looks great!'**
+  String get looksGreat;
+
+  /// No description provided for @niceStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Nice start!'**
+  String get niceStart;
 }
 
 class _AppLocalizationsDelegate

@@ -995,4 +995,200 @@ class AppLocalizationsVi extends AppLocalizations {
   String cardsCount(int count) {
     return '$count cards';
   }
+
+  @override
+  String get helpUsImprove => 'Help Us Improve';
+
+  @override
+  String get tellUsWhatDecksYouWant => 'Tell us what decks you want to see';
+
+  @override
+  String get whatInterestsYouMost => 'What interests you most?';
+
+  @override
+  String get selectAllThatApply => 'Select all that apply';
+
+  @override
+  String get haveSpecificIdea => 'Have a specific idea?';
+
+  @override
+  String get deckSuggestionPlaceholder =>
+      'e.g., \"K-Pop Artists\", \"Marvel Characters\", \"90s Cartoons\"';
+
+  @override
+  String get submitFeedback => 'Submit Feedback';
+
+  @override
+  String get thankYou => 'Thank You!';
+
+  @override
+  String get feedbackHelpsBetterDecks =>
+      'Your feedback helps us create better decks for you';
+
+  @override
+  String get trendingPopCulture => 'Trending & Pop Culture';
+
+  @override
+  String get trendingPopCultureDesc =>
+      'Latest viral trends, memes, and pop culture moments';
+
+  @override
+  String get classicNostalgia => '90s & 2000s Nostalgia';
+
+  @override
+  String get classicNostalgiaDesc => 'Throwback content from the golden eras';
+
+  @override
+  String get regionalContent => 'Regional & Cultural';
+
+  @override
+  String get regionalContentDesc =>
+      'Content specific to your country or culture';
+
+  @override
+  String get partySocial => 'Party & Social';
+
+  @override
+  String get partySocialDesc => 'Fun decks perfect for parties and gatherings';
+
+  @override
+  String get learningTrivia => 'Learning & Trivia';
+
+  @override
+  String get learningTriviaDesc => 'Educational content that\'s fun to play';
+
+  @override
+  String get kidsFamily => 'Kids & Family';
+
+  @override
+  String get kidsFamilyDesc => 'Family-friendly content for all ages';
+
+  @override
+  String get sportsAthletes => 'Sports & Athletes';
+
+  @override
+  String get sportsAthletesDesc =>
+      'Sports legends, teams, and memorable moments';
+
+  @override
+  String get gamingEsports => 'Gaming & Esports';
+
+  @override
+  String get gamingEsportsDesc => 'Video games, streamers, and esports';
+
+  @override
+  String get musicArtists => 'Music & Artists';
+
+  @override
+  String get musicArtistsDesc => 'Songs, albums, and musical artists';
+
+  @override
+  String get moviesShows => 'Movies & TV Shows';
+
+  @override
+  String get moviesShowsDesc => 'Films, series, and entertainment';
+
+  @override
+  String get foodTravel => 'Food & Travel';
+
+  @override
+  String get foodTravelDesc => 'Cuisines, destinations, and experiences';
+
+  @override
+  String get themedEvents => 'Themed Events';
+
+  @override
+  String get themedEventsDesc => 'Holiday specials, seasonal content';
+
+  @override
+  String get bulkAddCards => 'Bulk Add';
+
+  @override
+  String get bulkAddCardsTitle => 'Add Multiple Cards';
+
+  @override
+  String get bulkAddCardsHint => 'Enter one card per line';
+
+  @override
+  String get addCards => 'Add Cards';
+
+  @override
+  String cardsAdded(int count) {
+    return '$count cards added';
+  }
+
+  @override
+  String get tapToEdit => 'Tap to edit';
+
+  @override
+  String get editCard => 'Edit Card';
+
+  @override
+  String get cardUpdated => 'Card updated';
+
+  @override
+  String get holdToDrag => 'Hold to reorder';
+
+  @override
+  String get deckPreview => 'Preview';
+
+  @override
+  String get yourDeckName => 'Your Deck Name';
+
+  @override
+  String cardsProgress(int current, int required) {
+    return '$current of $required cards';
+  }
+
+  @override
+  String get duplicateCard => 'This card already exists';
+
+  @override
+  String get emptyCardName => 'Card name cannot be empty';
+
+  @override
+  String get nameYourDeck => 'Name Your\nDeck';
+
+  @override
+  String get giveItAName => 'Give it a name that stands out';
+
+  @override
+  String get styleYourDeck => 'Style Your\nDeck';
+
+  @override
+  String get makeItYours => 'Make it uniquely yours';
+
+  @override
+  String get addYourCards => 'Add Your\nCards';
+
+  @override
+  String youNeedAtLeast(String count) {
+    return 'You need at least $count to play';
+  }
+
+  @override
+  String get continueText => 'Continue';
+
+  @override
+  String get createDeckAction => 'Create Deck';
+
+  @override
+  String get saveChanges => 'Save Changes';
+
+  @override
+  String stepOf(int current, int total) {
+    return '$current of $total';
+  }
+
+  @override
+  String get chooseAnIcon => 'Choose an icon';
+
+  @override
+  String get pickAColor => 'Pick a color';
+
+  @override
+  String get looksGreat => 'Looks great!';
+
+  @override
+  String get niceStart => 'Nice start!';
 }

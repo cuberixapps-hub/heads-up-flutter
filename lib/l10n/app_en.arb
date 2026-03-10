@@ -401,5 +401,101 @@
         "type": "int"
       }
     }
-  }
+  },
+  "helpUsImprove": "Help Us Improve",
+  "tellUsWhatDecksYouWant": "Tell us what decks you want to see",
+  "whatInterestsYouMost": "What interests you most?",
+  "selectAllThatApply": "Select all that apply",
+  "haveSpecificIdea": "Have a specific idea?",
+  "deckSuggestionPlaceholder": "e.g., \"K-Pop Artists\", \"Marvel Characters\", \"90s Cartoons\"",
+  "maybeLater": "Maybe Later",
+  "submitFeedback": "Submit Feedback",
+  "thankYou": "Thank You!",
+  "feedbackHelpsBetterDecks": "Your feedback helps us create better decks for you",
+  "trendingPopCulture": "Trending & Pop Culture",
+  "trendingPopCultureDesc": "Latest viral trends, memes, and pop culture moments",
+  "classicNostalgia": "90s & 2000s Nostalgia",
+  "classicNostalgiaDesc": "Throwback content from the golden eras",
+  "regionalContent": "Regional & Cultural",
+  "regionalContentDesc": "Content specific to your country or culture",
+  "partySocial": "Party & Social",
+  "partySocialDesc": "Fun decks perfect for parties and gatherings",
+  "learningTrivia": "Learning & Trivia",
+  "learningTriviaDesc": "Educational content that's fun to play",
+  "kidsFamily": "Kids & Family",
+  "kidsFamilyDesc": "Family-friendly content for all ages",
+  "sportsAthletes": "Sports & Athletes",
+  "sportsAthletesDesc": "Sports legends, teams, and memorable moments",
+  "gamingEsports": "Gaming & Esports",
+  "gamingEsportsDesc": "Video games, streamers, and esports",
+  "musicArtists": "Music & Artists",
+  "musicArtistsDesc": "Songs, albums, and musical artists",
+  "moviesShows": "Movies & TV Shows",
+  "moviesShowsDesc": "Films, series, and entertainment",
+  "foodTravel": "Food & Travel",
+  "foodTravelDesc": "Cuisines, destinations, and experiences",
+  "themedEvents": "Themed Events",
+  "themedEventsDesc": "Holiday specials, seasonal content",
+  "bulkAddCards": "Bulk Add",
+  "bulkAddCardsTitle": "Add Multiple Cards",
+  "bulkAddCardsHint": "Enter one card per line",
+  "addCards": "Add Cards",
+  "cardsAdded": "{count} cards added",
+  "@cardsAdded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tapToEdit": "Tap to edit",
+  "editCard": "Edit Card",
+  "cardUpdated": "Card updated",
+  "holdToDrag": "Hold to reorder",
+  "deckPreview": "Preview",
+  "yourDeckName": "Your Deck Name",
+  "cardsProgress": "{current} of {required} cards",
+  "@cardsProgress": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "required": {
+        "type": "int"
+      }
+    }
+  },
+  "duplicateCard": "This card already exists",
+  "emptyCardName": "Card name cannot be empty",
+  "nameYourDeck": "Name Your\nDeck",
+  "giveItAName": "Give it a name that stands out",
+  "styleYourDeck": "Style Your\nDeck",
+  "makeItYours": "Make it uniquely yours",
+  "addYourCards": "Add Your\nCards",
+  "youNeedAtLeast": "You need at least {count} to play",
+  "@youNeedAtLeast": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "continueText": "Continue",
+  "createDeckAction": "Create Deck",
+  "saveChanges": "Save Changes",
+  "stepOf": "{current} of {total}",
+  "@stepOf": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "chooseAnIcon": "Choose an icon",
+  "pickAColor": "Pick a color",
+  "looksGreat": "Looks great!",
+  "niceStart": "Nice start!"
 }

@@ -1,38 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { subscribeToDecks, deleteDeck, unsubscribeFromDecks, type DeckData } from '../services/supabaseDeckService';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { Plus, Edit2, Trash2, Copy, Crown, Search, Filter, Grid, List, Calendar, Tag, Globe, Layers, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react';
 import '../styles/DeckList.css';
 
-interface Deck {
-    id: string;
-    name: string;
-    description: string;
-    cards: string[];
-    iconCodePoint: number;
-    iconFontFamily: string;
-    colorValue: number;
-    imageUrl?: string;
-    isPremium: boolean;
-    country?: string;
-    countries?: string[];
-    tags?: string[];
-    priority?: number;
-    isActive?: boolean;
-    difficulty?: string;
-    createdAt: any;
-    updatedAt: any;
-}
+// Use DeckData from supabaseDeckService
+type Deck = DeckData & { id: string };
 
 interface DeckListProps {
     onEdit: (deck: Deck) => void;
     onCreate: () => void;
+    filterTag?: string;
+    title?: string;
+    subtitle?: string;
 }
 
 type ViewMode = 'grid' | 'list';
 type FilterType = 'all' | 'premium' | 'free' | 'active' | 'inactive';
 
-export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
+export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate, filterTag, title, subtitle }) => {
     const [decks, setDecks] = useState<Deck[]>([]);
     const [filteredDecks, setFilteredDecks] = useState<Deck[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
@@ -44,26 +30,17 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
     const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
     useEffect(() => {
-        const unsubscribe = onSnapshot(
-            collection(db, 'decks'),
-            (snapshot) => {
-                const deckData = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                } as Deck));
+        let channel: RealtimeChannel | null = null;
 
-                // Sort by priority first, then by creation date
-                deckData.sort((a, b) => {
-                    if ((a.priority || 0) !== (b.priority || 0)) {
-                        return (a.priority || 0) - (b.priority || 0);
-                    }
-                    const dateA = a.createdAt?.toDate?.() || new Date(0);
-                    const dateB = b.createdAt?.toDate?.() || new Date(0);
-                    return dateB.getTime() - dateA.getTime();
-                });
-
-                setDecks(deckData);
-                setFilteredDecks(deckData);
+        // Subscribe to Supabase real-time updates
+        channel = subscribeToDecks(
+            (deckData) => {
+                let decksWithId = deckData.filter((d): d is Deck => !!d.id);
+                if (filterTag) {
+                    decksWithId = decksWithId.filter(d => d.tags?.includes(filterTag));
+                }
+                setDecks(decksWithId);
+                setFilteredDecks(decksWithId);
                 setIsLoading(false);
             },
             (error) => {
@@ -72,8 +49,12 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
             }
         );
 
-        return () => unsubscribe();
-    }, []);
+        return () => {
+            if (channel) {
+                unsubscribeFromDecks(channel);
+            }
+        };
+    }, [filterTag]);
 
     useEffect(() => {
         let filtered = decks;
@@ -126,7 +107,7 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
     const handleDelete = async (deckId: string) => {
         if (window.confirm('Are you sure you want to delete this deck?')) {
             try {
-                await deleteDoc(doc(db, 'decks', deckId));
+                await deleteDeck(deckId);
             } catch (error) {
                 console.error('Error deleting deck:', error);
                 alert('Failed to delete deck. Please try again.');
@@ -195,9 +176,10 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
         return names[code] || code;
     };
 
-    const formatDate = (timestamp: any): string => {
-        if (!timestamp?.toDate) return 'N/A';
-        const date = timestamp.toDate();
+    const formatDate = (timestamp: string | undefined): string => {
+        if (!timestamp) return 'N/A';
+        const date = new Date(timestamp);
+        if (isNaN(date.getTime())) return 'N/A';
         return new Intl.DateTimeFormat('en-US', {
             month: 'short',
             day: 'numeric',
@@ -205,9 +187,10 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
         }).format(date);
     };
 
-    const formatTime = (timestamp: any): string => {
-        if (!timestamp?.toDate) return '';
-        const date = timestamp.toDate();
+    const formatTime = (timestamp: string | undefined): string => {
+        if (!timestamp) return '';
+        const date = new Date(timestamp);
+        if (isNaN(date.getTime())) return '';
         return new Intl.DateTimeFormat('en-US', {
             hour: 'numeric',
             minute: '2-digit',
@@ -291,8 +274,8 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
             {/* Header */}
             <div className="deck-list-header">
                 <div className="header-left">
-                    <h1>Deck Management</h1>
-                    <p>Manage your game decks and content</p>
+                    <h1>{title || 'Deck Management'}</h1>
+                    <p>{subtitle || 'Manage your game decks and content'}</p>
                 </div>
                 <div className="header-actions">
                     <div className="search-box">
@@ -408,6 +391,11 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate }) => {
                                     {deck.isPremium && (
                                         <span className="badge premium-badge">
                                             <Crown size={12} /> Premium
+                                        </span>
+                                    )}
+                                    {deck.premiumOnly && (
+                                        <span className="badge premium-only-badge" title="No ads allowed - purchase only">
+                                            🔒 No Ads
                                         </span>
                                     )}
                                     {deck.isActive === false && (

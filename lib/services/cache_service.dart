@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/environment.dart';
 import '../models/cache_entry.dart';
 import '../models/deck.dart';
 import 'firebase_service.dart';
@@ -20,11 +21,9 @@ class CacheService {
   static const String _cacheMetadataKey = 'cache_metadata';
   static const String _lastFetchTimestampKey = 'last_decks_fetch_';
   
-  // TTL values based on build mode
-  // Production: 24 hours (to reduce Firebase costs)
-  // Debug/Profile: 0 (always fetch fresh data)
-  static Duration get decksTTL => kReleaseMode 
-      ? const Duration(hours: 24) 
+  // TTL: production = 24h; dev + UAT = 0 (always fetch fresh)
+  static Duration get decksTTL => EnvironmentConfig.isProduction
+      ? const Duration(hours: 24)
       : Duration.zero;
   
   static const Duration leaderboardTTL = Duration(minutes: 30);
@@ -36,15 +35,16 @@ class CacheService {
   static const int maxCacheSizeMB = 10;
   
   /// Check if we should fetch fresh data from Firebase
-  /// - In debug/profile mode: Always returns true
-  /// - In production mode: Returns true only if cache is expired (24 hours)
+  /// - Dev + UAT: always true (fresh data)
+  /// - Production: false (rely on cache TTL)
   bool get shouldFetchFreshData {
-    // In debug/profile mode, always fetch fresh data for testing
-    if (!kReleaseMode) {
-      debugPrint('🔧 Debug mode: Will always fetch fresh data from Firebase');
+    if (!EnvironmentConfig.isProduction) {
+      if (EnvironmentConfig.enableDebugLogging) {
+        debugPrint('🔧 Non-production: Will always fetch fresh data from Firebase');
+      }
       return true;
     }
-    return false; // In production, rely on cache TTL
+    return false;
   }
   
   /// Check if decks cache for a specific country needs refresh
@@ -55,9 +55,10 @@ class CacheService {
   Future<bool> shouldRefreshDecks(String countryCode) async {
     if (!_initialized) await initialize();
     
-    // In debug/profile mode, always refresh
-    if (!kReleaseMode) {
-      debugPrint('🔧 Debug/Profile mode: Forcing fresh fetch for $countryCode');
+    if (!EnvironmentConfig.isProduction) {
+      if (EnvironmentConfig.enableDebugLogging) {
+        debugPrint('🔧 Non-production: Forcing fresh fetch for $countryCode');
+      }
       return true;
     }
     

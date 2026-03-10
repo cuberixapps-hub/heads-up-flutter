@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/game_session.dart';
@@ -44,7 +45,7 @@ class GameFirebaseService {
       await _prepareBatchedDeckLeaderboardUpdate(batch, session);
       
       // Commit all writes atomically
-      await batch.commit();
+      await batch.commit().timeout(const Duration(seconds: 15));
       
       // Log analytics event after successful save
       await _firebaseService.logEvent(
@@ -94,7 +95,7 @@ class GameFirebaseService {
         query = query.startAfterDocument(lastDocument);
       }
       
-      final QuerySnapshot snapshot = await query.get();
+      final QuerySnapshot snapshot = await query.get().timeout(const Duration(seconds: 15));
       
       return LeaderboardPage(
         entries: snapshot.docs,
@@ -166,7 +167,7 @@ class GameFirebaseService {
     if (_userId == null) return _getDefaultStatistics();
 
     try {
-      final doc = await _userRef.get();
+      final doc = await _userRef.get().timeout(const Duration(seconds: 15));
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         return data['statistics'] ?? _getDefaultStatistics();
@@ -246,7 +247,7 @@ class GameFirebaseService {
         query = query.startAfterDocument(lastDocument);
       }
       
-      final QuerySnapshot snapshot = await query.get();
+      final QuerySnapshot snapshot = await query.get().timeout(const Duration(seconds: 15));
       
       // Log pagination event
       await _firebaseService.logEvent('pagination_page_loaded', parameters: {
@@ -388,7 +389,7 @@ class GameFirebaseService {
         query = query.startAfterDocument(lastDocument);
       }
       
-      final QuerySnapshot snapshot = await query.get();
+      final QuerySnapshot snapshot = await query.get().timeout(const Duration(seconds: 15));
       
       // Log pagination event
       await _firebaseService.logEvent('pagination_page_loaded', parameters: {
@@ -466,7 +467,7 @@ class GameFirebaseService {
         existingBatch.update(_userRef, {'gameSettings': settings});
       } else {
         // Direct update
-        await _userRef.update({'gameSettings': settings});
+        await _userRef.update({'gameSettings': settings}).timeout(const Duration(seconds: 15));
       }
 
       // Log the event (Firebase service will handle type conversion)
@@ -481,7 +482,7 @@ class GameFirebaseService {
     if (_userId == null) return _getDefaultSettings();
 
     try {
-      final doc = await _userRef.get();
+      final doc = await _userRef.get().timeout(const Duration(seconds: 15));
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         return data['gameSettings'] ?? _getDefaultSettings();
@@ -631,7 +632,8 @@ class GameFirebaseService {
           await _firestore
               .collection('gameSessions')
               .where('userId', isEqualTo: _userId)
-              .get();
+              .get()
+              .timeout(const Duration(seconds: 15));
 
       for (var doc in sessionsQuery.docs) {
         await doc.reference.delete();
@@ -646,7 +648,7 @@ class GameFirebaseService {
         'favoriteDecks': [],
         'achievements': [],
         'lastUpdated': FieldValue.serverTimestamp(),
-      });
+      }).timeout(const Duration(seconds: 15));
 
       // Clear user settings (reset to defaults)
       await _firestore.collection('userSettings').doc(_userId).set({
@@ -656,11 +658,11 @@ class GameFirebaseService {
         'kidFriendlyMode': false,
         'showWordsAfterPass': true,
         'lastUpdated': FieldValue.serverTimestamp(),
-      });
+      }).timeout(const Duration(seconds: 15));
 
-      print('User data cleared successfully');
+      debugPrint('User data cleared successfully');
     } catch (e) {
-      print('Error clearing user data: $e');
+      debugPrint('Error clearing user data: $e');
       rethrow;
     }
   }

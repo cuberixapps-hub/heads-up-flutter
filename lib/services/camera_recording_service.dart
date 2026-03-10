@@ -1,5 +1,6 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../models/video_recording_result.dart';
@@ -30,10 +31,9 @@ class CameraRecordingService {
     if (_isInitialized) return true;
 
     try {
-      debugPrint('Initializing camera service...');
-
-      // Get available cameras
-      // This will automatically trigger permission dialogs on iOS
+      // Camera init logs kept minimal
+      // Permissions are expected to be granted before reaching this point
+      // (handled by GameplayPermissionsScreen). If not, this will silently fail.
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
         debugPrint('No cameras available');
@@ -57,24 +57,31 @@ class CameraRecordingService {
       ResolutionPreset resolution = ResolutionPreset.high;
 
       // Create camera controller
-      _controller = CameraController(
+      final controller = CameraController(
         frontCamera,
         resolution,
         enableAudio: true,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
+      _controller = controller;
 
       // Initialize controller
-      await _controller!.initialize();
+      await controller.initialize();
+
+      // Lock capture to landscape so recorded video is always landscape
+      // (gameplay screen is in landscape; portrait capture causes black bars on results)
+      try {
+        await controller.lockCaptureOrientation(
+          DeviceOrientation.landscapeLeft,
+        );
+      } catch (e) {
+        debugPrint('Could not lock capture orientation to landscape: $e');
+      }
 
       _isInitialized = true;
-      debugPrint('Camera initialized successfully');
-      debugPrint('Camera resolution: ${_controller!.value.previewSize}');
-      debugPrint('Camera aspect ratio: ${_controller!.value.aspectRatio}');
-      debugPrint('Camera is initialized: ${_controller!.value.isInitialized}');
 
       // Prepare for video recording
-      await _controller!.prepareForVideoRecording();
+      await controller.prepareForVideoRecording();
 
       return true;
     } catch (e) {
@@ -94,18 +101,11 @@ class CameraRecordingService {
 
   // Start recording when game starts
   Future<bool> startRecording(String deckName, String deckColor) async {
-    debugPrint('=== START RECORDING CALLED ===');
-    debugPrint('Deck: $deckName, Color: $deckColor');
-    debugPrint('_isInitialized: $_isInitialized');
-    debugPrint('_controller != null: ${_controller != null}');
-
     if (!_isInitialized || _controller == null) {
-      debugPrint('Camera not initialized');
       return false;
     }
 
     if (_isRecording) {
-      debugPrint('Already recording');
       return true;
     }
 
@@ -126,7 +126,6 @@ class CameraRecordingService {
       // Log game start event (don't use deck name as word)
       logGameEvent(type: 'game_start', word: '', score: 0, remainingTime: null);
 
-      debugPrint('Recording started: $_currentVideoPath');
       return true;
     } catch (e) {
       debugPrint('Failed to start recording: $e');
@@ -153,20 +152,6 @@ class CameraRecordingService {
     );
 
     _gameEvents.add(event);
-    debugPrint('=== GAME EVENT LOGGED ===');
-    debugPrint('Event type: $type');
-    debugPrint('Word: "$word"');
-    debugPrint('Score: $score');
-    debugPrint('Timestamp: ${event.timestamp.inSeconds}s');
-    debugPrint('Total events so far: ${_gameEvents.length}');
-
-    // Debug all events
-    if (type == 'word_shown') {
-      debugPrint('All events:');
-      for (var e in _gameEvents) {
-        debugPrint('  ${e.type}: "${e.word}" at ${e.timestamp.inSeconds}s');
-      }
-    }
   }
 
   // Stop recording and return video path
@@ -178,6 +163,8 @@ class CameraRecordingService {
       debugPrint('Not recording');
       return null;
     }
+
+    final recordingStart = _recordingStartTime;
 
     try {
       // Log game end event
@@ -192,42 +179,29 @@ class CameraRecordingService {
       final videoFile = await _controller!.stopVideoRecording();
       _isRecording = false;
 
-      debugPrint('Video file path from controller: ${videoFile.path}');
-
-      // Check if file exists
+      // Verify file exists
       final file = File(videoFile.path);
       final exists = await file.exists();
-      debugPrint('Video file exists after recording: $exists');
-      if (exists) {
-        final fileSize = await file.length();
-        debugPrint('Video file size: ${fileSize / 1024 / 1024} MB');
-      }
 
       // Calculate duration
-      final duration = DateTime.now().difference(_recordingStartTime!);
+      final duration = DateTime.now().difference(
+        recordingStart ?? DateTime.now(),
+      );
 
       // Create result
       final result = VideoRecordingResult(
         videoPath: videoFile.path,
         events: List.from(_gameEvents),
         duration: duration,
-        recordingStartTime: _recordingStartTime!,
+        recordingStartTime: recordingStart ?? DateTime.now(),
         deckName: deckName,
         deckColor: deckColor,
       );
-
-      debugPrint('Recording stopped. Duration: ${duration.inSeconds}s');
-      debugPrint('Video saved to: ${videoFile.path}');
-      debugPrint('Total events logged: ${_gameEvents.length}');
 
       // Clear recording data
       _gameEvents.clear();
       _recordingStartTime = null;
       _currentVideoPath = null;
-
-      // Don't dispose the camera here - just stop it from recording
-      // The video file is already saved and we need to return the result
-      debugPrint('Recording stopped successfully, video saved');
 
       return result;
     } catch (e) {
@@ -246,10 +220,9 @@ class CameraRecordingService {
       final file = File(videoPath);
       if (await file.exists()) {
         await file.delete();
-        debugPrint('Temporary video deleted: $videoPath');
       }
     } catch (e) {
-      debugPrint('Error deleting temporary video: $e');
+      debugPrint('Error deleting temp video: $e');
     }
   }
 
@@ -260,7 +233,6 @@ class CameraRecordingService {
     _isInitialized = false;
     _isRecording = false;
     _gameEvents.clear();
-    debugPrint('Camera recording service disposed');
   }
 
   // Release camera without affecting recorded video
@@ -269,7 +241,6 @@ class CameraRecordingService {
       await _controller!.dispose();
       _controller = null;
       _isInitialized = false;
-      debugPrint('Camera released to stop recording indicator');
     }
   }
 

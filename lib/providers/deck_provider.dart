@@ -2,22 +2,26 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../models/deck.dart';
-import '../services/deck_firebase_service.dart';
+import '../services/deck_supabase_service.dart';
 import '../services/local_storage_service.dart';
 import '../services/location_service.dart';
 import '../services/cache_service.dart';
 import '../services/sync_config_service.dart';
 import '../services/listener_manager.dart';
 import '../services/recommendation_service.dart';
+import '../services/user_preference_service.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class DeckProvider extends ChangeNotifier {
-  final DeckFirebaseService _deckFirebaseService = DeckFirebaseService();
+  // Use Supabase for deck content
+  final DeckSupabaseService _deckService = DeckSupabaseService();
+  // Custom decks are stored locally (not in Firebase or Supabase)
   final LocalStorageService _localStorageService = LocalStorageService();
   final LocationService _locationService = LocationService();
   final CacheService _cacheService = CacheService();
   final SyncConfigService _syncConfigService = SyncConfigService();
   final ListenerManager _listenerManager = ListenerManager();
+  final UserPreferenceService _userPreferenceService = UserPreferenceService();
 
   List<Deck> _defaultDecks = [];
   List<Deck> _customDecks = [];
@@ -86,6 +90,101 @@ class DeckProvider extends ChangeNotifier {
     );
   }
 
+  /// Get decks prioritized by user preferences
+  /// Returns decks sorted with preference-matching decks first
+  List<Deck> getPreferencePrioritizedDecks(List<Deck> decks) {
+    if (!_userPreferenceService.isCacheLoaded || 
+        _userPreferenceService.cachedPreferences.isEmpty) {
+      // No preferences set, return original order
+      return decks;
+    }
+
+    // Calculate preference score for each deck (combining multiple signals)
+    final scoredDecks = decks.map((deck) {
+      int totalScore = 0;
+      
+      // 1. Score based on deck tags (primary signal)
+      if (deck.tags.isNotEmpty) {
+        totalScore += _userPreferenceService.getCachedDeckPreferenceScore(deck.tags);
+      }
+      
+      // 2. Score based on deck name/description (additional signal)
+      // This helps match decks that don't have proper tags
+      final nameScore = _userPreferenceService.getNameMatchScore(deck.name, deck.description);
+      
+      // If tag score is 0, use name score; otherwise add half of name score as boost
+      if (totalScore == 0) {
+        totalScore = nameScore;
+      } else if (nameScore > 0) {
+        totalScore += (nameScore * 0.5).round(); // Boost for double match
+      }
+      
+      return MapEntry(deck, totalScore);
+    }).toList();
+
+    // Sort by score (highest first), maintaining relative order for equal scores
+    scoredDecks.sort((a, b) {
+      final scoreDiff = b.value.compareTo(a.value);
+      if (scoreDiff != 0) return scoreDiff;
+      // For equal scores, maintain original order
+      return decks.indexOf(a.key).compareTo(decks.indexOf(b.key));
+    });
+
+    return scoredDecks.map((e) => e.key).toList();
+  }
+
+  /// Get decks filtered to only show preference-matching ones
+  /// Returns decks sorted by preference score
+  List<Deck> getPreferenceMatchingDecks(List<Deck> decks, {int minScore = 1}) {
+    if (!_userPreferenceService.isCacheLoaded || 
+        _userPreferenceService.cachedPreferences.isEmpty) {
+      return decks;
+    }
+
+    // Calculate scores and filter
+    final scoredDecks = <MapEntry<Deck, int>>[];
+    
+    for (final deck in decks) {
+      int totalScore = 0;
+      
+      // Score based on deck tags
+      if (deck.tags.isNotEmpty) {
+        totalScore += _userPreferenceService.getCachedDeckPreferenceScore(deck.tags);
+      }
+      
+      // Score based on deck name/description
+      final nameScore = _userPreferenceService.getNameMatchScore(deck.name, deck.description);
+      if (totalScore == 0) {
+        totalScore = nameScore;
+      } else if (nameScore > 0) {
+        totalScore += (nameScore * 0.5).round();
+      }
+      
+      if (totalScore >= minScore) {
+        scoredDecks.add(MapEntry(deck, totalScore));
+      }
+    }
+    
+    // Sort by score (highest first)
+    scoredDecks.sort((a, b) => b.value.compareTo(a.value));
+    
+    return scoredDecks.map((e) => e.key).toList();
+  }
+
+  /// Get user's preferred interest IDs
+  List<String> get userPreferences => _userPreferenceService.cachedPreferences;
+
+  /// Check if user has set preferences
+  bool get hasUserPreferences => 
+      _userPreferenceService.isCacheLoaded && 
+      _userPreferenceService.cachedPreferences.isNotEmpty;
+
+  /// Refresh user preferences (call after preferences are updated)
+  Future<void> refreshUserPreferences() async {
+    await _userPreferenceService.initialize();
+    notifyListeners();
+  }
+
   DeckProvider() {
     // Start async initialization but don't block constructor
     // This allows the UI to render immediately
@@ -110,10 +209,11 @@ class DeckProvider extends ChangeNotifier {
       // Initialize listener manager (sync)
       _listenerManager.initialize();
       
-      // Initialize cache and location in parallel
+      // Initialize cache, location, and user preferences in parallel
       await Future.wait([
         _cacheService.initialize(),
         _locationService.initialize(),
+        _userPreferenceService.initialize(),
       ]);
 
       // Get user's preferred country (fast - from local storage)
@@ -131,7 +231,7 @@ class DeckProvider extends ChangeNotifier {
         notifyListeners(); // Show cached data immediately - UI can proceed
       }
 
-      // PHASE 3: Background refresh from Firebase (if needed)
+      // PHASE 3: Background refresh from Supabase (if needed)
       // This runs in background while user can already use the app
       _refreshDecksInBackground();
 
@@ -144,20 +244,20 @@ class DeckProvider extends ChangeNotifier {
     }
   }
   
-  /// Refresh decks from Firebase in background (non-blocking)
+  /// Refresh decks from Supabase in background (non-blocking)
   Future<void> _refreshDecksInBackground() async {
     try {
       final shouldRefresh = await _cacheService.shouldRefreshDecks(_userCountryCode);
       
       if (shouldRefresh || _defaultDecks.isEmpty) {
-        debugPrint('🔄 Background: Fetching decks from Firebase...');
+        debugPrint('🔄 Background: Fetching decks from Supabase...');
         
-        final freshDecks = await _deckFirebaseService
+        final freshDecks = await _deckService
             .refreshDecksByCountry(_userCountryCode)
             .timeout(
               const Duration(seconds: 8),
               onTimeout: () {
-                debugPrint('⚠️ Firebase fetch timeout - using cached data');
+                debugPrint('⚠️ Supabase fetch timeout - using cached data');
                 return _defaultDecks; // Return existing data on timeout
               },
             );
@@ -169,7 +269,7 @@ class DeckProvider extends ChangeNotifier {
         }
         _errorMessage = '';
       } else {
-        debugPrint('💾 Cache valid - no Firebase fetch needed');
+        debugPrint('💾 Cache valid - no Supabase fetch needed');
       }
       
       // Set up real-time listeners if enabled
@@ -201,11 +301,11 @@ class DeckProvider extends ChangeNotifier {
       return;
     }
     
-    debugPrint('📡 Setting up real-time deck listeners');
+    debugPrint('📡 Setting up real-time deck listeners (Supabase)');
     
-    // Listen to country-filtered decks changes
+    // Listen to country-filtered decks changes via Supabase
     _listenerManager.cancelListener('decks_default');
-    final subscription = _deckFirebaseService
+    final subscription = _deckService
         .streamDecksByCountry(_userCountryCode)
         .listen(
           (decks) {
@@ -253,10 +353,10 @@ class DeckProvider extends ChangeNotifier {
     await _initializeDecks();
   }
   
-  // Force refresh decks from Firebase (clear cache)
+  // Force refresh decks from Supabase (clear cache)
   Future<void> forceRefresh() async {
     debugPrint('🔄 Force refreshing decks...');
-    await _deckFirebaseService.refreshDecksByCountry(_userCountryCode);
+    await _deckService.refreshDecksByCountry(_userCountryCode);
     await refreshData();
   }
   
@@ -279,7 +379,7 @@ class DeckProvider extends ChangeNotifier {
     notifyListeners();
     
     try {
-      _defaultDecks = await _deckFirebaseService.getDecksByCountry(_userCountryCode);
+      _defaultDecks = await _deckService.getDecksByCountry(_userCountryCode);
       await _syncConfigService.recordManualRefresh('decks');
       _errorMessage = '';
       debugPrint('✅ Manual refresh complete: ${_defaultDecks.length} decks');
@@ -297,7 +397,7 @@ class DeckProvider extends ChangeNotifier {
     if (searchTerm.isEmpty) return [];
 
     try {
-      final results = await _deckFirebaseService.searchDecksGlobally(searchTerm);
+      final results = await _deckService.searchDecksGlobally(searchTerm);
       return results;
     } catch (e) {
       debugPrint('Error searching decks globally: $e');
@@ -468,8 +568,8 @@ class DeckProvider extends ChangeNotifier {
         _recentDeckIds = _recentDeckIds.sublist(0, 10);
       }
       
-      // Increment play count in Firebase for popularity tracking
-      await _deckFirebaseService.incrementDeckPlayCount(deckId);
+      // Increment play count in Supabase for popularity tracking
+      await _deckService.incrementDeckPlayCount(deckId);
       
       notifyListeners();
     } catch (e) {
@@ -513,7 +613,7 @@ class DeckProvider extends ChangeNotifier {
         notifyListeners();
         
         try {
-          _defaultDecks = await _deckFirebaseService.getDecksByCountry(_userCountryCode);
+          _defaultDecks = await _deckService.getDecksByCountry(_userCountryCode);
           debugPrint('✅ Loaded ${_defaultDecks.length} decks for new country: $_userCountryCode');
           
           // Re-setup real-time listeners for new country
@@ -619,8 +719,8 @@ class DeckProvider extends ChangeNotifier {
         notifyListeners();
       }
       
-      // Fetch country-filtered decks from Firebase (will update cache)
-      _defaultDecks = await _deckFirebaseService.getDecksByCountry(_userCountryCode);
+      // Fetch country-filtered decks from Supabase (will update cache)
+      _defaultDecks = await _deckService.getDecksByCountry(_userCountryCode);
       // Custom decks from local storage
       _customDecks = await _localStorageService.loadCustomDecks();
       // Unlocked premium decks from local storage

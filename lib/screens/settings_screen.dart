@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../config/environment.dart';
 import '../constants/app_theme.dart';
 import '../providers/game_provider.dart';
 import '../providers/language_provider.dart';
@@ -22,6 +23,7 @@ import '../services/notification_service.dart';
 import '../services/purchases_service.dart';
 import '../services/share_service.dart';
 import '../models/notification_settings.dart';
+import '../utils/responsive.dart';
 import '../widgets/version_switcher.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -305,30 +307,31 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ),
                   ),
                 ),
-                leadingWidth: 72,
+                leadingWidth: 72.s,
                 leading: Padding(
-                  padding: const EdgeInsets.only(left: 16),
+                  padding: EdgeInsets.only(left: 16.s),
                   child: IconButton(
+                        tooltip: 'Go back',
                         onPressed: () {
                           _hapticService.lightImpact();
                           _audioService.playClick();
                           context.pop();
                         },
                         icon: Container(
-                          width: 40,
-                          height: 40,
+                          width: 40.s,
+                          height: 40.s,
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(12.s),
                             border: Border.all(
                               color: Colors.white.withOpacity(0.05),
-                              width: 1,
+                              width: 1.s,
                             ),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.arrow_back_ios_new_rounded,
                             color: Colors.white,
-                            size: 16,
+                            size: 16.s,
                           ),
                         ),
                       )
@@ -340,7 +343,7 @@ class _SettingsScreenState extends State<SettingsScreen>
 
               // Settings Content
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 50),
+                padding: EdgeInsets.fromLTRB(16.s, 20.s, 16.s, 50.s),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     // Game Settings Section
@@ -417,6 +420,32 @@ class _SettingsScreenState extends State<SettingsScreen>
                         ),
                       ],
                       0,
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // Personalization Section
+                    _buildModernSection(
+                      'Personalization',
+                      Icons.auto_awesome_rounded,
+                      [
+                        _buildModernNavigationItem(
+                          'Content Preferences',
+                          'Choose topics you enjoy',
+                          Icons.tune_rounded,
+                          const Color(0xFF7C3AED),
+                          () async {
+                            _hapticService.lightImpact();
+                            await context.push('/preference-selection?from=settings');
+                            // Refresh preferences in DeckProvider after returning
+                            if (mounted) {
+                              final deckProvider = Provider.of<DeckProvider>(context, listen: false);
+                              await deckProvider.refreshUserPreferences();
+                            }
+                          },
+                        ),
+                      ],
+                      1,
                     ),
 
                     const SizedBox(height: 28),
@@ -577,21 +606,21 @@ class _SettingsScreenState extends State<SettingsScreen>
 
                     const SizedBox(height: 28),
 
-                    // App Appearance Section
-                    _buildModernSection(
-                      AppLocalizations.of(context)!.appAppearance,
-                      Icons.palette_rounded,
-                      [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: const VersionSwitcher(),
-                        ),
-                      ],
-                      6,
-                    ),
+                    // App Appearance Section (development only: home v1/v2 switcher)
+                    if (EnvironmentConfig.isDevelopment)
+                      _buildModernSection(
+                        AppLocalizations.of(context)!.appAppearance,
+                        Icons.palette_rounded,
+                        [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: const VersionSwitcher(),
+                          ),
+                        ],
+                        6,
+                      ),
+                    if (EnvironmentConfig.isDevelopment) const SizedBox(height: 28),
 
-                    const SizedBox(height: 28),
-                    
                     // Share & Invite Section
                     _buildModernSection(
                       AppLocalizations.of(context)!.inviteFriends,
@@ -651,12 +680,12 @@ class _SettingsScreenState extends State<SettingsScreen>
       children: [
         // Refined Section Header
         Padding(
-              padding: const EdgeInsets.only(left: 8, bottom: 12),
+              padding: EdgeInsets.only(left: 8.s, bottom: 12.s),
               child: Text(
                 title.toUpperCase(),
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.4),
-                  fontSize: 11,
+                  fontSize: 11.sp,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 1.5,
                 ),
@@ -670,21 +699,21 @@ class _SettingsScreenState extends State<SettingsScreen>
         Container(
               decoration: BoxDecoration(
                 color: const Color(0xFF111111),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(20.s),
                 border: Border.all(
                   color: Colors.white.withOpacity(0.08),
-                  width: 0.5,
+                  width: 0.5.s,
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+                    blurRadius: 20.s,
+                    offset: Offset(0, 8.s),
                   ),
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(20.s),
                 child: Column(children: items),
               ),
             )
@@ -709,8 +738,8 @@ class _SettingsScreenState extends State<SettingsScreen>
   // Subtle Item Divider
   Widget _buildItemDivider() {
     return Container(
-      height: 0.5,
-      margin: const EdgeInsets.only(left: 68),
+      height: 0.5.s,
+      margin: EdgeInsets.only(left: 68.s),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -738,15 +767,15 @@ class _SettingsScreenState extends State<SettingsScreen>
         splashColor: AppTheme.primaryColor.withOpacity(0.1),
         highlightColor: Colors.white.withOpacity(0.03),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          padding: EdgeInsets.symmetric(horizontal: 20.s, vertical: 18.s),
           child: Row(
             children: [
               // Elegant Icon Container
               AnimatedContainer(
                     duration: const Duration(milliseconds: 250),
                     curve: Curves.easeOutCubic,
-                    width: 48,
-                    height: 48,
+                    width: 48.s,
+                    height: 48.s,
                     decoration: BoxDecoration(
                       gradient:
                           value
@@ -760,7 +789,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                               )
                               : null,
                       color: value ? null : Colors.white.withOpacity(0.04),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(14.s),
                     ),
                     child: Icon(
                       icon,
@@ -768,7 +797,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                           value
                               ? AppTheme.primaryColor
                               : Colors.white.withOpacity(0.4),
-                      size: 22,
+                      size: 22.s,
                     ),
                   )
                   .animate(target: value ? 1 : 0)
@@ -779,7 +808,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     curve: Curves.easeOutBack,
                   ),
 
-              const SizedBox(width: 18),
+              SizedBox(width: 18.s),
 
               // Polished Typography
               Expanded(
@@ -788,20 +817,20 @@ class _SettingsScreenState extends State<SettingsScreen>
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
+                        fontSize: 16.sp,
                         fontWeight: FontWeight.w500,
                         letterSpacing: -0.4,
                         height: 1.3,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    SizedBox(height: 3.s),
                     Text(
                       subtitle,
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.45),
-                        fontSize: 13,
+                        fontSize: 13.sp,
                         fontWeight: FontWeight.w400,
                         letterSpacing: -0.15,
                         height: 1.3,
@@ -811,18 +840,21 @@ class _SettingsScreenState extends State<SettingsScreen>
                 ),
               ),
 
-              const SizedBox(width: 16),
+              SizedBox(width: 16.s),
 
               // Premium Toggle Switch
-              GestureDetector(
+              Semantics(
+                label: '$title, ${value ? 'on' : 'off'}',
+                toggled: value,
+                child: GestureDetector(
                 onTap: () => onChanged(!value),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
                   curve: Curves.easeOutCubic,
-                  width: 52,
-                  height: 32,
+                  width: 52.s,
+                  height: 32.s,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(16.s),
                     gradient:
                         value
                             ? LinearGradient(
@@ -838,8 +870,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                             ? [
                               BoxShadow(
                                 color: AppTheme.primaryColor.withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
+                                blurRadius: 8.s,
+                                offset: Offset(0, 2.s),
                               ),
                             ]
                             : null,
@@ -849,19 +881,19 @@ class _SettingsScreenState extends State<SettingsScreen>
                       AnimatedPositioned(
                         duration: const Duration(milliseconds: 250),
                         curve: Curves.easeOutCubic,
-                        left: value ? 22 : 2,
-                        top: 2,
+                        left: value ? 22.s : 2.s,
+                        top: 2.s,
                         child: Container(
-                          width: 28,
-                          height: 28,
+                          width: 28.s,
+                          height: 28.s,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: Colors.white,
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withOpacity(0.25),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
+                                blurRadius: 8.s,
+                                offset: Offset(0, 2.s),
                               ),
                             ],
                           ),
@@ -870,6 +902,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ],
                   ),
                 ),
+              ),
               ),
             ],
           ),
@@ -881,13 +914,13 @@ class _SettingsScreenState extends State<SettingsScreen>
   // Refined Timer Item
   Widget _buildModernTimerItem() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      padding: EdgeInsets.symmetric(horizontal: 20.s, vertical: 18.s),
       child: Row(
         children: [
           // Elegant Icon
           Container(
-            width: 48,
-            height: 48,
+            width: 48.s,
+            height: 48.s,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
@@ -897,16 +930,16 @@ class _SettingsScreenState extends State<SettingsScreen>
                   AppTheme.primaryColor.withOpacity(0.1),
                 ],
               ),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(14.s),
             ),
             child: Icon(
               Icons.timer_rounded,
               color: AppTheme.primaryColor,
-              size: 22,
+              size: 22.s,
             ),
           ),
 
-          const SizedBox(width: 18),
+          SizedBox(width: 18.s),
 
           // Polished Text
           Expanded(
@@ -915,20 +948,20 @@ class _SettingsScreenState extends State<SettingsScreen>
               children: [
                 Text(
                   AppLocalizations.of(context)!.roundDuration,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
+                    fontSize: 16.sp,
                     fontWeight: FontWeight.w500,
                     letterSpacing: -0.4,
                     height: 1.3,
                   ),
                 ),
-                const SizedBox(height: 3),
+                SizedBox(height: 3.s),
                 Text(
                   AppLocalizations.of(context)!.timePerRoundInSeconds,
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.45),
-                    fontSize: 13,
+                    fontSize: 13.sp,
                     fontWeight: FontWeight.w400,
                     letterSpacing: -0.15,
                     height: 1.3,
@@ -938,16 +971,16 @@ class _SettingsScreenState extends State<SettingsScreen>
             ),
           ),
 
-          const SizedBox(width: 16),
+          SizedBox(width: 16.s),
 
           // Premium Timer Controls
           Container(
             decoration: BoxDecoration(
               color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(14.s),
               border: Border.all(
                 color: Colors.white.withOpacity(0.08),
-                width: 0.5,
+                width: 0.5.s,
               ),
             ),
             child: Row(
@@ -965,14 +998,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                   },
                 ),
                 Container(
-                  constraints: const BoxConstraints(minWidth: 40),
+                  constraints: BoxConstraints(minWidth: 40.s),
                   alignment: Alignment.center,
                   child: Text(
                     '${_timerDuration}s',
                     style: TextStyle(
                       color: AppTheme.primaryColor,
                       fontWeight: FontWeight.w600,
-                      fontSize: 15,
+                      fontSize: 15.sp,
                       letterSpacing: -0.3,
                     ),
                   ),
@@ -993,37 +1026,42 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Widget _buildTimerButton(IconData icon, bool enabled, VoidCallback onTap) {
-    return Material(
+    return Semantics(
+      label: icon == Icons.remove_rounded ? 'Decrease timer duration' : 'Increase timer duration',
+      button: true,
+      enabled: enabled,
+      child: Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(12.s),
         splashColor: AppTheme.primaryColor.withOpacity(0.1),
         child: Container(
-          padding: const EdgeInsets.all(10),
+          padding: EdgeInsets.all(10.s),
           child: Icon(
             icon,
             color:
                 enabled
                     ? Colors.white.withOpacity(0.9)
                     : Colors.white.withOpacity(0.2),
-            size: 18,
+            size: 18.s,
           ),
         ),
       ),
+    ),
     );
   }
   
   // Notification Time Item
   Widget _buildNotificationTimeItem() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      padding: EdgeInsets.symmetric(horizontal: 20.s, vertical: 18.s),
       child: Row(
         children: [
           // Elegant Icon
           Container(
-            width: 48,
-            height: 48,
+            width: 48.s,
+            height: 48.s,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
@@ -1033,16 +1071,16 @@ class _SettingsScreenState extends State<SettingsScreen>
                   AppTheme.primaryColor.withOpacity(0.1),
                 ],
               ),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(14.s),
             ),
             child: Icon(
               Icons.access_time_rounded,
               color: AppTheme.primaryColor,
-              size: 22,
+              size: 22.s,
             ),
           ),
 
-          const SizedBox(width: 18),
+          SizedBox(width: 18.s),
 
           // Text
           Expanded(
@@ -1051,20 +1089,20 @@ class _SettingsScreenState extends State<SettingsScreen>
               children: [
                 Text(
                   AppLocalizations.of(context)!.reminderTime,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
+                    fontSize: 16.sp,
                     fontWeight: FontWeight.w500,
                     letterSpacing: -0.4,
                     height: 1.3,
                   ),
                 ),
-                const SizedBox(height: 3),
+                SizedBox(height: 3.s),
                 Text(
                   AppLocalizations.of(context)!.reminderTimeDesc,
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.45),
-                    fontSize: 13,
+                    fontSize: 13.sp,
                     fontWeight: FontWeight.w400,
                     letterSpacing: -0.15,
                     height: 1.3,
@@ -1074,7 +1112,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             ),
           ),
 
-          const SizedBox(width: 16),
+          SizedBox(width: 16.s),
 
           // Time Display Button
           GestureDetector(
@@ -1083,13 +1121,13 @@ class _SettingsScreenState extends State<SettingsScreen>
               _showNotificationTimePicker();
             },
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: EdgeInsets.symmetric(horizontal: 16.s, vertical: 10.s),
               decoration: BoxDecoration(
                 color: const Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(14.s),
                 border: Border.all(
                   color: Colors.white.withOpacity(0.08),
-                  width: 0.5,
+                  width: 0.5.s,
                 ),
               ),
               child: Row(
@@ -1100,15 +1138,15 @@ class _SettingsScreenState extends State<SettingsScreen>
                     style: TextStyle(
                       color: AppTheme.primaryColor,
                       fontWeight: FontWeight.w600,
-                      fontSize: 15,
+                      fontSize: 15.sp,
                       letterSpacing: -0.3,
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6.s),
                   Icon(
                     Icons.chevron_right_rounded,
                     color: Colors.white.withOpacity(0.4),
-                    size: 18,
+                    size: 18.s,
                   ),
                 ],
               ),
@@ -1122,12 +1160,12 @@ class _SettingsScreenState extends State<SettingsScreen>
   // Refined Info Item
   Widget _buildModernInfoItem(String title, String value, IconData icon) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      padding: EdgeInsets.symmetric(horizontal: 20.s, vertical: 18.s),
       child: Row(
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: 48.s,
+            height: 48.s,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
@@ -1137,17 +1175,17 @@ class _SettingsScreenState extends State<SettingsScreen>
                   AppTheme.primaryColor.withOpacity(0.1),
                 ],
               ),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(14.s),
             ),
-            child: Icon(icon, color: AppTheme.primaryColor, size: 22),
+            child: Icon(icon, color: AppTheme.primaryColor, size: 22.s),
           ),
-          const SizedBox(width: 18),
+          SizedBox(width: 18.s),
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white,
-                fontSize: 16,
+                fontSize: 16.sp,
                 fontWeight: FontWeight.w500,
                 letterSpacing: -0.4,
                 height: 1.3,
@@ -1158,7 +1196,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             value,
             style: TextStyle(
               color: Colors.white.withOpacity(0.5),
-              fontSize: 15,
+              fontSize: 15.sp,
               fontWeight: FontWeight.w500,
               letterSpacing: -0.2,
             ),
@@ -1180,12 +1218,12 @@ class _SettingsScreenState extends State<SettingsScreen>
         splashColor: AppTheme.primaryColor.withOpacity(0.1),
         highlightColor: Colors.white.withOpacity(0.03),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          padding: EdgeInsets.symmetric(horizontal: 20.s, vertical: 18.s),
           child: Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 48.s,
+                height: 48.s,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
@@ -1195,17 +1233,17 @@ class _SettingsScreenState extends State<SettingsScreen>
                       AppTheme.primaryColor.withOpacity(0.1),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(14.s),
                 ),
-                child: Icon(icon, color: AppTheme.primaryColor, size: 22),
+                child: Icon(icon, color: AppTheme.primaryColor, size: 22.s),
               ),
-              const SizedBox(width: 18),
+              SizedBox(width: 18.s),
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
+                    fontSize: 16.sp,
                     fontWeight: FontWeight.w500,
                     letterSpacing: -0.4,
                     height: 1.3,
@@ -1215,7 +1253,81 @@ class _SettingsScreenState extends State<SettingsScreen>
               Icon(
                 Icons.arrow_forward_ios_rounded,
                 color: Colors.white.withOpacity(0.3),
-                size: 14,
+                size: 14.s,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernNavigationItem(
+    String title,
+    String subtitle,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        splashColor: color.withOpacity(0.1),
+        highlightColor: Colors.white.withOpacity(0.03),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20.s, vertical: 18.s),
+          child: Row(
+            children: [
+              Container(
+                width: 48.s,
+                height: 48.s,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      color.withOpacity(0.2),
+                      color.withOpacity(0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(14.s),
+                ),
+                child: Icon(icon, color: color, size: 22.s),
+              ),
+              SizedBox(width: 18.s),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -0.4,
+                        height: 1.3,
+                      ),
+                    ),
+                    SizedBox(height: 3.s),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.45),
+                        fontSize: 13.sp,
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: -0.15,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: Colors.white.withOpacity(0.3),
+                size: 14.s,
               ),
             ],
           ),
@@ -1442,8 +1554,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                       _isRestoringPurchases ? null : _restorePurchases,
                     ),
                     
-                    // Debug Controls (only in debug mode)
-                    if (kDebugMode) ...[
+                    // Debug Controls (development only; off in UAT and production)
+                    if (EnvironmentConfig.isDevelopment) ...[
                       _buildItemDivider(),
                       _buildDebugPremiumToggle(),
                     ],

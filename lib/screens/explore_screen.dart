@@ -5,11 +5,13 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../l10n/app_localizations.dart';
 import '../models/deck.dart';
 import '../providers/deck_provider.dart';
 import '../services/haptic_service.dart';
 import '../utils/premium_utils.dart';
+import '../utils/responsive.dart';
 import 'deck_details_screen.dart';
 
 // Shimmer loading widget for skeleton placeholders
@@ -27,31 +29,28 @@ class _ShimmerBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(borderRadius),
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(0.05),
-            Colors.white.withOpacity(0.1),
-            Colors.white.withOpacity(0.05),
-          ],
-          stops: const [0.0, 0.5, 1.0],
-        ),
-      ),
-    )
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(borderRadius),
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withOpacity(0.05),
+                Colors.white.withOpacity(0.1),
+                Colors.white.withOpacity(0.05),
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+          ),
+        )
         .animate(onPlay: (controller) => controller.repeat())
-        .shimmer(
-          duration: 1200.ms,
-          color: Colors.white.withOpacity(0.1),
-        );
+        .shimmer(duration: 1200.ms, color: Colors.white.withOpacity(0.1));
   }
 }
 
 class ExploreScreen extends StatefulWidget {
   final String? category;
-  
+
   ExploreScreen({super.key, this.category});
 
   @override
@@ -78,7 +77,7 @@ class _ExploreScreenState extends State<ExploreScreen>
 
     // Set status bar style
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
-    
+
     // Add search listener
     _searchController.addListener(_onSearchChanged);
   }
@@ -91,11 +90,88 @@ class _ExploreScreenState extends State<ExploreScreen>
     _searchFocusNode.dispose();
     super.dispose();
   }
-  
+
   void _onSearchChanged() {
     setState(() {
       _searchQuery = _searchController.text.toLowerCase();
     });
+  }
+
+  /// Get localized display title for a category key
+  String _getCategoryDisplayTitle(String? categoryKey) {
+    if (categoryKey == null) return AppLocalizations.of(context)!.explore;
+
+    final l10n = AppLocalizations.of(context)!;
+
+    switch (categoryKey) {
+      case 'Trending':
+        return l10n.trendingNow;
+      case 'Party':
+        return l10n.partyMode;
+      case 'Quick':
+        return l10n.quickGames;
+      case 'For You':
+        return 'Picked For You'; // Could add to localization
+      case 'Favorites':
+        return l10n.myFavorites;
+      case 'My Decks':
+        return l10n.yourCreations;
+      case 'Party Favorites':
+        return l10n.partyFavorites;
+      case 'Premium':
+        return l10n.unlockMoreFun;
+      default:
+        // If it's already a localized title, return as-is
+        return categoryKey;
+    }
+  }
+
+  /// Get icon for a category key
+  IconData _getCategoryIcon(String? categoryKey) {
+    switch (categoryKey) {
+      case 'Trending':
+        return Icons.local_fire_department_rounded;
+      case 'Party':
+        return Icons.celebration_rounded;
+      case 'Quick':
+        return Icons.bolt_rounded;
+      case 'For You':
+        return Icons.auto_awesome_rounded;
+      case 'Favorites':
+        return Icons.star_rounded;
+      case 'My Decks':
+        return Icons.create_rounded;
+      case 'Party Favorites':
+        return Icons.celebration_rounded;
+      case 'Premium':
+        return Icons.workspace_premium_rounded;
+      default:
+        return Icons.apps_rounded;
+    }
+  }
+
+  /// Get accent color for a category key
+  Color _getCategoryAccentColor(String? categoryKey) {
+    switch (categoryKey) {
+      case 'Trending':
+        return const Color(0xFFFF6B35);
+      case 'Party':
+        return const Color(0xFFE91E63);
+      case 'Quick':
+        return const Color(0xFFFFC107);
+      case 'For You':
+        return const Color(0xFF7C3AED);
+      case 'Favorites':
+        return const Color(0xFFFFD700);
+      case 'My Decks':
+        return const Color(0xFF00BCD4);
+      case 'Party Favorites':
+        return Colors.pink;
+      case 'Premium':
+        return const Color(0xFFFFB800);
+      default:
+        return Colors.purple;
+    }
   }
 
   @override
@@ -129,75 +205,78 @@ class _ExploreScreenState extends State<ExploreScreen>
                 Consumer<DeckProvider>(
                   builder: (context, deckProvider, _) {
                     // Show loading skeleton while data is being fetched
-                    if (deckProvider.isLoading && deckProvider.allDecks.isEmpty) {
-                      return SliverToBoxAdapter(
-                        child: _buildLoadingSkeleton(),
-                      );
+                    if (deckProvider.isLoading &&
+                        deckProvider.allDecks.isEmpty) {
+                      return SliverToBoxAdapter(child: _buildLoadingSkeleton());
                     }
-                    
+
                     // If a specific category is selected, show filtered/sorted decks
                     if (widget.category != null) {
-                      final decks = _getFilteredDecksForCategory(widget.category!, deckProvider);
-                      
+                      final decks = _getFilteredDecksForCategory(
+                        widget.category!,
+                        deckProvider,
+                      );
+
                       if (decks.isEmpty) {
-                        return SliverToBoxAdapter(
-                          child: _buildEmptyState(),
-                        );
+                        return SliverToBoxAdapter(child: _buildEmptyState());
                       }
-                      
+
                       return SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                        padding: EdgeInsets.fromLTRB(20.s, 20.s, 20.s, 100.s),
                         sliver: SliverGrid(
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            childAspectRatio: 0.7,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                          ),
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final deck = decks[index];
-                              return _buildDeckCard(deck, 0, index);
-                            },
-                            childCount: decks.length,
-                          ),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                childAspectRatio: 0.7,
+                                crossAxisSpacing: 12.s,
+                                mainAxisSpacing: 12.s,
+                              ),
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            final deck = decks[index];
+                            return _buildDeckCard(deck, 0, index);
+                          }, childCount: decks.length),
                         ),
                       );
                     }
-                    
+
                     // Show all categories or search results
                     if (_searchQuery.isNotEmpty) {
                       // Show search results in grid
-                      final searchResults = deckProvider.allDecks
-                          .where((deck) => _matchesSearch(deck))
-                          .toList();
-                      
+                      final searchResults =
+                          deckProvider.allDecks
+                              .where((deck) => _matchesSearch(deck))
+                              .toList();
+
                       if (searchResults.isEmpty) {
                         return SliverToBoxAdapter(
                           child: _buildEmptySearchState(),
                         );
                       }
-                      
+
                       return SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                        padding: EdgeInsets.fromLTRB(20.s, 20.s, 20.s, 100.s),
                         sliver: SliverGrid(
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            childAspectRatio: 0.7,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                          ),
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final deck = searchResults[index];
-                              return _buildDeckCard(deck, 0, index);
-                            },
-                            childCount: searchResults.length,
-                          ),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                childAspectRatio: 0.7,
+                                crossAxisSpacing: 12.s,
+                                mainAxisSpacing: 12.s,
+                              ),
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            final deck = searchResults[index];
+                            return _buildDeckCard(deck, 0, index);
+                          }, childCount: searchResults.length),
                         ),
                       );
                     }
-                    
+
                     // Show all categories
                     final l10n = AppLocalizations.of(context)!;
                     return SliverToBoxAdapter(
@@ -245,7 +324,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                             const Color(0xFFF59E0B),
                             5,
                           ),
-                          const SizedBox(height: 100), // Bottom padding
+                          SizedBox(height: 100.s), // Bottom padding
                         ],
                       ),
                     );
@@ -261,7 +340,7 @@ class _ExploreScreenState extends State<ExploreScreen>
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      padding: EdgeInsets.fromLTRB(20.s, 16.s, 20.s, 24.s),
       child: Column(
         children: [
           // Header with back button and title
@@ -275,22 +354,22 @@ class _ExploreScreenState extends State<ExploreScreen>
                         _hapticService.lightImpact();
                         Navigator.pop(context);
                       },
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(16.s),
                       child: Container(
-                        width: 44,
-                        height: 44,
+                        width: 44.s,
+                        height: 44.s,
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(16.s),
                           border: Border.all(
                             color: Colors.white.withOpacity(0.05),
-                            width: 1,
+                            width: 1.s,
                           ),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.arrow_back_ios_new_rounded,
                           color: Colors.white70,
-                          size: 20,
+                          size: 20.s,
                         ),
                       ),
                     ),
@@ -299,15 +378,44 @@ class _ExploreScreenState extends State<ExploreScreen>
                   .fadeIn(duration: 400.ms)
                   .slideX(begin: -0.2, end: 0, duration: 500.ms),
 
-              const SizedBox(width: 16),
+              SizedBox(width: 16.s),
+
+              // Category icon (only show when viewing a specific category)
+              if (widget.category != null) ...[
+                Container(
+                      width: 36.s,
+                      height: 36.s,
+                      decoration: BoxDecoration(
+                        color: _getCategoryAccentColor(
+                          widget.category,
+                        ).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10.s),
+                      ),
+                      child: Icon(
+                        _getCategoryIcon(widget.category),
+                        color: _getCategoryAccentColor(widget.category),
+                        size: 20.s,
+                      ),
+                    )
+                    .animate()
+                    .fadeIn(delay: 100.ms, duration: 500.ms)
+                    .scale(
+                      begin: const Offset(0.8, 0.8),
+                      end: const Offset(1, 1),
+                      delay: 100.ms,
+                      duration: 500.ms,
+                      curve: Curves.easeOutBack,
+                    ),
+                SizedBox(width: 12.s),
+              ],
 
               // Title
               Expanded(
                 child: Text(
-                      widget.category ?? AppLocalizations.of(context)!.explore,
+                      _getCategoryDisplayTitle(widget.category),
                       style: GoogleFonts.inter(
                         color: Colors.white,
-                        fontSize: 24,
+                        fontSize: 24.sp,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.5,
                       ),
@@ -324,24 +432,30 @@ class _ExploreScreenState extends State<ExploreScreen>
                       child: InkWell(
                         onTap: () {
                           _hapticService.lightImpact();
-                          // TODO: Implement filter
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Filter coming soon'),
+                              behavior: SnackBarBehavior.floating,
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
                         },
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(16.s),
                         child: Container(
-                          width: 44,
-                          height: 44,
+                          width: 44.s,
+                          height: 44.s,
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(16.s),
                             border: Border.all(
                               color: Colors.white.withOpacity(0.05),
-                              width: 1,
+                              width: 1.s,
                             ),
                           ),
                           child: Icon(
                             Icons.tune_rounded,
                             color: Colors.white.withOpacity(0.7),
-                            size: 20,
+                            size: 20.s,
                           ),
                         ),
                       ),
@@ -352,7 +466,7 @@ class _ExploreScreenState extends State<ExploreScreen>
             ],
           ),
 
-          const SizedBox(height: 20),
+          SizedBox(height: 20.s),
 
           // Search bar
           _buildSearchBar(),
@@ -363,99 +477,99 @@ class _ExploreScreenState extends State<ExploreScreen>
 
   Widget _buildSearchBar() {
     return Container(
-           height: 48,
-           padding: const EdgeInsets.symmetric(horizontal: 16),
-           decoration: BoxDecoration(
-             borderRadius: BorderRadius.circular(20),
-             gradient: LinearGradient(
-               begin: Alignment.topLeft,
-               end: Alignment.bottomRight,
-               colors: [
-                 const Color(0xFF9B59B6).withOpacity(0.18),
-                 const Color(0xFF9B59B6).withOpacity(0.08),
-               ],
-             ),
-             border: Border.all(
-               color: const Color(0xFF9B59B6).withOpacity(0.4),
-               width: 1.2,
-             ),
-           ),
-           child: Row(
-             children: [
-               ShaderMask(
-                 shaderCallback:
-                     (bounds) => LinearGradient(
-                       colors: [
-                         const Color(0xFF9B59B6).withOpacity(0.9),
-                         const Color(0xFF9B59B6).withOpacity(0.6),
-                       ],
-                       begin: Alignment.topLeft,
-                       end: Alignment.bottomRight,
-                     ).createShader(bounds),
-                 child: const Icon(
-                   Icons.search_rounded,
-                   color: Colors.white,
-                   size: 20,
-                 ),
-               ),
-               const SizedBox(width: 12),
-               Expanded(
-                 child: TextField(
-                   controller: _searchController,
-                   focusNode: _searchFocusNode,
-                   style: GoogleFonts.inter(
-                     color: Colors.white,
-                     fontSize: 15,
-                     fontWeight: FontWeight.w400,
-                   ),
-                   decoration: InputDecoration(
-                     hintText: AppLocalizations.of(context)!.searchForDecks,
-                     hintStyle: GoogleFonts.inter(
-                       color: Colors.white.withOpacity(0.4),
-                       fontSize: 15,
-                       fontWeight: FontWeight.w400,
-                     ),
-                     border: InputBorder.none,
-                     enabledBorder: InputBorder.none,
-                     focusedBorder: InputBorder.none,
-                     contentPadding: EdgeInsets.zero,
-                     isDense: true,
-                     filled: true,
-                     fillColor: Colors.transparent,
-                   ),
-                   cursorColor: const Color(0xFF9B59B6),
-                 ),
-               ),
-               if (_searchQuery.isNotEmpty)
-                 Material(
-                   color: Colors.transparent,
-                   child: InkWell(
-                     onTap: () {
-                       _hapticService.lightImpact();
-                       _searchController.clear();
-                     },
-                     borderRadius: BorderRadius.circular(12),
-                     child: Padding(
-                       padding: const EdgeInsets.all(4),
-                       child: Icon(
-                         Icons.close_rounded,
-                         color: Colors.white.withOpacity(0.6),
-                         size: 18,
-                       ),
-                     ),
-                   ),
-                 ),
-             ],
-           ),
-         )
-         .animate()
-         .fadeIn(delay: 200.ms, duration: 600.ms)
-         .scale(
-           begin: const Offset(0.95, 0.95),
-           end: const Offset(1, 1),
-           duration: 500.ms,
-           curve: Curves.easeOutCubic,
-         );
+          height: 48.s,
+          padding: EdgeInsets.symmetric(horizontal: 16.s),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20.s),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF9B59B6).withOpacity(0.18),
+                const Color(0xFF9B59B6).withOpacity(0.08),
+              ],
+            ),
+            border: Border.all(
+              color: const Color(0xFF9B59B6).withOpacity(0.4),
+              width: 1.2.s,
+            ),
+          ),
+          child: Row(
+            children: [
+              ShaderMask(
+                shaderCallback:
+                    (bounds) => LinearGradient(
+                      colors: [
+                        const Color(0xFF9B59B6).withOpacity(0.9),
+                        const Color(0xFF9B59B6).withOpacity(0.6),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ).createShader(bounds),
+                child: Icon(
+                  Icons.search_rounded,
+                  color: Colors.white,
+                  size: 20.s,
+                ),
+              ),
+              SizedBox(width: 12.s),
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 15.sp,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: AppLocalizations.of(context)!.searchForDecks,
+                    hintStyle: GoogleFonts.inter(
+                      color: Colors.white.withOpacity(0.4),
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    isDense: true,
+                    filled: true,
+                    fillColor: Colors.transparent,
+                  ),
+                  cursorColor: const Color(0xFF9B59B6),
+                ),
+              ),
+              if (_searchQuery.isNotEmpty)
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      _hapticService.lightImpact();
+                      _searchController.clear();
+                    },
+                    borderRadius: BorderRadius.circular(12.s),
+                    child: Padding(
+                      padding: EdgeInsets.all(4.s),
+                      child: Icon(
+                        Icons.close_rounded,
+                        color: Colors.white.withOpacity(0.6),
+                        size: 18.s,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        )
+        .animate()
+        .fadeIn(delay: 200.ms, duration: 600.ms)
+        .scale(
+          begin: const Offset(0.95, 0.95),
+          end: const Offset(1, 1),
+          duration: 500.ms,
+          curve: Curves.easeOutCubic,
+        );
   }
 
   Widget _buildCategorySection(
@@ -468,14 +582,14 @@ class _ExploreScreenState extends State<ExploreScreen>
     if (decks.isEmpty) return const SizedBox.shrink();
 
     return Container(
-          margin: const EdgeInsets.only(bottom: 48),
+          margin: EdgeInsets.only(bottom: 48.s),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Section header
               _buildSectionHeader(title, icon, accentColor, sectionIndex),
 
-              const SizedBox(height: 20),
+              SizedBox(height: 20.s),
 
               // Deck grid
               _buildDeckGrid(decks.take(6).toList(), sectionIndex),
@@ -500,22 +614,25 @@ class _ExploreScreenState extends State<ExploreScreen>
     int sectionIndex,
   ) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: 20.s),
       child: Row(
         children: [
           // Icon with glow
           Container(
-            width: 32,
-            height: 32,
+            width: 32.s,
+            height: 32.s,
             decoration: BoxDecoration(
               color: accentColor.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: accentColor.withOpacity(0.3), width: 1),
+              borderRadius: BorderRadius.circular(8.s),
+              border: Border.all(
+                color: accentColor.withOpacity(0.3),
+                width: 1.s,
+              ),
             ),
-            child: Center(child: Icon(icon, color: accentColor, size: 18)),
+            child: Center(child: Icon(icon, color: accentColor, size: 18.s)),
           ),
 
-          const SizedBox(width: 10),
+          SizedBox(width: 10.s),
 
           // Title
           Expanded(
@@ -523,7 +640,7 @@ class _ExploreScreenState extends State<ExploreScreen>
               title,
               style: GoogleFonts.inter(
                 color: Colors.white,
-                fontSize: 20,
+                fontSize: 20.sp,
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.5,
               ),
@@ -532,7 +649,7 @@ class _ExploreScreenState extends State<ExploreScreen>
             ),
           ),
 
-          const SizedBox(width: 8),
+          SizedBox(width: 8.s),
 
           // See all button
           Material(
@@ -543,12 +660,9 @@ class _ExploreScreenState extends State<ExploreScreen>
                 // Navigate to category screen with filtered decks
                 context.push('/categories');
               },
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(16.s),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 12.s, vertical: 6.s),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -556,15 +670,15 @@ class _ExploreScreenState extends State<ExploreScreen>
                       AppLocalizations.of(context)!.seeAll,
                       style: GoogleFonts.inter(
                         color: Colors.white.withOpacity(0.6),
-                        fontSize: 13,
+                        fontSize: 13.sp,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4.s),
                     Icon(
                       Icons.arrow_forward_rounded,
                       color: Colors.white.withOpacity(0.6),
-                      size: 14,
+                      size: 14.s,
                     ),
                   ],
                 ),
@@ -578,16 +692,16 @@ class _ExploreScreenState extends State<ExploreScreen>
 
   Widget _buildDeckGrid(List<Deck> decks, int sectionIndex) {
     return SizedBox(
-      height: 320, // Fixed height for 2 rows
+      height: 320.s, // Fixed height for 2 rows
       child: GridView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: EdgeInsets.symmetric(horizontal: 20.s),
         scrollDirection: Axis.vertical,
         physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
           childAspectRatio: 0.7,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
+          crossAxisSpacing: 12.s,
+          mainAxisSpacing: 12.s,
         ),
         itemCount: decks.length,
         itemBuilder: (context, index) {
@@ -602,8 +716,11 @@ class _ExploreScreenState extends State<ExploreScreen>
     final deckProvider = Provider.of<DeckProvider>(context, listen: false);
     final isPremium = deck.isPremium;
     // Deck is unlocked if: not premium, OR user has premium subscription, OR individually unlocked
-    final isUnlocked = !isPremium || PremiumUtils.hasPremium || deckProvider.isDeckUnlocked(deck.id);
-    
+    final isUnlocked =
+        !isPremium ||
+        PremiumUtils.hasPremium ||
+        deckProvider.isDeckUnlocked(deck.id);
+
     // Create unique hero tag
     final heroTag = 'explore_deck_${deck.id}_${sectionIndex}_$cardIndex';
 
@@ -612,161 +729,167 @@ class _ExploreScreenState extends State<ExploreScreen>
       child: Material(
         color: Colors.transparent,
         child: GestureDetector(
-           onTap: () {
-             _hapticService.selection();
-             _navigateToDeckDetails(deck, heroTag: heroTag);
-           },
-           child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF2C2C2E),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.08),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                  spreadRadius: -4,
+          onTap: () {
+            _hapticService.selection();
+            _navigateToDeckDetails(deck, heroTag: heroTag);
+          },
+          child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2C2C2E),
+                  borderRadius: BorderRadius.circular(16.s),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.08),
+                    width: 1.s,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 16.s,
+                      offset: Offset(0, 6.s),
+                      spreadRadius: -4.s,
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(15),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Background image or color
-                  if (deck.imageUrl != null && deck.imageUrl!.isNotEmpty)
-                    CachedNetworkImage(
-                      imageUrl: deck.imageUrl!,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 300,
-                      memCacheHeight: 400,
-                      maxWidthDiskCache: 600,
-                      maxHeightDiskCache: 800,
-                      placeholder: (context, url) => _buildImagePlaceholder(deck),
-                      fadeInDuration: const Duration(milliseconds: 200),
-                      fadeOutDuration: const Duration(milliseconds: 100),
-                      errorWidget: (context, url, error) {
-                        return _buildImageFallback(deck);
-                      },
-                    )
-                  else
-                    _buildImageFallback(deck),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(15.s),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Background image or color
+                      if (deck.imageUrl != null && deck.imageUrl!.isNotEmpty)
+                        CachedNetworkImage(
+                          imageUrl: deck.imageUrl!,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 300,
+                          memCacheHeight: 400,
+                          maxWidthDiskCache: 600,
+                          maxHeightDiskCache: 800,
+                          placeholder:
+                              (context, url) => _buildImagePlaceholder(deck),
+                          fadeInDuration: const Duration(milliseconds: 200),
+                          fadeOutDuration: const Duration(milliseconds: 100),
+                          errorWidget: (context, url, error) {
+                            return _buildImageFallback(deck);
+                          },
+                        )
+                      else
+                        _buildImageFallback(deck),
 
-                  // Gradient overlay
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.7),
-                        ],
-                        stops: const [0.5, 1.0],
-                      ),
-                    ),
-                  ),
-
-                  // Deck info
-                  Positioned(
-                    bottom: 12,
-                    left: 12,
-                    right: 12,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          deck.name,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                            letterSpacing: -0.2,
-                            height: 1.2,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          AppLocalizations.of(context)!.cardsCount(deck.cards.length),
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white.withOpacity(0.6),
-                            letterSpacing: 0.1,
+                      // Gradient overlay
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.7),
+                            ],
+                            stops: const [0.5, 1.0],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-
-                  // Premium lock overlay
-                  if (isPremium && !isUnlocked)
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
                       ),
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
+
+                      // Deck info
+                      Positioned(
+                        bottom: 12.s,
+                        left: 12.s,
+                        right: 12.s,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              deck.name,
+                              style: GoogleFonts.inter(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                                letterSpacing: -0.2,
+                                height: 1.2,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            SizedBox(height: 4.s),
+                            Text(
+                              AppLocalizations.of(
+                                context,
+                              )!.cardsCount(deck.cards.length),
+                              style: GoogleFonts.inter(
+                                fontSize: 11.sp,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withOpacity(0.6),
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Premium lock overlay
+                      if (isPremium && !isUnlocked)
+                        Container(
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.3),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: const Color(0xFFFFC107).withOpacity(0.3),
-                              width: 2,
+                            color: Colors.black.withOpacity(0.5),
+                          ),
+                          child: Center(
+                            child: Container(
+                              padding: EdgeInsets.all(16.s),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.3),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(
+                                    0xFFFFC107,
+                                  ).withOpacity(0.3),
+                                  width: 2.s,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.lock_rounded,
+                                color: Color(0xFFFFC107),
+                                size: 24.s,
+                              ),
                             ),
                           ),
-                          child: const Icon(
-                            Icons.lock_rounded,
-                            color: Color(0xFFFFC107),
-                            size: 24,
+                        ),
+
+                      // Play icon hint (top right)
+                      if (!isPremium || isUnlocked)
+                        Positioned(
+                          top: 8.s,
+                          right: 8.s,
+                          child: Container(
+                            width: 32.s,
+                            height: 32.s,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(8.s),
+                            ),
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              color: deck.color,
+                              size: 20.s,
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-
-                  // Play icon hint (top right)
-                  if (!isPremium || isUnlocked)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.play_arrow_rounded,
-                          color: deck.color,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                 ],
-               ),
-             ),
-           ).animate()
-           .fadeIn(
-             delay: (400 + sectionIndex * 100 + cardIndex * 50).ms,
-             duration: 500.ms,
-           )
-           .scale(
-             begin: const Offset(0.9, 0.9),
-             end: const Offset(1, 1),
-             delay: (400 + sectionIndex * 100 + cardIndex * 50).ms,
-             duration: 500.ms,
-             curve: Curves.easeOutCubic,
-           ),
+                    ],
+                  ),
+                ),
+              )
+              .animate()
+              .fadeIn(
+                delay: (400 + sectionIndex * 100 + cardIndex * 50).ms,
+                duration: 500.ms,
+              )
+              .scale(
+                begin: const Offset(0.9, 0.9),
+                end: const Offset(1, 1),
+                delay: (400 + sectionIndex * 100 + cardIndex * 50).ms,
+                duration: 500.ms,
+                curve: Curves.easeOutCubic,
+              ),
         ),
       ),
     );
@@ -779,10 +902,7 @@ class _ExploreScreenState extends State<ExploreScreen>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            deck.color.withOpacity(0.2),
-            deck.color.withOpacity(0.1),
-          ],
+          colors: [deck.color.withOpacity(0.2), deck.color.withOpacity(0.1)],
         ),
       ),
       child: Stack(
@@ -790,18 +910,18 @@ class _ExploreScreenState extends State<ExploreScreen>
           // Shimmer overlay
           Positioned.fill(
             child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withOpacity(0.0),
-                    Colors.white.withOpacity(0.1),
-                    Colors.white.withOpacity(0.0),
-                  ],
-                ),
-              ),
-            )
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withOpacity(0.0),
+                        Colors.white.withOpacity(0.1),
+                        Colors.white.withOpacity(0.0),
+                      ],
+                    ),
+                  ),
+                )
                 .animate(onPlay: (controller) => controller.repeat())
                 .shimmer(
                   duration: 1200.ms,
@@ -810,7 +930,7 @@ class _ExploreScreenState extends State<ExploreScreen>
           ),
           // Icon hint
           Center(
-            child: Icon(
+            child: FaIcon(
               deck.icon,
               color: deck.color.withOpacity(0.3),
               size: 32,
@@ -828,18 +948,11 @@ class _ExploreScreenState extends State<ExploreScreen>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            deck.color.withOpacity(0.25),
-            deck.color.withOpacity(0.1),
-          ],
+          colors: [deck.color.withOpacity(0.25), deck.color.withOpacity(0.1)],
         ),
       ),
       child: Center(
-        child: Icon(
-          deck.icon,
-          color: deck.color.withOpacity(0.8),
-          size: 40,
-        ),
+        child: FaIcon(deck.icon, color: deck.color.withOpacity(0.8), size: 40),
       ),
     );
   }
@@ -935,10 +1048,7 @@ class _ExploreScreenState extends State<ExploreScreen>
       decoration: BoxDecoration(
         color: const Color(0xFF2C2C2E),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.08),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
       ),
       child: Stack(
         children: [
@@ -947,18 +1057,18 @@ class _ExploreScreenState extends State<ExploreScreen>
             child: ClipRRect(
               borderRadius: BorderRadius.circular(15),
               child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withOpacity(0.03),
-                      Colors.white.withOpacity(0.08),
-                      Colors.white.withOpacity(0.03),
-                    ],
-                  ),
-                ),
-              )
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withOpacity(0.03),
+                          Colors.white.withOpacity(0.08),
+                          Colors.white.withOpacity(0.03),
+                        ],
+                      ),
+                    ),
+                  )
                   .animate(onPlay: (controller) => controller.repeat())
                   .shimmer(
                     duration: 1500.ms,
@@ -1064,50 +1174,74 @@ class _ExploreScreenState extends State<ExploreScreen>
   }
 
   // Category filtering methods with search support
-  List<Deck> _getFilteredDecksForCategory(String category, DeckProvider provider) {
+  List<Deck> _getFilteredDecksForCategory(
+    String category,
+    DeckProvider provider,
+  ) {
     // Get category-specific decks
     final categoryDecks = _getDecksForCategory(category, provider);
-    
+
     // If no search query, return category decks
     if (_searchQuery.isEmpty) {
       return categoryDecks;
     }
-    
+
     // Filter category decks by search query
-    final filteredCategoryDecks = categoryDecks.where((deck) => _matchesSearch(deck)).toList();
-    
+    final filteredCategoryDecks =
+        categoryDecks.where((deck) => _matchesSearch(deck)).toList();
+
     // Get other decks that match search but aren't in category
     final categoryDeckIds = categoryDecks.map((d) => d.id).toSet();
-    final otherMatchingDecks = provider.allDecks
-        .where((deck) => !categoryDeckIds.contains(deck.id) && _matchesSearch(deck))
-        .toList();
-    
+    final otherMatchingDecks =
+        provider.allDecks
+            .where(
+              (deck) =>
+                  !categoryDeckIds.contains(deck.id) && _matchesSearch(deck),
+            )
+            .toList();
+
     // Return category decks first, then other matching decks
     return [...filteredCategoryDecks, ...otherMatchingDecks];
   }
-  
+
   bool _matchesSearch(Deck deck) {
     final lowerName = deck.name.toLowerCase();
     final lowerDesc = deck.description.toLowerCase();
     final lowerTags = deck.tags.map((t) => t.toLowerCase()).toList();
-    
+
     return lowerName.contains(_searchQuery) ||
         lowerDesc.contains(_searchQuery) ||
         lowerTags.any((tag) => tag.contains(_searchQuery)) ||
         deck.cards.any((card) => card.toLowerCase().contains(_searchQuery));
   }
-  
+
   List<Deck> _getDecksForCategory(String category, DeckProvider provider) {
     final l10n = AppLocalizations.of(context)!;
-    
-    if (category == l10n.trendingNow) {
+
+    // Handle category keys from home screen
+    if (category == 'Trending' || category == l10n.trendingNow) {
       return _getTrendingDecks(provider);
+    } else if (category == 'Party' || category == l10n.partyMode) {
+      return _getPartyModeDecks(provider);
+    } else if (category == 'Quick' || category == l10n.quickGames) {
+      return _getQuickDecks(provider);
+    } else if (category == 'For You') {
+      return _getForYouDecks(provider);
+    } else if (category == 'Favorites' || category == l10n.myFavorites) {
+      return provider.favoriteDecksAsList;
+    } else if (category == 'My Decks' || category == l10n.yourCreations) {
+      return provider.customDecks;
+    } else if (category == 'Party Favorites' ||
+        category == l10n.partyFavorites) {
+      return _getPartyFavoritesDecks(provider);
+    } else if (category == 'Premium' ||
+        category == l10n.premiumCollection ||
+        category == l10n.unlockMoreFun) {
+      return _getPremiumDecks(provider);
     } else if (category == l10n.popularThisWeek) {
       return _getPopularDecks(provider);
     } else if (category == l10n.newReleases) {
       return _getNewReleases(provider);
-    } else if (category == l10n.premiumCollection) {
-      return _getPremiumDecks(provider);
     } else if (category == l10n.familyFun) {
       return _getFamilyFunDecks(provider);
     } else if (category == l10n.partyGames) {
@@ -1115,6 +1249,70 @@ class _ExploreScreenState extends State<ExploreScreen>
     } else {
       return provider.allDecks;
     }
+  }
+
+  List<Deck> _getPartyModeDecks(DeckProvider provider) {
+    // Filter by party-related keywords for party mode
+    final partyKeywords = ['party', 'fun', 'group', 'social', 'friends'];
+    final List<Deck> partyDecks =
+        provider.allDecks.where((deck) {
+          final lowerName = deck.name.toLowerCase();
+          final lowerDesc = deck.description.toLowerCase();
+          final lowerTags = deck.tags.map((t) => t.toLowerCase()).toList();
+
+          return partyKeywords.any(
+            (keyword) =>
+                lowerName.contains(keyword) ||
+                lowerDesc.contains(keyword) ||
+                lowerTags.contains(keyword),
+          );
+        }).toList();
+
+    // Also include decks with many cards (good for parties)
+    final largeDecks =
+        provider.allDecks.where((d) => d.cards.length > 20).toList();
+    // Combine using a Set to remove duplicates, then convert back to List
+    final Set<Deck> combinedSet = {...partyDecks, ...largeDecks};
+    final List<Deck> combinedDecks = combinedSet.toList();
+    combinedDecks.sort((a, b) => a.priority.compareTo(b.priority));
+    return combinedDecks;
+  }
+
+  List<Deck> _getQuickDecks(DeckProvider provider) {
+    // Quick games are those with fewer cards (faster to play)
+    return provider.allDecks.where((deck) => deck.cards.length <= 15).toList()
+      ..sort((a, b) => a.priority.compareTo(b.priority));
+  }
+
+  List<Deck> _getForYouDecks(DeckProvider provider) {
+    // Personalized recommendations based on user's country and preferences
+    final userCountry = provider.userCountryCode;
+    final List<Deck> forYouDecks = [];
+
+    // First, add country-specific decks
+    for (final deck in provider.allDecks) {
+      if (deck.effectiveCountries.contains(userCountry)) {
+        forYouDecks.add(deck);
+      }
+    }
+
+    // Then add universal decks
+    for (final deck in provider.allDecks) {
+      if (!forYouDecks.contains(deck) &&
+          deck.effectiveCountries.contains('UNIVERSAL')) {
+        forYouDecks.add(deck);
+      }
+    }
+
+    // Sort by priority
+    forYouDecks.sort((a, b) => a.priority.compareTo(b.priority));
+    return forYouDecks;
+  }
+
+  List<Deck> _getPartyFavoritesDecks(DeckProvider provider) {
+    // Party favorites: free decks with more than 15 cards
+    return provider.freeDecks.where((d) => d.cards.length > 15).toList()
+      ..sort((a, b) => a.priority.compareTo(b.priority));
   }
 
   List<Deck> _getTrendingDecks(DeckProvider provider) {

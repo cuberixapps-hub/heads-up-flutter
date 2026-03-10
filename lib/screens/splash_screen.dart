@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/firebase_service.dart';
+import '../services/version_service.dart';
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -14,7 +17,6 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Navigate immediately on next frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _navigateToNextScreen();
     });
@@ -22,17 +24,38 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _navigateToNextScreen() async {
     try {
+      // Ensure Remote Config is fetched before checking version.
+      // Timeout keeps the splash from hanging; on failure we fall through
+      // to normal navigation (fail-open).
+      await FirebaseService().ensureRemoteConfigReady().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          debugPrint('⚠️ Splash: Remote Config ready timeout — continuing');
+        },
+      );
+
+      // Check for force update
+      final versionService = VersionService();
+      final status = await versionService.checkUpdateStatus();
+
+      if (status == UpdateStatus.forceUpdateRequired) {
+        final versionInfo = await versionService.getVersionInfo();
+        if (mounted) {
+          context.go('/force-update', extra: versionInfo);
+          return;
+        }
+      }
+
+      // Normal navigation
       final prefs = await SharedPreferences.getInstance();
       final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
-
-      // Always use v2 home screen
       final destination = hasSeenOnboarding ? '/home' : '/onboarding';
 
       if (mounted) {
         context.go(destination);
       }
     } catch (e) {
-      debugPrint('Navigation error: $e');
+      debugPrint('Splash navigation error: $e');
       if (mounted) context.go('/home');
     }
   }
@@ -48,7 +71,6 @@ class _SplashScreenState extends State<SplashScreen> {
       ),
     );
 
-    // Simple blank screen - navigates immediately
     return const Scaffold(
       backgroundColor: Color(0xFF0A1628),
       body: SizedBox.shrink(),

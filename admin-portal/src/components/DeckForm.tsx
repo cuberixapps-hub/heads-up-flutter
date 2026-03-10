@@ -1,34 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../config/firebase';
+import { createDeck, updateDeck, type DeckData } from '../services/supabaseDeckService';
+import { uploadDeckImage } from '../services/supabaseStorageService';
 import { IconPicker } from './IconPicker';
 import { type IconInfo } from '../data/icons';
 import { Plus, X, Sparkles, Palette, Save, ArrowLeft, Upload, Wand2 } from 'lucide-react';
 import * as FaIcons from 'react-icons/fa';
 import { generateAdditionalCards, isContentGenerationAvailable } from '../services/aiContentService';
 import { generateDeckImage, isImageGenerationAvailable } from '../services/aiImageService';
-import { uploadCompressedImage, needsCompression, formatFileSize } from '../services/imageCompressionService';
+import { formatFileSize } from '../services/imageCompressionService';
 import '../styles/DeckForm.css';
 
-interface Deck {
-    id?: string;
-    name: string;
-    description: string;
-    cards: string[];
-    iconCodePoint: number;
-    iconFontFamily: string;
-    iconFontPackage?: string;
-    colorValue: number;
-    imageUrl?: string;
-    isPremium: boolean;
-    country?: string;
-    tags?: string[];
-    priority?: number;
-    isActive?: boolean;
-    createdAt?: any;
-    updatedAt?: any;
-}
+// Use DeckData from supabaseDeckService
+type Deck = Partial<DeckData> & { id?: string };
 
 interface DeckFormProps {
     deck?: Deck;
@@ -76,6 +59,7 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
     const [selectedColor, setSelectedColor] = useState(deck?.colorValue || 0xFF9C27B0);
     const [imageUrl, setImageUrl] = useState(deck?.imageUrl || '');
     const [isPremium, setIsPremium] = useState(deck?.isPremium || false);
+    const [premiumOnly, setPremiumOnly] = useState(deck?.premiumOnly || false);
     const [country, setCountry] = useState(deck?.country || 'UNIVERSAL');
     const [tags, setTags] = useState<string[]>(deck?.tags || []);
     const [newTag, setNewTag] = useState('');
@@ -122,37 +106,31 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
 
         setIsLoading(true);
 
-        const deckData: any = {
+        const deckData: DeckData = {
             name: name.trim(),
             description: description.trim(),
             cards,
             iconCodePoint: selectedIcon?.codePoint || 0xf005,
             iconFontFamily: selectedIcon?.fontFamily || 'FontAwesomeIcons',
+            iconFontPackage: selectedIcon?.fontPackage,
             colorValue: selectedColor,
             imageUrl: imageUrl.trim() || null,
             isPremium,
+            premiumOnly,
+            isActive,
             country,
+            countries: [country], // For now, single country as array
             tags,
             priority,
-            isActive,
-            updatedAt: serverTimestamp(),
         };
-
-        // Only add iconFontPackage if it exists
-        if (selectedIcon?.fontPackage) {
-            deckData.iconFontPackage = selectedIcon.fontPackage;
-        }
 
         try {
             if (deck?.id) {
                 // Update existing deck
-                await updateDoc(doc(db, 'decks', deck.id), deckData);
+                await updateDeck(deck.id, deckData);
             } else {
                 // Create new deck
-                await addDoc(collection(db, 'decks'), {
-                    ...deckData,
-                    createdAt: serverTimestamp(),
-                });
+                await createDeck(deckData);
             }
             onSave();
         } catch (error) {
@@ -295,8 +273,8 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
             // Show file info
             console.log(`Uploading ${file.name} (${formatFileSize(file.size)})`);
             
-            // Upload with compression
-            const downloadURL = await uploadCompressedImage(
+            // Upload with compression to Supabase Storage
+            const downloadURL = await uploadDeckImage(
                 file,
                 deckId,
                 (progress) => setCompressionProgress(progress)
@@ -736,7 +714,7 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
                         )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '20px' }}>
+                    <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
                         <div className="form-group">
                             <label className="checkbox-label">
                                 <input
@@ -745,6 +723,17 @@ export const DeckForm: React.FC<DeckFormProps> = ({ deck, onSave, onCancel }) =>
                                     onChange={(e) => setIsPremium(e.target.checked)}
                                 />
                                 <span>Premium Deck</span>
+                            </label>
+                        </div>
+
+                        <div className="form-group">
+                            <label className="checkbox-label" title="Premium-only decks cannot be unlocked by watching ads. Users must purchase premium to access.">
+                                <input
+                                    type="checkbox"
+                                    checked={premiumOnly}
+                                    onChange={(e) => setPremiumOnly(e.target.checked)}
+                                />
+                                <span>🔒 Premium Only (No Ads)</span>
                             </label>
                         </div>
 

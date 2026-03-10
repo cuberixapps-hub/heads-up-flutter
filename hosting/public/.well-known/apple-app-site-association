@@ -3,20 +3,19 @@
     "apps": [],
     "details": [
       {
-        "appID": "YOUR_TEAM_ID.com.headsup.headsUpGame",
+        "appID": "BJC5J6L379.com.headsup.headsUpGame",
         "paths": [
           "/link/*",
           "/deck/*",
           "/results/*",
-          "/invite/*",
-          "/*"
+          "/invite/*"
         ]
       }
     ]
   },
   "webcredentials": {
     "apps": [
-      "YOUR_TEAM_ID.com.headsup.headsUpGame"
+      "BJC5J6L379.com.headsup.headsUpGame"
     ]
   }
 }

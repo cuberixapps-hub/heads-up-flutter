@@ -502,6 +502,12 @@
   color: white;
 }
 
+.premium-only-badge {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  color: white;
+  font-size: 10px;
+}
+
 .inactive-badge {
   background: rgba(0, 0, 0, 0.7);
   color: white;

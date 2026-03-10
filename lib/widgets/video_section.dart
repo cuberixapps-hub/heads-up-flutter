@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import 'dart:async';
 import '../constants/app_theme.dart';
 import '../models/video_recording_result.dart';
 import '../providers/game_provider.dart';
-import '../services/game_replay_renderer.dart';
 import '../screens/video_player_with_overlay_screen.dart';
-import '../services/video_composer.dart';
 import '../services/haptic_service.dart';
 import '../services/native_video_composer.dart';
+import '../services/video_processing_manager.dart';
+import '../utils/responsive.dart';
 import '../utils/video_utils.dart';
 import 'video_with_overlay.dart';
 
@@ -26,6 +27,7 @@ class VideoSection extends StatefulWidget {
 class VideoSectionState extends State<VideoSection>
     with SingleTickerProviderStateMixin {
   final _hapticService = HapticService();
+  final _videoProcessingManager = VideoProcessingManager.instance;
 
   VideoRecordingResult? _recordingResult;
   String? _composedVideoPath;
@@ -34,24 +36,26 @@ class VideoSectionState extends State<VideoSection>
   bool _videoProcessingFailed = false;
   List<String> _generatedFrames = [];
   late AnimationController _videoSectionController;
+  
+  // Unique session ID for this video processing
+  String? _sessionId;
 
   // Progress tracking for FFmpeg
   final _progressController = StreamController<double>.broadcast();
   Stream<double> get _progressStream => _progressController.stream;
   
-  // Cancellation flag for video processing
-  bool _isCancelled = false;
-  
   // Public method to cancel video processing
   void cancelVideoProcessing() {
-    _isCancelled = true;
-    debugPrint('Video processing cancellation requested');
+    debugPrint('📹 VideoSection: cancellation requested');
+    if (_sessionId != null) {
+      _videoProcessingManager.cancelProcessingForSession(_sessionId!);
+    }
   }
 
   @override
   void initState() {
     super.initState();
-    debugPrint('VideoSection initState called');
+    debugPrint('📹 VideoSection initState called');
 
     _videoSectionController = AnimationController(
       duration: const Duration(milliseconds: 800),
@@ -62,28 +66,31 @@ class VideoSectionState extends State<VideoSection>
     final gameProvider = context.read<GameProvider>();
     _recordingResult = gameProvider.lastVideoRecording;
     debugPrint(
-      'Video recording result: ${_recordingResult != null ? "Found" : "Not found"}',
+      '📹 Video recording result: ${_recordingResult != null ? "Found" : "Not found"}',
     );
 
     // Debug current game session
     final currentSession = gameProvider.currentSession;
-    debugPrint('Current session exists: ${currentSession != null}');
+    debugPrint('📹 Current session exists: ${currentSession != null}');
     if (currentSession != null) {
-      debugPrint('Current session is complete: ${currentSession.isComplete}');
-      debugPrint('Current session deck: ${currentSession.deck.name}');
+      debugPrint('📹 Current session is complete: ${currentSession.isComplete}');
+      debugPrint('📹 Current session deck: ${currentSession.deck.name}');
+      
+      // Generate unique session ID based on session data
+      _sessionId = '${currentSession.deck.id}_${DateTime.now().millisecondsSinceEpoch}';
     }
 
     if (_recordingResult != null) {
-      debugPrint('Video path: ${_recordingResult!.videoPath}');
-      debugPrint('Duration: ${_recordingResult!.duration}');
+      debugPrint('📹 Video path: ${_recordingResult!.videoPath}');
+      debugPrint('📹 Duration: ${_recordingResult!.duration}');
 
       // Check if video file exists
       final videoFile = File(_recordingResult!.videoPath);
       videoFile.exists().then((exists) {
-        debugPrint('Video file exists: $exists');
+        debugPrint('📹 Video file exists: $exists');
         if (!exists) {
           debugPrint(
-            'ERROR: Video file not found at path: ${_recordingResult!.videoPath}',
+            '📹 ERROR: Video file not found at path: ${_recordingResult!.videoPath}',
           );
         }
       });
@@ -94,7 +101,7 @@ class VideoSectionState extends State<VideoSection>
   }
 
   Future<void> _processVideoRecording() async {
-    if (_recordingResult == null) return;
+    if (_recordingResult == null || _sessionId == null) return;
 
     setState(() {
       _isProcessingVideo = true;
@@ -102,12 +109,6 @@ class VideoSectionState extends State<VideoSection>
     });
 
     try {
-      // Check if cancelled before starting
-      if (_isCancelled) {
-        debugPrint('Video processing cancelled before start');
-        return;
-      }
-
       final gameProvider = context.read<GameProvider>();
       final session = gameProvider.currentSession;
 
@@ -115,84 +116,49 @@ class VideoSectionState extends State<VideoSection>
         throw Exception('No game session found');
       }
 
-      debugPrint('=== VIDEO PROCESSING STARTED ===');
-      debugPrint('Recording duration: ${_recordingResult!.duration}');
-      debugPrint('Total events: ${_recordingResult!.events.length}');
-
-      // Check if cancelled before generating frames
-      if (_isCancelled) {
-        debugPrint('Video processing cancelled before frame generation');
-        return;
-      }
-
-      // Pre-generate all game replay frames to ensure smooth playback
-      debugPrint('Pre-generating game replay frames...');
-      final frames = await GameReplayRenderer.generateGameReplayFrames(
+      // Use the VideoProcessingManager for processing with proper cancellation
+      final result = await _videoProcessingManager.processVideoRecording(
         recordingResult: _recordingResult!,
         deckColor: _getDeckColor(),
-        gameDuration: _recordingResult!.duration,
+        sessionId: _sessionId!,
       );
 
-      // Check if cancelled after generating frames
-      if (_isCancelled) {
-        debugPrint('Video processing cancelled after frame generation - cleaning up frames');
-        // Clean up generated frames
-        for (final frame in frames) {
-          try {
-            File(frame).deleteSync();
-          } catch (e) {
-            debugPrint('Error deleting frame during cancellation: $e');
-          }
-        }
+      // Check if we're still mounted
+      if (!mounted) return;
+
+      if (result.wasCancelled) {
+        debugPrint('📹 Video processing was cancelled');
+        setState(() {
+          _isProcessingVideo = false;
+        });
         return;
       }
 
-      if (frames.isEmpty) {
-        debugPrint('Warning: No game replay frames generated');
-      } else {
-        debugPrint('Successfully generated ${frames.length} frames');
-
-        // Store frames for later cleanup
-        _generatedFrames = frames;
-      }
-
-      // Use the raw video path as we're doing dynamic overlay
-      _composedVideoPath = _recordingResult!.videoPath;
-
-      // Verify video file exists and is accessible
-      final videoFile = File(_recordingResult!.videoPath);
-      if (!await videoFile.exists()) {
-        throw Exception('Video file not found');
-      }
-
-      final fileSize = await videoFile.length();
-      debugPrint('Video file size: ${fileSize / 1024 / 1024} MB');
-
-      // Check if cancelled before generating thumbnail
-      if (_isCancelled) {
-        debugPrint('Video processing cancelled before thumbnail generation');
+      if (!result.success) {
+        debugPrint('📹 Video processing failed: ${result.error}');
+        setState(() {
+          _isProcessingVideo = false;
+          _videoProcessingFailed = true;
+        });
         return;
       }
 
-      // Try to generate thumbnail
-      _thumbnailPath = await VideoComposer.generateThumbnail(
-        _recordingResult!.videoPath,
-      );
+      // Store the results
+      _generatedFrames = result.generatedFrames;
+      _composedVideoPath = result.composedVideoPath;
+      _thumbnailPath = result.thumbnailPath;
 
-      // Check if cancelled before updating state
-      if (_isCancelled) {
-        debugPrint('Video processing cancelled before final state update');
-        return;
-      }
+      final fileSize = await File(_recordingResult!.videoPath).length();
+      debugPrint('📹 Video file size: ${fileSize / 1024 / 1024} MB');
 
       setState(() {
         _isProcessingVideo = false;
       });
 
-      debugPrint('=== VIDEO PROCESSING COMPLETE ===');
+      debugPrint('📹 === VIDEO PROCESSING COMPLETE ===');
     } catch (e) {
-      debugPrint('Video processing error: $e');
-      if (!_isCancelled && mounted) {
+      debugPrint('📹 Video processing error: $e');
+      if (mounted) {
         setState(() {
           _isProcessingVideo = false;
           _videoProcessingFailed = true;
@@ -203,23 +169,20 @@ class VideoSectionState extends State<VideoSection>
 
   @override
   void dispose() {
-    // Cancel any ongoing video processing
-    _isCancelled = true;
-    debugPrint('VideoSection dispose - cancelling video processing');
+    debugPrint('📹 VideoSection dispose');
+    
+    // Cancel any ongoing video processing for this session
+    if (_sessionId != null) {
+      _videoProcessingManager.cancelProcessingForSession(_sessionId!);
+    }
     
     _videoSectionController.dispose();
     _progressController.close();
 
     // Clean up generated frames
     if (_generatedFrames.isNotEmpty) {
-      debugPrint('VideoSection dispose - cleaning up ${_generatedFrames.length} frames');
-      for (final frame in _generatedFrames) {
-        try {
-          File(frame).deleteSync();
-        } catch (e) {
-          // Ignore errors
-        }
-      }
+      debugPrint('📹 VideoSection dispose - cleaning up ${_generatedFrames.length} frames');
+      _videoProcessingManager.cleanupFramesSync(_generatedFrames);
     }
 
     super.dispose();
@@ -232,23 +195,38 @@ class VideoSectionState extends State<VideoSection>
     );
     if (_recordingResult == null) {
       debugPrint('VideoSection - No recording result, returning empty');
-      // Show a placeholder message to debug
       return Container(
-        margin: const EdgeInsets.symmetric(vertical: 12),
-        padding: const EdgeInsets.all(16),
+        margin: EdgeInsets.symmetric(vertical: 12.s),
+        padding: EdgeInsets.all(18.s),
         decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[300]!),
+          color: Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(18.s),
+          border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
         ),
         child: Row(
           children: [
-            Icon(Icons.videocam_off, color: Colors.grey[600], size: 24),
-            const SizedBox(width: 12),
+            Container(
+              width: 44.s,
+              height: 44.s,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12.s),
+              ),
+              child: Icon(
+                Icons.videocam_off_rounded,
+                color: Colors.white.withOpacity(0.8),
+                size: 22.s,
+              ),
+            ),
+            SizedBox(width: 14.s),
             Expanded(
               child: Text(
                 'No reaction video recorded for this game',
-                style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                style: GoogleFonts.inter(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ],
@@ -257,27 +235,22 @@ class VideoSectionState extends State<VideoSection>
     }
     debugPrint('VideoSection - Has recording, showing video section');
 
+    final deckColor = _getDeckColor();
     return Container(
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
+            color: Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(24.s),
+            border: Border.all(color: Colors.white.withOpacity(0.06), width: 1),
           ),
           child: Column(
             children: [
-              // Header
+              // Header - dark theme
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(20.s),
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: Colors.grey.withOpacity(0.1),
+                      color: Colors.white.withOpacity(0.06),
                       width: 1,
                     ),
                   ),
@@ -285,42 +258,41 @@ class VideoSectionState extends State<VideoSection>
                 child: Row(
                   children: [
                     Container(
-                      width: 48,
-                      height: 48,
+                      width: 48.s,
+                      height: 48.s,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppTheme.primaryColor,
-                            AppTheme.primaryColor.withOpacity(0.7),
-                          ],
+                        color: deckColor.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(12.s),
+                        border: Border.all(
+                          color: deckColor.withOpacity(0.4),
+                          width: 1,
                         ),
-                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.videocam_rounded,
-                        color: Colors.white,
-                        size: 24,
+                        color: deckColor,
+                        size: 24.s,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    SizedBox(width: 16.s),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Reaction',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary,
+                            style: GoogleFonts.poppins(
+                              fontSize: 18.sp,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          SizedBox(height: 4.s),
                           Text(
                             'Your gameplay reactions captured!',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppTheme.textSecondary,
+                            style: GoogleFonts.inter(
+                              fontSize: 13.sp,
+                              color: Colors.white.withOpacity(0.65),
                             ),
                           ),
                         ],
@@ -335,9 +307,11 @@ class VideoSectionState extends State<VideoSection>
                 aspectRatio: 16 / 9,
                 child: Stack(
                   children: [
-                    // Background
+                    // Background - dark
                     Container(
-                      decoration: BoxDecoration(color: Colors.grey[100]),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.4),
+                      ),
                     ),
 
                     // Content based on state
@@ -356,7 +330,15 @@ class VideoSectionState extends State<VideoSection>
               // Action buttons
               if (!_isProcessingVideo && _composedVideoPath != null)
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(16.s),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(
+                        color: Colors.white.withOpacity(0.06),
+                        width: 1,
+                      ),
+                    ),
+                  ),
                   child: Row(
                     children: [
                       Expanded(
@@ -397,31 +379,37 @@ class VideoSectionState extends State<VideoSection>
   }
 
   Widget _buildProcessingView() {
+    final deckColor = _getDeckColor();
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SizedBox(
-            width: 60,
-            height: 60,
+            width: 56.s,
+            height: 56.s,
             child: CircularProgressIndicator(
-              strokeWidth: 3,
-              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+              strokeWidth: 2.5,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                deckColor,
+              ),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 18.s),
           Text(
             'Creating your reaction video...',
-            style: TextStyle(
-              fontSize: 14,
+            style: GoogleFonts.inter(
+              fontSize: 14.sp,
               fontWeight: FontWeight.w500,
-              color: AppTheme.textSecondary,
+              color: Colors.white,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8.s),
           Text(
             'This may take a few seconds',
-            style: TextStyle(fontSize: 12, color: AppTheme.textTertiary),
+            style: GoogleFonts.inter(
+              fontSize: 12.sp,
+              color: Colors.white.withOpacity(0.6),
+            ),
           ),
         ],
       ),
@@ -429,32 +417,40 @@ class VideoSectionState extends State<VideoSection>
   }
 
   Widget _buildErrorView() {
+    final deckColor = _getDeckColor();
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             Icons.error_outline_rounded,
-            size: 48,
+            size: 48.s,
             color: AppTheme.errorColor,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.s),
           Text(
             'Video processing failed',
-            style: TextStyle(
-              fontSize: 14,
+            style: GoogleFonts.poppins(
+              fontSize: 14.sp,
               fontWeight: FontWeight.w500,
-              color: AppTheme.textPrimary,
+              color: Colors.white,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 12.s),
           TextButton(
             onPressed: () {
               _playVideo(_recordingResult!.videoPath);
             },
+            style: TextButton.styleFrom(
+              foregroundColor: deckColor,
+            ),
             child: Text(
               'Watch original recording',
-              style: TextStyle(color: AppTheme.primaryColor),
+              style: GoogleFonts.inter(
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w600,
+                color: deckColor,
+              ),
             ),
           ),
         ],
@@ -481,28 +477,29 @@ class VideoSectionState extends State<VideoSection>
 
           // Duration badge
           Positioned(
-            bottom: 16,
-            right: 16,
+            bottom: 16.s,
+            right: 16.s,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: EdgeInsets.symmetric(horizontal: 12.s, vertical: 6.s),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(8),
+                color: Colors.black.withOpacity(0.75),
+                borderRadius: BorderRadius.circular(10.s),
+                border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.timer_outlined,
                     color: Colors.white,
-                    size: 16,
+                    size: 16.s,
                   ),
-                  const SizedBox(width: 4),
+                  SizedBox(width: 6.s),
                   Text(
                     _formatDuration(_recordingResult!.duration),
-                    style: const TextStyle(
+                    style: GoogleFonts.inter(
                       color: Colors.white,
-                      fontSize: 13,
+                      fontSize: 13.sp,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -514,36 +511,36 @@ class VideoSectionState extends State<VideoSection>
       );
     }
 
-    // Fallback to simple preview
+    // Fallback to simple preview - dark theme
+    final deckColor = _getDeckColor();
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Thumbnail or placeholder
         Container(
           color: Colors.black,
-          child: const Icon(
+          child: Icon(
             Icons.movie_outlined,
-            color: Colors.white54,
-            size: 64,
+            color: Colors.white.withOpacity(0.4),
+            size: 64.s,
           ),
         ),
-
-        // Dark overlay
         Container(color: Colors.black.withOpacity(0.3)),
-
-        // Play button
         Center(
           child: Container(
-            width: 80,
-            height: 80,
+            width: 72.s,
+            height: 72.s,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
+              color: deckColor.withOpacity(0.9),
               shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 5),
+                  color: deckColor.withOpacity(0.4),
+                  blurRadius: 20.s,
+                  offset: Offset(0, 6.s),
                 ),
               ],
             ),
@@ -555,29 +552,28 @@ class VideoSectionState extends State<VideoSection>
                 customBorder: const CircleBorder(),
                 child: Icon(
                   Icons.play_arrow_rounded,
-                  size: 48,
-                  color: AppTheme.primaryColor,
+                  size: 44.s,
+                  color: Colors.white,
                 ),
               ),
             ),
           ),
         ),
-
-        // Duration badge
         Positioned(
-          bottom: 16,
-          right: 16,
+          bottom: 16.s,
+          right: 16.s,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: EdgeInsets.symmetric(horizontal: 12.s, vertical: 6.s),
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.7),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10.s),
+              border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
             ),
             child: Text(
               _formatDuration(_recordingResult!.duration),
-              style: const TextStyle(
+              style: GoogleFonts.inter(
                 color: Colors.white,
-                fontSize: 12,
+                fontSize: 12.sp,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -604,31 +600,31 @@ class VideoSectionState extends State<VideoSection>
     required Color color,
   }) {
     return Container(
-      height: 48,
+      height: 48.s,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2), width: 1),
+        color: color.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(14.s),
+        border: Border.all(color: color.withOpacity(0.35), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14.s),
         child: InkWell(
           onTap: () {
             _hapticService.lightImpact();
             onTap();
           },
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14.s),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 8),
+              Icon(icon, color: color, size: 20.s),
+              SizedBox(width: 8.s),
               Text(
                 label,
-                style: TextStyle(
+                style: GoogleFonts.poppins(
                   color: color,
-                  fontSize: 14,
+                  fontSize: 14.sp,
                   fontWeight: FontWeight.w600,
                 ),
               ),

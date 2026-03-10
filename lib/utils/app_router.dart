@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/splash_screen.dart';
 import '../screens/onboarding_screen.dart';
+import '../screens/preference_selection_screen.dart';
 import '../screens/notification_permission_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/home_screen_v2.dart';
@@ -11,42 +12,51 @@ import '../screens/shared_results_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/team_setup_screen.dart';
 import '../screens/team_results_screen.dart';
-import '../screens/custom_deck_management_screen.dart';
 import '../screens/custom_deck_screen.dart';
 import '../screens/explore_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/deck_details_screen.dart';
+import '../screens/deck_feedback_screen.dart';
+import '../screens/force_update_screen.dart';
 import '../services/deep_link_service.dart';
+import '../services/version_service.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
     initialLocation:
         '/splash', // Start with splash screen to check onboarding status
-    
     // Handle deep link URLs that GoRouter can't match directly
     onException: (context, state, router) {
       final uri = state.uri;
       debugPrint('🔗 GoRouter exception for URI: $uri');
-      
+
       // Parse the URI to extract path and query parameters
       // For custom scheme URLs (headsup://deck?id=x), the path segment is in the HOST
       final rawPath = uri.path.replaceAll(RegExp(r'^/+|/+$'), '');
       final host = uri.host;
-      
+
       // Reconstruct effective path from host if it's a known route
       final String effectivePath;
-      if (host.isNotEmpty && (host == 'deck' || host == 'results' || host == 'invite' || host == 'home')) {
+      if (host.isNotEmpty &&
+          (host == 'deck' ||
+              host == 'results' ||
+              host == 'invite' ||
+              host == 'home')) {
         effectivePath = host; // Use host as path for custom scheme URLs
       } else {
         effectivePath = rawPath;
       }
-      
+
       final queryParams = uri.queryParameters;
-      
-      debugPrint('🔗 EffectivePath: $effectivePath, Host: $host, RawPath: $rawPath, Query: $queryParams');
-      
+
+      debugPrint(
+        '🔗 EffectivePath: $effectivePath, Host: $host, RawPath: $rawPath, Query: $queryParams',
+      );
+
       // Handle deck deep links
-      if (effectivePath == 'deck' || effectivePath.startsWith('deck') || queryParams.containsKey('deckId')) {
+      if (effectivePath == 'deck' ||
+          effectivePath.startsWith('deck') ||
+          queryParams.containsKey('deckId')) {
         final deckId = queryParams['deckId'] ?? queryParams['id'] ?? '';
         if (deckId.isNotEmpty) {
           debugPrint('🔗 Navigating to deck: $deckId');
@@ -54,15 +64,19 @@ class AppRouter {
           return;
         }
       }
-      
+
       // Handle results deep links
-      if (effectivePath == 'results' || effectivePath.startsWith('results') || queryParams.containsKey('score')) {
-        if (queryParams.containsKey('score') || queryParams.containsKey('deck')) {
+      if (effectivePath == 'results' ||
+          effectivePath.startsWith('results') ||
+          queryParams.containsKey('score')) {
+        if (queryParams.containsKey('score') ||
+            queryParams.containsKey('deck')) {
           final linkData = DeepLinkData(
             type: DeepLinkType.results,
-            deckName: queryParams['deck'] != null 
-                ? Uri.decodeComponent(queryParams['deck']!) 
-                : null,
+            deckName:
+                queryParams['deck'] != null
+                    ? Uri.decodeComponent(queryParams['deck']!)
+                    : null,
             score: int.tryParse(queryParams['score'] ?? ''),
             correct: int.tryParse(queryParams['correct'] ?? ''),
             passed: int.tryParse(queryParams['passed'] ?? ''),
@@ -71,30 +85,61 @@ class AppRouter {
           return;
         }
       }
-      
+
       // Handle invite deep links
-      if (effectivePath == 'invite' || effectivePath.startsWith('invite') || queryParams.containsKey('ref')) {
+      if (effectivePath == 'invite' ||
+          effectivePath.startsWith('invite') ||
+          queryParams.containsKey('ref')) {
         router.go('/home');
         return;
       }
-      
+
       // Default: go to home
       debugPrint('🔗 Unknown deep link, going to home');
       router.go('/home');
     },
-    
+
     routes: [
       GoRoute(
         path: '/splash',
         builder: (context, state) => const SplashScreen(),
       ),
       GoRoute(
+        path: '/force-update',
+        builder: (context, state) {
+          final versionInfo = state.extra as VersionInfo?;
+          return ForceUpdateScreen(
+            versionInfo: versionInfo ?? VersionInfo(
+              currentVersion: '',
+              minimumVersion: '',
+              latestVersion: '',
+              forceUpdateRequired: true,
+              softUpdateEnabled: false,
+              forceUpdateMessage: 'Please update to continue using the app.',
+              storeUrlIos: '',
+              storeUrlAndroid: '',
+            ),
+          );
+        },
+      ),
+      GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingScreen(),
       ),
       GoRoute(
+        path: '/preference-selection',
+        builder: (context, state) {
+          // Check if coming from settings via query parameter
+          final isFromSettings =
+              state.uri.queryParameters['from'] == 'settings';
+          return PreferenceSelectionScreen(isOnboarding: !isFromSettings);
+        },
+      ),
+      GoRoute(
         path: '/notification-permission',
-        builder: (context, state) => const NotificationPermissionScreen(isOnboarding: true),
+        builder:
+            (context, state) =>
+                const NotificationPermissionScreen(isOnboarding: true),
       ),
       GoRoute(path: '/home', builder: (context, state) => const HomeScreenV2()),
       GoRoute(
@@ -113,9 +158,8 @@ class AppRouter {
         path: '/explore',
         builder: (context, state) {
           final categoryParam = state.uri.queryParameters['category'];
-          final category = categoryParam != null 
-              ? Uri.decodeComponent(categoryParam) 
-              : null;
+          final category =
+              categoryParam != null ? Uri.decodeComponent(categoryParam) : null;
           return ExploreScreen(category: category);
         },
       ),
@@ -136,12 +180,15 @@ class AppRouter {
         builder: (context, state) => const TeamResultsScreen(),
       ),
       GoRoute(
-        path: '/custom-decks',
-        builder: (context, state) => const CustomDeckManagementScreen(),
-      ),
-      GoRoute(
         path: '/custom-deck-create',
         builder: (context, state) => const CustomDeckScreen(),
+      ),
+      GoRoute(
+        path: '/deck-feedback',
+        builder: (context, state) {
+          final userCountry = state.uri.queryParameters['country'];
+          return DeckFeedbackScreen(userCountry: userCountry);
+        },
       ),
       // Deep link routes
       // Route for /deck/:id (path parameter format)
@@ -157,8 +204,10 @@ class AppRouter {
         path: '/deck',
         builder: (context, state) {
           // Get deckId from query parameters
-          final deckId = state.uri.queryParameters['deckId'] ?? 
-                         state.uri.queryParameters['id'] ?? '';
+          final deckId =
+              state.uri.queryParameters['deckId'] ??
+              state.uri.queryParameters['id'] ??
+              '';
           return DeckDetailsScreen(deckId: deckId);
         },
       ),
@@ -168,12 +217,14 @@ class AppRouter {
         builder: (context, state) {
           final queryParams = state.uri.queryParameters;
           // Check if this is a shared results deep link
-          if (queryParams.containsKey('score') || queryParams.containsKey('deck')) {
+          if (queryParams.containsKey('score') ||
+              queryParams.containsKey('deck')) {
             final linkData = DeepLinkData(
               type: DeepLinkType.results,
-              deckName: queryParams['deck'] != null 
-                  ? Uri.decodeComponent(queryParams['deck']!) 
-                  : null,
+              deckName:
+                  queryParams['deck'] != null
+                      ? Uri.decodeComponent(queryParams['deck']!)
+                      : null,
               score: int.tryParse(queryParams['score'] ?? ''),
               correct: int.tryParse(queryParams['correct'] ?? ''),
               passed: int.tryParse(queryParams['passed'] ?? ''),

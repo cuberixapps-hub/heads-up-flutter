@@ -1,6 +1,10 @@
-import { collection, getDocs, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
-import { db } from '../config/firebase';
 import { COUNTRIES, type Country } from '../data/countries';
+import { 
+  createDeck, 
+  getCountryDistribution as getSupabaseCountryDistribution,
+  getAutomationStats as getSupabaseAutomationStats,
+  type DeckData
+} from './supabaseDeckService';
 import { generateDeckContent } from './aiContentService';
 import { generateDeckImage } from './aiImageService';
 import { generateRandomTrendingTopic, generateUniversalTopic, type AIGeneratedTopic, generateTrendingTopics } from './aiTopicService';
@@ -71,27 +75,7 @@ const recordTopicType = (type: 'universal' | 'regional') => {
  * Note: Decks can have multiple countries, so each country is counted separately
  */
 export const getCountryDistribution = async (): Promise<{ [countryCode: string]: number }> => {
-  try {
-    const decksRef = collection(db, 'decks');
-    const snapshot = await getDocs(decksRef);
-    
-    const distribution: { [countryCode: string]: number } = {};
-    
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      const countries = data.countries || (data.country ? [data.country] : ['UNIVERSAL']);
-      
-      // Count each country separately for multi-country decks
-      countries.forEach((countryCode: string) => {
-        distribution[countryCode] = (distribution[countryCode] || 0) + 1;
-      });
-    });
-    
-    return distribution;
-  } catch (error) {
-    console.error('Error getting country distribution:', error);
-    return {};
-  }
+  return getSupabaseCountryDistribution();
 };
 
 /**
@@ -273,9 +257,9 @@ export const generateAutomaticDeck = async (
     
     onProgress?.(`🎨 Deck theme: ${selectedColor.name} (${selectedColor.hex})`);
     
-    // Step 5: Save to Firestore with multiple countries
+    // Step 5: Save to Supabase with multiple countries
     onProgress?.('Saving deck to database...');
-    const deckData = {
+    const deckDataToSave: DeckData = {
       name: deckContent.name,
       description: deckContent.description,
       cards: deckContent.cards,
@@ -286,26 +270,24 @@ export const generateAutomaticDeck = async (
       colorHex: selectedColor.hex,
       imageUrl: imageUrl || null,
       isPremium: topic.isPremium || false,
+      isActive: true,
       countries: countryCodes, // Array of country codes
       country: countryCodes[0], // Keep first country for backward compatibility
-      tags: deckContent.suggestedTags,
+      tags: deckContent.suggestedTags || [],
       priority: 0,
-      isActive: true,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
       generatedByAI: true,
       automatedGeneration: true,
       generationTopic: topic.name,
       generationCategory: topic.category
     };
     
-    const docRef = await addDoc(collection(db, 'decks'), deckData);
+    const savedDeck = await createDeck(deckDataToSave);
     
     onProgress?.(`✅ Successfully created deck: "${deckContent.name}"`);
     
     return {
       success: true,
-      deckId: docRef.id,
+      deckId: savedDeck.id,
       generatedDeck: {
         name: deckContent.name,
         description: deckContent.description,
@@ -330,42 +312,14 @@ export const generateAutomaticDeck = async (
  * Get automation statistics
  */
 export const getAutomationStats = async (): Promise<AutomationStats> => {
-  try {
-    const decksRef = collection(db, 'decks');
-    const automatedQuery = query(decksRef, where('automatedGeneration', '==', true));
-    const snapshot = await getDocs(automatedQuery);
-    
-    const stats: AutomationStats = {
-      totalDecksCreated: snapshot.size,
-      successfulGenerations: snapshot.size,
-      failedGenerations: 0,
-      countryDistribution: {}
-    };
-    
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      const country = data.country || 'UNIVERSAL';
-      stats.countryDistribution[country] = (stats.countryDistribution[country] || 0) + 1;
-      
-      // Get the latest creation date
-      if (data.createdAt) {
-        const createdAt = data.createdAt.toDate();
-        if (!stats.lastGeneratedAt || createdAt > stats.lastGeneratedAt) {
-          stats.lastGeneratedAt = createdAt;
-        }
-      }
-    });
-    
-    return stats;
-  } catch (error) {
-    console.error('Error getting automation stats:', error);
-    return {
-      totalDecksCreated: 0,
-      successfulGenerations: 0,
-      failedGenerations: 0,
-      countryDistribution: {}
-    };
-  }
+  const supabaseStats = await getSupabaseAutomationStats();
+  return {
+    totalDecksCreated: supabaseStats.totalDecksCreated,
+    successfulGenerations: supabaseStats.successfulGenerations,
+    failedGenerations: 0,
+    countryDistribution: supabaseStats.countryDistribution,
+    lastGeneratedAt: supabaseStats.lastGeneratedAt
+  };
 };
 
 /**
@@ -617,9 +571,9 @@ export const generateResearchedDeck = async (
     // Create enhanced description with research
     const enhancedDescription = `${primaryDeckContent.description}\n\n🔥 ${researchedTopic.trendingReason}\n\n💡 ${researchedTopic.whyItWorks}`;
     
-    // Save ONE deck to Firestore with research metadata
+    // Save ONE deck to Supabase with research metadata
     onProgress?.(`\n💾 Saving researched deck with metadata...`);
-    const deckData = {
+    const researchedDeckData: DeckData = {
       name: primaryDeckContent.name,
       description: enhancedDescription,
       cards: cardsByDifficulty.easy,
@@ -636,13 +590,11 @@ export const generateResearchedDeck = async (
       colorHex: selectedColorRes.hex,
       imageUrl: imageUrl || null,
       isPremium: researchedTopic.isPremium || false,
+      isActive: true,
       countries: countryCodes,
       country: countryCodes[0],
       tags: [...(primaryDeckContent.suggestedTags || []), 'researched', 'premium-quality', 'multi-difficulty'],
       priority: 0,
-      isActive: true,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
       generatedByAI: true,
       automatedGeneration: true,
       researchBased: true, // NEW: Flag for research-based decks
@@ -668,11 +620,11 @@ export const generateResearchedDeck = async (
       baseTopic: researchedTopic.name
     };
     
-    const docRef = await addDoc(collection(db, 'decks'), deckData);
-    deckIds.push(docRef.id);
+    const savedResearchedDeck = await createDeck(researchedDeckData);
+    deckIds.push(savedResearchedDeck.id!);
     
     generatedDecks.push({
-      id: docRef.id,
+      id: savedResearchedDeck.id!,
       name: primaryDeckContent.name,
       countries: countryCodes,
       research: {
@@ -978,9 +930,9 @@ export const generateMultiDifficultyDecks = async (
       throw new Error('Failed to generate deck content');
     }
     
-    // Save ONE deck to Firestore with all difficulty modes
+    // Save ONE deck to Supabase with all difficulty modes
     onProgress?.(`\n💾 Saving deck with 3 difficulty modes...`);
-    const deckData = {
+    const multiDifficultyDeckData: DeckData = {
       name: primaryDeckContent.name,
       description: primaryDeckContent.description,
       cards: cardsByDifficulty.easy, // Default to easy for backward compatibility
@@ -997,13 +949,11 @@ export const generateMultiDifficultyDecks = async (
       colorHex: selectedColorMulti.hex,
       imageUrl: imageUrl || null,
       isPremium: topic.isPremium || false,
+      isActive: true,
       countries: countryCodes,
       country: countryCodes[0],
       tags: [...(primaryDeckContent.suggestedTags || []), 'multi-difficulty'],
       priority: 0,
-      isActive: true,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
       generatedByAI: true,
       automatedGeneration: true,
       generationTopic: topic.name,
@@ -1011,11 +961,11 @@ export const generateMultiDifficultyDecks = async (
       baseTopic: topic.name
     };
     
-    const docRef = await addDoc(collection(db, 'decks'), deckData);
-    deckIds.push(docRef.id);
+    const savedMultiDeck = await createDeck(multiDifficultyDeckData);
+    deckIds.push(savedMultiDeck.id!);
     
     generatedDecks.push({
-      id: docRef.id,
+      id: savedMultiDeck.id!,
       name: primaryDeckContent.name,
       countries: countryCodes,
       modes: {

@@ -3,6 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../config/ads_config.dart';
+import '../config/environment.dart';
 import 'firebase_service.dart';
 import 'purchases_service.dart';
 
@@ -15,40 +18,6 @@ class AdService {
 
   /// Check if Mobile Ads SDK is initialized
   static bool get isInitialized => _initialized;
-
-  // PRODUCTION Ad IDs - ONLY USED IN RELEASE MODE
-  // Android
-  static const String _prodAndroidBannerAdUnitId =
-      'ca-app-pub-9565182775442262/2581191296';
-  static const String _prodAndroidInterstitialAdUnitId =
-      'ca-app-pub-9565182775442262/1463534832';
-  static const String _prodAndroidRewardedAdUnitId =
-      'ca-app-pub-9565182775442262/9150453169';
-
-  // iOS
-  static const String _prodIosBannerAdUnitId =
-      'ca-app-pub-9565182775442262/6105503333';
-  static const String _prodIosInterstitialAdUnitId =
-      'ca-app-pub-9565182775442262/3834547309';
-  static const String _prodIosRewardedAdUnitId =
-      'ca-app-pub-9565182775442262/4433329011';
-
-  // TEST Ad IDs - Google's official test IDs (DO NOT CHANGE)
-  // Android
-  static const String _testAndroidBannerAdUnitId =
-      'ca-app-pub-3940256099942544/6300978111';
-  static const String _testAndroidInterstitialAdUnitId =
-      'ca-app-pub-3940256099942544/1033173712';
-  static const String _testAndroidRewardedAdUnitId =
-      'ca-app-pub-3940256099942544/5224354917';
-
-  // iOS
-  static const String _testIosBannerAdUnitId =
-      'ca-app-pub-3940256099942544/2934735716';
-  static const String _testIosInterstitialAdUnitId =
-      'ca-app-pub-3940256099942544/4411468910';
-  static const String _testIosRewardedAdUnitId =
-      'ca-app-pub-3940256099942544/1712485313';
 
   BannerAd? _bannerAd;
   InterstitialAd? _interstitialAd;
@@ -67,50 +36,21 @@ class AdService {
   static const int _gamesBeforeAd = 3;
   static const Duration _minTimeBetweenAds = Duration(minutes: 3);
 
-  /// CRITICAL: Automatically use test ads in debug/profile mode
-  /// This prevents accidental clicks during development
-  /// Production ads are ONLY used in release mode
-  bool get _useTestAds {
-    // Always use test ads in debug/profile mode for safety
-    // Production ads are automatically used in release mode
-    return kDebugMode || kProfileMode;
-  }
+  // Daily rewarded ad limit - to encourage premium conversions
+  static const int maxDailyRewardedAds = 5;
+  static const String _dailyAdCountKey = 'daily_rewarded_ad_count';
+  static const String _lastAdDateKey = 'last_rewarded_ad_date';
+  
+  // Cached daily ad count for sync access
+  int _cachedDailyAdCount = 0;
+  String _cachedAdDate = '';
+  bool _dailyAdCountInitialized = false;
 
-  /// Get the appropriate banner ad unit ID based on platform and mode
-  String get bannerAdUnitId {
-    if (_useTestAds) {
-      if (Platform.isAndroid) return _testAndroidBannerAdUnitId;
-      if (Platform.isIOS) return _testIosBannerAdUnitId;
-    } else {
-      if (Platform.isAndroid) return _prodAndroidBannerAdUnitId;
-      if (Platform.isIOS) return _prodIosBannerAdUnitId;
-    }
-    throw UnsupportedError('Unsupported platform');
-  }
+  String get bannerAdUnitId => AdsConfig.bannerAdUnitId;
+  String get interstitialAdUnitId => AdsConfig.interstitialAdUnitId;
+  String get rewardedAdUnitId => AdsConfig.rewardedAdUnitId;
 
-  String get interstitialAdUnitId {
-    if (_useTestAds) {
-      if (Platform.isAndroid) return _testAndroidInterstitialAdUnitId;
-      if (Platform.isIOS) return _testIosInterstitialAdUnitId;
-    } else {
-      if (Platform.isAndroid) return _prodAndroidInterstitialAdUnitId;
-      if (Platform.isIOS) return _prodIosInterstitialAdUnitId;
-    }
-    throw UnsupportedError('Unsupported platform');
-  }
-
-  String get rewardedAdUnitId {
-    if (_useTestAds) {
-      if (Platform.isAndroid) return _testAndroidRewardedAdUnitId;
-      if (Platform.isIOS) return _testIosRewardedAdUnitId;
-    } else {
-      if (Platform.isAndroid) return _prodAndroidRewardedAdUnitId;
-      if (Platform.isIOS) return _prodIosRewardedAdUnitId;
-    }
-    throw UnsupportedError('Unsupported platform');
-  }
-
-  /// Initialize Mobile Ads SDK
+  /// Initialize Mobile Ads SDK. Always runs on app start.
   static Future<void> initialize() async {
     if (_initialized) return;
 
@@ -118,27 +58,21 @@ class AdService {
       await MobileAds.instance.initialize();
       _initialized = true;
 
-      // Log initialization details for debugging
       final instance = AdService();
-      final platform = Platform.isAndroid ? 'Android' : 'iOS';
-
-      if (instance._useTestAds) {
-        debugPrint('🔧 AdMob SDK initialized with TEST ADS');
-        debugPrint('📍 Mode: ${kDebugMode ? "Debug" : "Profile"}');
-      } else {
-        debugPrint('✅ AdMob SDK initialized with PRODUCTION ADS');
-        debugPrint('📍 Mode: Release');
+      if (EnvironmentConfig.enableDebugLogging) {
+        final platform = Platform.isAndroid ? 'Android' : 'iOS';
+        debugPrint('🔧 AdMob SDK initialized');
+        debugPrint('📱 Platform: $platform');
+        debugPrint('🆔 Banner ID: ${instance.bannerAdUnitId}');
       }
-      debugPrint('📱 Platform: $platform');
-      debugPrint('🆔 Banner ID: ${instance.bannerAdUnitId}');
 
-      // Preload ads for better performance
+      await instance.initializeDailyAdCount();
       instance.loadBannerAd();
       instance.loadInterstitialAd();
       instance.loadRewardedAd();
-    } catch (e) {
-      debugPrint('❌ AdMob SDK initialization failed: $e');
-      FirebaseService.logError(e, StackTrace.current);
+    } catch (e, stackTrace) {
+      debugPrint('❌ AdMob initialization failed: $e');
+      FirebaseService.logError(e, stackTrace);
     }
   }
 
@@ -211,8 +145,7 @@ class AdService {
           _isInterstitialAdReady = true;
           debugPrint('✅ Interstitial ad loaded');
 
-          _interstitialAd!
-              .fullScreenContentCallback = FullScreenContentCallback(
+          ad.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (ad) {
               ad.dispose();
               _isInterstitialAdReady = false;
@@ -371,8 +304,12 @@ class AdService {
     }
   }
 
-  /// Load Rewarded Ad
-  void loadRewardedAd() {
+  /// Optional one-shot callback when rewarded ad finishes loading (e.g. for paywall).
+  void Function()? _onRewardedAdLoaded;
+
+  /// Load Rewarded Ad. Optionally [onLoaded] is called once when this load completes.
+  void loadRewardedAd({void Function()? onLoaded}) {
+    _onRewardedAdLoaded = onLoaded;
     RewardedAd.load(
       adUnitId: rewardedAdUnitId,
       request: const AdRequest(),
@@ -381,8 +318,10 @@ class AdService {
           _rewardedAd = ad;
           _isRewardedAdReady = true;
           debugPrint('✅ Rewarded ad loaded');
+          _onRewardedAdLoaded?.call();
+          _onRewardedAdLoaded = null;
 
-          _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
+          ad.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (ad) {
               ad.dispose();
               _isRewardedAdReady = false;
@@ -399,9 +338,10 @@ class AdService {
         onAdFailedToLoad: (error) {
           debugPrint('❌ Rewarded ad failed to load: $error');
           _isRewardedAdReady = false;
+          _onRewardedAdLoaded = null;
 
           // Retry after delay
-          Future.delayed(const Duration(seconds: 60), loadRewardedAd);
+          Future.delayed(const Duration(seconds: 60), () => loadRewardedAd());
         },
       ),
     );
@@ -444,5 +384,167 @@ class AdService {
   /// Reset game counter for interstitial ads
   void incrementGameCount() {
     _gamesPlayedSinceLastAd++;
+  }
+
+  // ============================================================
+  // DAILY REWARDED AD LIMIT - MAX 5 ADS PER DAY
+  // ============================================================
+
+  /// Get today's date as YYYY-MM-DD string (UTC to avoid timezone/device-clock exploits)
+  String _getTodayDateString() {
+    final now = DateTime.now().toUtc();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
+  /// Initialize daily ad count cache from SharedPreferences
+  Future<void> initializeDailyAdCount() async {
+    if (_dailyAdCountInitialized) return;
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final storedDate = prefs.getString(_lastAdDateKey) ?? '';
+      final todayDate = _getTodayDateString();
+      
+      if (storedDate == todayDate) {
+        // Same day - load existing count
+        _cachedDailyAdCount = prefs.getInt(_dailyAdCountKey) ?? 0;
+      } else {
+        // New day - reset count
+        _cachedDailyAdCount = 0;
+        await prefs.setInt(_dailyAdCountKey, 0);
+        await prefs.setString(_lastAdDateKey, todayDate);
+      }
+      
+      _cachedAdDate = todayDate;
+      _dailyAdCountInitialized = true;
+      debugPrint('📊 Daily ad count initialized: $_cachedDailyAdCount/$maxDailyRewardedAds');
+    } catch (e) {
+      debugPrint('❌ Failed to initialize daily ad count: $e');
+      _cachedDailyAdCount = 0;
+      _dailyAdCountInitialized = true;
+    }
+  }
+
+  /// Get daily rewarded ad count (async version with persistence check)
+  Future<int> getDailyAdCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedDate = prefs.getString(_lastAdDateKey) ?? '';
+    final todayDate = _getTodayDateString();
+    
+    if (storedDate != todayDate) {
+      // New day - reset count
+      await prefs.setInt(_dailyAdCountKey, 0);
+      await prefs.setString(_lastAdDateKey, todayDate);
+      _cachedDailyAdCount = 0;
+      _cachedAdDate = todayDate;
+      debugPrint('🌅 New day detected - resetting daily ad count');
+      return 0;
+    }
+    
+    final count = prefs.getInt(_dailyAdCountKey) ?? 0;
+    _cachedDailyAdCount = count;
+    _cachedAdDate = todayDate;
+    return count;
+  }
+
+  /// Get daily ad count synchronously (uses cached value)
+  /// Call initializeDailyAdCount() first during app startup
+  int getDailyAdCountSync() {
+    // Check if we need to reset for a new day
+    final todayDate = _getTodayDateString();
+    if (_cachedAdDate != todayDate) {
+      _cachedDailyAdCount = 0;
+      _cachedAdDate = todayDate;
+    }
+    return _cachedDailyAdCount;
+  }
+
+  /// Get remaining ads for today
+  Future<int> getRemainingAdsToday() async {
+    final count = await getDailyAdCount();
+    return math.max(0, maxDailyRewardedAds - count);
+  }
+
+  /// Get remaining ads synchronously (uses cached value)
+  int getRemainingAdsTodaySync() {
+    return math.max(0, maxDailyRewardedAds - getDailyAdCountSync());
+  }
+
+  /// Check if user can watch a rewarded ad today (async)
+  Future<bool> canWatchRewardedAd() async {
+    final count = await getDailyAdCount();
+    return count < maxDailyRewardedAds;
+  }
+
+  /// Check if user can watch a rewarded ad today (sync - uses cache)
+  bool canWatchRewardedAdSync() {
+    return getDailyAdCountSync() < maxDailyRewardedAds;
+  }
+
+  /// Increment daily ad count after user watches a rewarded ad
+  Future<void> incrementDailyAdCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final todayDate = _getTodayDateString();
+    
+    // Ensure we're on the correct day
+    final storedDate = prefs.getString(_lastAdDateKey) ?? '';
+    if (storedDate != todayDate) {
+      // New day - start fresh
+      await prefs.setInt(_dailyAdCountKey, 1);
+      await prefs.setString(_lastAdDateKey, todayDate);
+      _cachedDailyAdCount = 1;
+      _cachedAdDate = todayDate;
+    } else {
+      // Same day - increment
+      final currentCount = prefs.getInt(_dailyAdCountKey) ?? 0;
+      final newCount = currentCount + 1;
+      await prefs.setInt(_dailyAdCountKey, newCount);
+      _cachedDailyAdCount = newCount;
+    }
+    
+    final remaining = maxDailyRewardedAds - _cachedDailyAdCount;
+    debugPrint('📊 Daily ad count: $_cachedDailyAdCount/$maxDailyRewardedAds ($remaining remaining)');
+    
+    // Log event for analytics
+    await FirebaseService().logEvent(
+      'rewarded_ad_daily_count',
+      parameters: {
+        'count': _cachedDailyAdCount,
+        'remaining': remaining,
+        'limit_reached': _cachedDailyAdCount >= maxDailyRewardedAds,
+      },
+    );
+  }
+
+  /// Get progressive message based on daily ad count
+  /// Returns a message that increases pressure as user approaches limit
+  String getProgressiveAdMessage() {
+    final count = getDailyAdCountSync();
+    final remaining = maxDailyRewardedAds - count;
+    
+    if (count >= maxDailyRewardedAds) {
+      return 'No more free plays today';
+    } else if (remaining == 1) {
+      return 'Last free play today!';
+    } else if (count >= 3) {
+      return 'Still watching ads? Unlock forever';
+    } else if (count >= 1) {
+      return '$remaining free plays left today';
+    } else {
+      return 'Watch ad to continue';
+    }
+  }
+
+  /// Get secondary message for progressive paywall
+  String getProgressiveAdSubMessage() {
+    final count = getDailyAdCountSync();
+    
+    if (count >= maxDailyRewardedAds) {
+      return 'Go Premium for unlimited access';
+    } else if (count >= 3) {
+      return 'Premium = No ads, all decks';
+    } else {
+      return '30s';
+    }
   }
 }

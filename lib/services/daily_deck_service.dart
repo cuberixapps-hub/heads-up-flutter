@@ -1,14 +1,14 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/daily_deck.dart';
 import '../models/deck.dart';
 import '../models/card.dart' as game_card;
-import 'dart:convert';
+import 'supabase_service.dart';
 
 class DailyDeckService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String _collectionName = 'daily_decks';
+  final SupabaseService _supabaseService = SupabaseService();
   static const String _lastFetchKey = 'last_daily_deck_fetch';
   static const String _cachedDeckKey = 'cached_daily_deck';
 
@@ -18,128 +18,62 @@ class DailyDeckService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_cachedDeckKey);
       await prefs.remove(_lastFetchKey);
-      print('🧹 Cache cleared');
     } catch (e) {
-      print('Error clearing cache: $e');
+      debugPrint('Error clearing daily deck cache: $e');
     }
   }
 
   // Get today's daily deck
   Future<DailyDeck?> getTodaysDeck({bool forceRefresh = false}) async {
     try {
-      print('🔍 DailyDeckService: Getting today\'s deck...');
-
       // Clear cache if force refresh
       if (forceRefresh) {
-        print('🔄 Force refresh requested - clearing cache');
         await clearCache();
       }
 
-      // Skip cache check and always fetch fresh data from Firebase
-      // This ensures we always get the latest data
-      print('📡 Fetching fresh data from Firebase...');
-
-      // Fetch from Firebase
+      // Fetch from Supabase
       final now = DateTime.now();
-      final startOfDay = DateTime(now.year, now.month, now.day);
-      final endOfDay = startOfDay.add(const Duration(days: 1));
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-      print('🔥 Fetching from Firebase...');
-      print('📅 Date range: $startOfDay to $endOfDay');
+      // Try to get today's deck first
+      final todayResponse = await _supabaseService
+          .from('daily_decks')
+          .select()
+          .eq('is_active', true)
+          .eq('date', todayStr)
+          .limit(1)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 15));
 
-      // First, let's check if ANY documents exist
-      print('🔍 Checking collection: $_collectionName');
-      final allDocsSnapshot =
-          await _firestore.collection(_collectionName).limit(10).get();
-      print('📚 Total documents in collection: ${allDocsSnapshot.docs.length}');
-
-      if (allDocsSnapshot.docs.isEmpty) {
-        print('⚠️ No documents found in daily_decks collection!');
-        print('💡 Make sure you have created daily decks in the admin portal');
-        return null;
-      }
-
-      for (var doc in allDocsSnapshot.docs) {
-        final data = doc.data();
-        final date = (data['date'] as Timestamp?)?.toDate();
-        print(
-          '  - Document: ${data['title']} | Date: $date | Active: ${data['isActive']}',
-        );
-      }
-
-      // Try a simpler query first - just get any active deck
-      print('🔍 Trying simple query for active decks...');
-      final simpleQuery =
-          await _firestore
-              .collection(_collectionName)
-              .where('isActive', isEqualTo: true)
-              .limit(1)
-              .get();
-
-      if (simpleQuery.docs.isNotEmpty) {
-        print('✅ Found active deck with simple query');
-        final deck = DailyDeck.fromFirestore(simpleQuery.docs.first);
-        // Disable caching to always get fresh data
-        // await _cacheDeck(deck);
-        return deck;
-      }
-
-      // Original compound query (might need indexes)
-      final querySnapshot =
-          await _firestore
-              .collection(_collectionName)
-              .where(
-                'date',
-                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
-              )
-              .where('date', isLessThan: Timestamp.fromDate(endOfDay))
-              .where('isActive', isEqualTo: true)
-              .limit(1)
-              .get();
-
-      print('📊 Query results: ${querySnapshot.docs.length} documents found');
-
-      if (querySnapshot.docs.isEmpty) {
-        print('❌ No daily deck found for today');
-        print('🔄 Trying to get the most recent active deck as fallback...');
-
-        // Fallback: Get the most recent active deck
-        final fallbackSnapshot =
-            await _firestore
-                .collection(_collectionName)
-                .where('isActive', isEqualTo: true)
-                .orderBy('date', descending: true)
-                .limit(1)
-                .get();
-
-        if (fallbackSnapshot.docs.isEmpty) {
-          print('❌ No active daily decks found at all');
-          return null;
-        }
-
-        print('✅ Using fallback deck');
-        final dailyDeck = DailyDeck.fromFirestore(fallbackSnapshot.docs.first);
+      if (todayResponse != null) {
+        final dailyDeck = DailyDeck.fromSupabase(todayResponse);
         await _cacheDeck(dailyDeck);
         return dailyDeck;
       }
 
-      final dailyDeck = DailyDeck.fromFirestore(querySnapshot.docs.first);
-      print('✅ Found daily deck: ${dailyDeck.title}');
+      // Fallback: Get the most recent active deck
+      final fallbackResponse = await _supabaseService
+          .from('daily_decks')
+          .select()
+          .eq('is_active', true)
+          .order('date', ascending: false)
+          .limit(1)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 15));
 
-      // Cache the deck
+      if (fallbackResponse == null) {
+        return null;
+      }
+
+      final dailyDeck = DailyDeck.fromSupabase(fallbackResponse);
       await _cacheDeck(dailyDeck);
-
       return dailyDeck;
     } catch (e, stackTrace) {
-      print('❌ Error fetching today\'s deck: $e');
-      print('📍 Stack trace: $stackTrace');
+      debugPrint('Error fetching daily deck: $e');
+      debugPrint('Stack trace: $stackTrace');
       // Try to return cached deck even if it's not today's
       final fallbackCached = await _getCachedDeck();
-      if (fallbackCached != null) {
-        print('🔄 Returning cached deck as emergency fallback');
-        return fallbackCached;
-      }
-      return null;
+      return fallbackCached;
     }
   }
 
@@ -162,24 +96,21 @@ class DailyDeckService {
   Future<List<DailyDeck>> getUpcomingDecks({int limit = 7}) async {
     try {
       final now = DateTime.now();
-      final startOfDay = DateTime(now.year, now.month, now.day);
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-      final querySnapshot =
-          await _firestore
-              .collection(_collectionName)
-              .where(
-                'date',
-                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
-              )
-              .orderBy('date')
-              .limit(limit)
-              .get();
+      final response = await _supabaseService
+          .from('daily_decks')
+          .select()
+          .gte('date', todayStr)
+          .order('date', ascending: true)
+          .limit(limit)
+          .timeout(const Duration(seconds: 15));
 
-      return querySnapshot.docs
-          .map((doc) => DailyDeck.fromFirestore(doc))
+      return (response as List)
+          .map((row) => DailyDeck.fromSupabase(row as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      print('Error fetching upcoming decks: $e');
+      debugPrint('Error fetching upcoming decks: $e');
       return [];
     }
   }
@@ -214,7 +145,7 @@ class DailyDeckService {
       await prefs.setString(_cachedDeckKey, jsonEncode(deckData));
       await prefs.setString(_lastFetchKey, DateTime.now().toIso8601String());
     } catch (e) {
-      print('Error caching deck: $e');
+      debugPrint('Error caching deck: $e');
     }
   }
 
@@ -254,7 +185,7 @@ class DailyDeckService {
                 : null,
       );
     } catch (e) {
-      print('Error getting cached deck: $e');
+      debugPrint('Error getting cached deck: $e');
       return null;
     }
   }
@@ -286,7 +217,6 @@ class DailyDeckService {
       final lastPlayedDateStr = prefs.getString('last_daily_played_date');
 
       if (lastPlayedId == null || lastPlayedDateStr == null) {
-        print('📊 No previous play record found');
         return false;
       }
 
@@ -299,11 +229,9 @@ class DailyDeckService {
           lastPlayedDate.month == now.month &&
           lastPlayedDate.day == now.day;
 
-      print('📊 Last played: $lastPlayedDateStr, Was today: $wasPlayedToday');
-
       return wasPlayedToday;
     } catch (e) {
-      print('❌ Error checking play status: $e');
+      debugPrint('Error checking play status: $e');
       return false;
     }
   }
@@ -316,10 +244,8 @@ class DailyDeckService {
 
       await prefs.setString('last_daily_played_id', deckId);
       await prefs.setString('last_daily_played_date', now.toIso8601String());
-
-      print('✅ Marked deck $deckId as played at ${now.toIso8601String()}');
     } catch (e) {
-      print('❌ Error marking as played: $e');
+      debugPrint('Error marking as played: $e');
     }
   }
 
@@ -329,9 +255,8 @@ class DailyDeckService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('last_daily_played_id');
       await prefs.remove('last_daily_played_date');
-      print('🧹 Cleared played status');
     } catch (e) {
-      print('❌ Error clearing played status: $e');
+      debugPrint('Error clearing played status: $e');
     }
   }
 }

@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "com.headsup.heads_up_game",
       "sha256_cert_fingerprints": [
-        "YOUR_SHA256_FINGERPRINT_HERE"
+        "B1:50:6D:9E:50:30:CA:D7:0A:7A:14:66:60:BC:1D:8C:94:46:44:1A:C8:24:63:C7:92:3E:F3:DB:8D:97:A9:13",
+        "CD:2F:98:2D:F2:43:0A:2C:6D:92:94:AD:F9:EE:62:33:2F:B9:B2:40:FC:C0:B6:A7:84:53:62:BD:57:07:C8:75"
       ]
     }
   }
