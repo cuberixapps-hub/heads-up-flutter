@@ -203,14 +203,18 @@ class _VideoPlayerWithOverlayScreenState
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Video player - full screen without cropping
+          // Video player - full screen, mirrored to match natural front-camera perspective
           if (_isInitialized && _controller != null)
             Container(
               color: Colors.black,
               child: Center(
-                child: AspectRatio(
-                  aspectRatio: _controller!.value.aspectRatio,
-                  child: VideoPlayer(_controller!),
+                child: Transform(
+                  alignment: Alignment.center,
+                  transform: Matrix4.identity()..scale(-1.0, 1.0),
+                  child: AspectRatio(
+                    aspectRatio: _controller!.value.aspectRatio,
+                    child: VideoPlayer(_controller!),
+                  ),
                 ),
               ),
             )
@@ -221,11 +225,11 @@ class _VideoPlayerWithOverlayScreenState
               ),
             ),
 
-          // PiP overlay
+          // Game overlay PiP - positioned bottom-left to avoid controls overlap
           if (_gameFrames.isNotEmpty && _isInitialized)
             Positioned(
               bottom: 100,
-              right: 20,
+              left: 20,
               child: Container(
                 width: 200,
                 height: 150,
@@ -319,7 +323,7 @@ class _VideoPlayerWithOverlayScreenState
           if (_isGeneratingFrames)
             Positioned(
               bottom: 100,
-              right: 20,
+              left: 20,
               child: Container(
                 width: 200,
                 height: 150,

@@ -11,185 +11,65 @@ class HapticService {
     _isHapticEnabled = enabled;
   }
 
-  Future<void> lightImpact() async {
+  /// Fire a single haptic without awaiting — guarantees the platform channel
+  /// message is dispatched immediately and never blocked by a prior pattern.
+  void _fire(Future<void> Function() haptic) {
     if (!_isHapticEnabled) return;
-    try {
-      await HapticFeedback.lightImpact();
-    } catch (e) {
-      // Handle error silently
-    }
+    haptic().catchError((_) {});
   }
 
-  Future<void> mediumImpact() async {
+  void lightImpact() => _fire(HapticFeedback.lightImpact);
+
+  void mediumImpact() => _fire(HapticFeedback.mediumImpact);
+
+  void heavyImpact() => _fire(HapticFeedback.heavyImpact);
+
+  void success() => _fire(HapticFeedback.mediumImpact);
+
+  void warning() => _fire(HapticFeedback.lightImpact);
+
+  void error() => _fire(HapticFeedback.heavyImpact);
+
+  void selection() => _fire(HapticFeedback.selectionClick);
+
+  /// CORRECT answer — single strong impact that fires instantly during gameplay.
+  /// Multi-step patterns get swallowed by rapid sensor-driven actions because
+  /// the platform channel coalesces calls that arrive while a previous
+  /// Future.delayed chain is still in flight.
+  void correctAnswer() => _fire(HapticFeedback.heavyImpact);
+
+  /// PASS answer — single medium impact, distinct from correct.
+  void passAnswer() => _fire(HapticFeedback.mediumImpact);
+
+  /// Streak bonus (3+ consecutive corrects) — double heavy tap.
+  void streakBonus() {
     if (!_isHapticEnabled) return;
-    try {
-      await HapticFeedback.mediumImpact();
-    } catch (e) {
-      // Handle error silently
-    }
+    HapticFeedback.heavyImpact().catchError((_) {});
+    Future.delayed(const Duration(milliseconds: 80), () {
+      HapticFeedback.heavyImpact().catchError((_) {});
+    });
   }
 
-  Future<void> heavyImpact() async {
+  /// Time running low — quick double medium pulse.
+  void timeWarning() {
     if (!_isHapticEnabled) return;
-    try {
-      await HapticFeedback.heavyImpact();
-    } catch (e) {
-      // Handle error silently
-    }
+    HapticFeedback.mediumImpact().catchError((_) {});
+    Future.delayed(const Duration(milliseconds: 100), () {
+      HapticFeedback.mediumImpact().catchError((_) {});
+    });
   }
 
-  Future<void> success() async {
+  void countdown() => _fire(HapticFeedback.mediumImpact);
+
+  /// Game start — heavy burst.
+  void gameStart() => _fire(HapticFeedback.heavyImpact);
+
+  /// Game end — conclusive double heavy.
+  void gameEnd() {
     if (!_isHapticEnabled) return;
-    try {
-      await HapticFeedback.mediumImpact();
-    } catch (e) {
-      // Handle error silently
-    }
-  }
-
-  Future<void> warning() async {
-    if (!_isHapticEnabled) return;
-    try {
-      await HapticFeedback.lightImpact();
-    } catch (e) {
-      // Handle error silently
-    }
-  }
-
-  Future<void> error() async {
-    if (!_isHapticEnabled) return;
-    try {
-      await HapticFeedback.heavyImpact();
-    } catch (e) {
-      // Handle error silently
-    }
-  }
-
-  Future<void> selection() async {
-    if (!_isHapticEnabled) return;
-    try {
-      await HapticFeedback.selectionClick();
-    } catch (e) {
-      // Handle error silently
-    }
-  }
-
-  /// Premium haptic for CORRECT answer - elegant celebratory crescendo
-  /// Creates an emotionally satisfying "achievement unlocked" sensation
-  /// Pattern: soft → medium → STRONG → soft fade (like a heartbeat of joy)
-  Future<void> correctAnswer() async {
-    if (!_isHapticEnabled) return;
-    try {
-      // 1. Soft anticipation pulse
-      await HapticFeedback.selectionClick();
-      await Future.delayed(const Duration(milliseconds: 40));
-
-      // 2. Building medium pulse
-      await HapticFeedback.mediumImpact();
-      await Future.delayed(const Duration(milliseconds: 60));
-
-      // 3. STRONG celebratory peak - the "YES!" moment
-      await HapticFeedback.heavyImpact();
-      await Future.delayed(const Duration(milliseconds: 80));
-
-      // 4. Satisfying resolution pulse
-      await HapticFeedback.mediumImpact();
-      await Future.delayed(const Duration(milliseconds: 50));
-
-      // 5. Gentle fade out - elegant finish
-      await HapticFeedback.lightImpact();
-    } catch (e) {
-      // Handle error silently
-    }
-  }
-
-  /// Premium haptic for PASS - swift elegant dismissal
-  /// Creates a refined "moving on" sensation - not punishing, just decisive
-  /// Pattern: quick double-tap with descending intensity (like brushing away)
-  Future<void> passAnswer() async {
-    if (!_isHapticEnabled) return;
-    try {
-      // 1. Quick decisive first tap
-      await HapticFeedback.mediumImpact();
-      await Future.delayed(const Duration(milliseconds: 45));
-
-      // 2. Lighter follow-up - the "swoosh" feeling
-      await HapticFeedback.lightImpact();
-      await Future.delayed(const Duration(milliseconds: 35));
-
-      // 3. Subtle final whisper - smooth exit
-      await HapticFeedback.selectionClick();
-    } catch (e) {
-      // Handle error silently
-    }
-  }
-
-  /// Premium haptic for streak bonus - extra celebration for consecutive corrects
-  /// Use this after 3+ correct answers in a row
-  Future<void> streakBonus() async {
-    if (!_isHapticEnabled) return;
-    try {
-      // Rapid ascending celebration burst
-      await HapticFeedback.lightImpact();
-      await Future.delayed(const Duration(milliseconds: 30));
-      await HapticFeedback.lightImpact();
-      await Future.delayed(const Duration(milliseconds: 30));
-      await HapticFeedback.mediumImpact();
-      await Future.delayed(const Duration(milliseconds: 40));
-      await HapticFeedback.heavyImpact();
-      await Future.delayed(const Duration(milliseconds: 60));
-      await HapticFeedback.heavyImpact();
-    } catch (e) {
-      // Handle error silently
-    }
-  }
-
-  /// Premium haptic for time running low - urgent but elegant pulse
-  Future<void> timeWarning() async {
-    if (!_isHapticEnabled) return;
-    try {
-      // Quick attention-grabbing double pulse
-      await HapticFeedback.mediumImpact();
-      await Future.delayed(const Duration(milliseconds: 100));
-      await HapticFeedback.mediumImpact();
-    } catch (e) {
-      // Handle error silently
-    }
-  }
-
-  /// Premium haptic for game countdown - building anticipation
-  Future<void> countdown() async {
-    if (!_isHapticEnabled) return;
-    try {
-      await HapticFeedback.mediumImpact();
-    } catch (e) {
-      // Handle error silently
-    }
-  }
-
-  /// Premium haptic for game start - exciting burst
-  Future<void> gameStart() async {
-    if (!_isHapticEnabled) return;
-    try {
-      await HapticFeedback.heavyImpact();
-      await Future.delayed(const Duration(milliseconds: 50));
-      await HapticFeedback.mediumImpact();
-      await Future.delayed(const Duration(milliseconds: 50));
-      await HapticFeedback.lightImpact();
-    } catch (e) {
-      // Handle error silently
-    }
-  }
-
-  /// Premium haptic for game end - conclusive finish
-  Future<void> gameEnd() async {
-    if (!_isHapticEnabled) return;
-    try {
-      await HapticFeedback.heavyImpact();
-      await Future.delayed(const Duration(milliseconds: 150));
-      await HapticFeedback.heavyImpact();
-    } catch (e) {
-      // Handle error silently
-    }
+    HapticFeedback.heavyImpact().catchError((_) {});
+    Future.delayed(const Duration(milliseconds: 150), () {
+      HapticFeedback.heavyImpact().catchError((_) {});
+    });
   }
 }

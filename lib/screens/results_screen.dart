@@ -11,6 +11,7 @@ import '../providers/game_provider.dart';
 import '../services/haptic_service.dart';
 import '../services/audio_service.dart';
 import '../services/ad_service.dart';
+import '../services/purchases_service.dart';
 import '../services/share_service.dart';
 import '../services/video_processing_manager.dart';
 import '../utils/responsive.dart';
@@ -39,6 +40,7 @@ class _ResultsScreenState extends State<ResultsScreen>
 
   bool _showDetails = false;
   bool _hasDoubledScore = false;
+  bool _videoUnlocked = false;
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -62,6 +64,8 @@ class _ResultsScreenState extends State<ResultsScreen>
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 3),
     );
+
+    _videoUnlocked = PurchasesService().isPremium;
 
     // Play success sound
     _audioService.playSuccess();
@@ -164,6 +168,69 @@ class _ResultsScreenState extends State<ResultsScreen>
     if (mounted) {
       onComplete();
     }
+  }
+
+  void _handleVideoUnlock() {
+    _hapticService.mediumImpact();
+
+    if (!_adService.isRewardedAdReady) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.hourglass_top_rounded, color: Colors.white, size: 20.s),
+              SizedBox(width: 8.s),
+              Text(
+                'Ad is loading, please try again shortly',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF1C1C1E),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.s),
+          ),
+        ),
+      );
+      _adService.loadRewardedAd();
+      return;
+    }
+
+    _adService.showRewardedAd(
+      rewardType: 'video_unlock',
+      onUserEarnedReward: (amount) {
+        if (mounted) {
+          setState(() => _videoUnlocked = true);
+          _hapticService.success();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.lock_open_rounded, color: Colors.white, size: 20.s),
+                  SizedBox(width: 8.s),
+                  Text(
+                    'Video unlocked! Tap to play.',
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF1C1C1E),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.s),
+              ),
+            ),
+          );
+        }
+      },
+    );
   }
 
   @override
@@ -281,7 +348,11 @@ class _ResultsScreenState extends State<ResultsScreen>
                                 if (!_hasDoubledScore)
                                   _buildDoubleScoreButton(session),
                                 SizedBox(height: 28.s),
-                                VideoSection(key: _videoSectionKey),
+                                VideoSection(
+                                  key: _videoSectionKey,
+                                  isLocked: !_videoUnlocked,
+                                  onLockedTap: _handleVideoUnlock,
+                                ),
                                 SizedBox(height: 28.s),
                                 _buildStatsGrid(session, timeInSeconds),
                                 SizedBox(height: 28.s),

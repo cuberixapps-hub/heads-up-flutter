@@ -165,12 +165,28 @@ class _GameplayScreenState extends State<GameplayScreen>
   bool _returnComplete = false;
   DateTime? _waitingStartTime;
 
+  // Generation counter: incremented on every _initializeSensors call.
+  // Stale Future.delayed / timeout callbacks compare their captured generation
+  // against _sensorGeneration and bail out if they don't match, preventing
+  // races where an old init's delayed callback overwrites a newer one.
+  int _sensorGeneration = 0;
+
+  // Post-calibration warmup: after calibration completes, ignore the first N
+  // sensor samples so the EMA can converge toward real tilt values before we
+  // allow trigger detection. This prevents false triggers on re-init.
+  int _warmupSamplesRemaining = 0;
+  static const _warmupSampleCount = 15;
+
+  // Periodic debug-overlay refresh timer (replaces ad-hoc DateTime checks)
+  Timer? _debugRefreshTimer;
+
   // Debug status string for overlay
   String _sensorState = 'INIT';
 
   // Game state
   bool _isCountingDown = true;
-  int _countdownValue = 3;
+  /// 0 = "Get Ready", 1-3 = numeric countdown
+  int _countdownValue = 0;
   Timer? _countdownTimer;
 
   // Feedback state
@@ -179,6 +195,10 @@ class _GameplayScreenState extends State<GameplayScreen>
   // Card action animation state
   bool _isCorrectAction = false;
   bool _isPassAction = false;
+
+  // Holds the card text shown during the exit animation so the displayed word
+  // doesn't jump to the next card before the animation finishes.
+  String? _animatingCard;
 
   // Control mode
   bool _useManualControls = false;
@@ -219,7 +239,7 @@ class _GameplayScreenState extends State<GameplayScreen>
     _initializeAnimations();
     _checkPreferredOrientation();
     _checkCameraPreference();
-    _startCountdown();
+    _preloadAndStartCountdown();
 
     // Listen for game state changes
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -332,43 +352,67 @@ class _GameplayScreenState extends State<GameplayScreen>
     )..repeat(reverse: true);
   }
 
-  void _startCountdown() {
-    // Play sound for initial "3" and trigger all animations
-    _audioService.playCountdown();
-    _hapticService.mediumImpact();
+  Future<void> _preloadAndStartCountdown() async {
+    await _audioService.preloadCountdown();
+    if (!mounted) return;
+    _startCountdown();
+  }
 
-    // Start all countdown animations simultaneously
+  void _startCountdown() {
+    // Begin sensor calibration immediately so it completes by game start.
+    // The sensor listener already guards against actions while _isCountingDown.
+    if (!_useManualControls) {
+      _initializeSensors();
+    }
+
+    // Step 0: "Get Ready" immediately (no beep, just animations)
+    _fireCountdownTick(playSound: false);
+
+    // Step 1: show "3" at 1 second
+    Timer(const Duration(seconds: 1), () {
+      if (!mounted) return;
+      setState(() => _countdownValue = 3);
+      _fireCountdownTick();
+    });
+
+    // Step 2: show "2" at 2 seconds
+    Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      setState(() => _countdownValue = 2);
+      _fireCountdownTick();
+    });
+
+    // Step 3: show "1" at 3 seconds
+    Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      setState(() => _countdownValue = 1);
+      _fireCountdownTick();
+    });
+
+    // End countdown at 4 seconds
+    _countdownTimer = Timer(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      _countdownBlurController.forward().then((_) {
+        if (!mounted) return;
+        setState(() {
+          _isCountingDown = false;
+        });
+        _audioService.disposeCountdownPlayer();
+        _startGame();
+      });
+    });
+  }
+
+  void _fireCountdownTick({bool playSound = true}) {
+    if (playSound) {
+      _audioService.playPreloadedCountdown();
+    }
+    _hapticService.mediumImpact();
     _countdownController.forward(from: 0);
     _countdownPulseController.forward(from: 0);
     _countdownRingController.forward(from: 0);
     _countdownBlurController.forward(from: 0).then((_) {
       _countdownBlurController.reverse();
-    });
-
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_countdownValue > 1) {
-        setState(() {
-          _countdownValue--;
-        });
-        // Reset and restart all animations for each number
-        _countdownController.forward(from: 0);
-        _countdownPulseController.forward(from: 0);
-        _countdownRingController.forward(from: 0);
-        _countdownBlurController.forward(from: 0).then((_) {
-          _countdownBlurController.reverse();
-        });
-        _audioService.playCountdown();
-        _hapticService.mediumImpact();
-      } else {
-        timer.cancel();
-        // Final dramatic exit animation
-        _countdownBlurController.forward().then((_) {
-          setState(() {
-            _isCountingDown = false;
-          });
-          _startGame();
-        });
-      }
     });
   }
 
@@ -407,12 +451,9 @@ class _GameplayScreenState extends State<GameplayScreen>
       }
     }
 
-    // Start sensors AFTER recording so the user can only interact
-    // (tilt to correct/pass) once the camera is actively recording.
-    // This keeps camera video and game overlay perfectly in sync.
-    if (!_useManualControls) {
-      _initializeSensors();
-    }
+    // Sensors were already initialized during the "Get Ready" countdown
+    // and calibration should be complete by now. The _isCountingDown guard
+    // in the sensor listener prevented any actions during countdown.
   }
 
   Future<bool> _startVideoRecording() async {
@@ -433,6 +474,10 @@ class _GameplayScreenState extends State<GameplayScreen>
   }
 
   void _initializeSensors({bool isRecalibration = false}) {
+    // Bump generation so any in-flight Future.delayed / timeout from a previous
+    // call becomes stale and will no-op when it fires.
+    final gen = ++_sensorGeneration;
+
     _calibrationSubscription?.cancel();
     _calibrationSubscription = null;
     _sensorSubscription?.cancel();
@@ -448,6 +493,7 @@ class _GameplayScreenState extends State<GameplayScreen>
     _animationComplete = false;
     _returnComplete = false;
     _waitingStartTime = null;
+    _warmupSamplesRemaining = 0;
     _sensorState = 'CALIBRATING';
     if (!isRecalibration) {
       _lastActionTime = null;
@@ -455,15 +501,19 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     final delay = isRecalibration ? 50 : 200;
     Future.delayed(Duration(milliseconds: delay), () {
-      if (!mounted) return;
-      _calibrateSensor();
+      if (!mounted || gen != _sensorGeneration) return;
+      _calibrateSensor(generation: gen);
     });
   }
 
   /// Calibrates baseline accelerometer values only when the phone is in the
   /// correct "heads-up" position (vertical landscape on forehead).
   /// Rejects samples where |Y| is large (portrait) or |X| is small (phone flat).
-  void _calibrateSensor() {
+  ///
+  /// [generation] ties this calibration to a specific _initializeSensors call.
+  /// If _initializeSensors is called again before we finish, the generation
+  /// won't match and all closures from this call become no-ops.
+  void _calibrateSensor({required int generation}) {
     _calibrationSubscription?.cancel();
 
     int totalCount = 0;
@@ -478,9 +528,8 @@ class _GameplayScreenState extends State<GameplayScreen>
     _calibrationSubscription = accelerometerEventStream(
       samplingPeriod: _sensorSamplingPeriod,
     ).listen((event) {
-      if (calibrationDone) return;
+      if (calibrationDone || generation != _sensorGeneration) return;
 
-      // Update raw values for debug overlay even during calibration
       _accelX = event.x;
       _accelY = event.y;
       _accelZ = event.z;
@@ -498,8 +547,6 @@ class _GameplayScreenState extends State<GameplayScreen>
       //   |X| ≈ 9.8 (gravity along short axis — phone is vertical)
       //   |Y| ≈ 0   (landscape — long axis is horizontal)
       //   |Z| ≈ 0   (screen faces outward, perpendicular to gravity)
-      //
-      // Reject if |Y| is large (portrait / transitioning).
       if (event.y.abs() > _calibrationStableThreshold) {
         _sensorState =
             'WAITING FOR LANDSCAPE (Y=${event.y.toStringAsFixed(1)})';
@@ -510,8 +557,6 @@ class _GameplayScreenState extends State<GameplayScreen>
         return;
       }
 
-      // Reject if |X| is too small — phone is flat (e.g. lying on a table/bed)
-      // instead of vertical on the forehead. When flat, X ≈ 0 and Z ≈ 9.8.
       if (event.x.abs() < _calibrationVerticalThreshold) {
         _sensorState = 'HOLD ON FOREHEAD (X=${event.x.toStringAsFixed(1)})';
         usedCount = 0;
@@ -537,6 +582,13 @@ class _GameplayScreenState extends State<GameplayScreen>
         _calY = sumY / usedCount;
         _calZ = sumZ / usedCount;
         _isCalibrated = true;
+
+        // Seed the EMA with the last calibration sample's actual delta so it
+        // starts at the true current tilt instead of 0, eliminating the
+        // convergence lag that caused missed or phantom triggers.
+        _smoothedDeltaZ = event.z - _calZ;
+
+        _warmupSamplesRemaining = _warmupSampleCount;
         _sensorState = 'READY';
         _startSensorListener();
       }
@@ -544,7 +596,7 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     // Timeout fallback: if we can't get good samples in 5 seconds, use what we have
     Future.delayed(const Duration(seconds: 5), () {
-      if (calibrationDone || !mounted) return;
+      if (calibrationDone || !mounted || generation != _sensorGeneration) return;
       calibrationDone = true;
       _calibrationSubscription?.cancel();
       _calibrationSubscription = null;
@@ -552,6 +604,8 @@ class _GameplayScreenState extends State<GameplayScreen>
       _calY = usedCount > 0 ? sumY / usedCount : 0.0;
       _calZ = usedCount > 0 ? sumZ / usedCount : 0.0;
       _isCalibrated = true;
+      _smoothedDeltaZ = 0.0;
+      _warmupSamplesRemaining = _warmupSampleCount;
       _sensorState = 'READY (timeout cal)';
       _startSensorListener();
     });
@@ -563,19 +617,34 @@ class _GameplayScreenState extends State<GameplayScreen>
   ///   READY → (ΔZ crosses threshold) → WAITING_FOR_RETURN → (N consecutive neutral samples) → READY
   ///
   /// Guards:
+  ///   - warmup period → EMA hasn't converged yet → don't trigger
   ///   - |ΔY| > orientationGuardThreshold → phone is not in landscape → ignore
   ///   - |gravity| < 7.0 → sensor is unreliable → ignore
   ///   - _actionLocked → animation not done yet → don't trigger new action
   ///   - cooldown → too soon after last action → don't trigger
   void _startSensorListener() {
-    // Accelerometer stream — main detection + debug display
     _sensorSubscription?.cancel();
+
+    // Capture the generation at listener-start time so we can detect staleness.
+    final gen = _sensorGeneration;
+
+    // Start a periodic timer for debug-overlay refreshes instead of the
+    // probabilistic DateTime check that caused inconsistent update rates.
+    _debugRefreshTimer?.cancel();
+    if (kDebugMode && EnvironmentConfig.isDevelopment) {
+      _debugRefreshTimer = Timer.periodic(
+        const Duration(milliseconds: 100),
+        (_) {
+          if (mounted) setState(() {});
+        },
+      );
+    }
+
     _sensorSubscription = accelerometerEventStream(
       samplingPeriod: _sensorSamplingPeriod,
     ).listen((event) {
-      if (!mounted || !_isCalibrated) return;
+      if (!mounted || !_isCalibrated || gen != _sensorGeneration) return;
 
-      // Update raw values for debug overlay
       _accelX = event.x;
       _accelY = event.y;
       _accelZ = event.z;
@@ -584,23 +653,17 @@ class _GameplayScreenState extends State<GameplayScreen>
       );
 
       // ── Guard 1: Gravity magnitude check ──
-      // If total gravity is too low, sensor data is unreliable (e.g. free-fall or sensor glitch)
       if (_gravityMag < 7.0) {
         _sensorState = 'BAD GRAVITY (${_gravityMag.toStringAsFixed(1)})';
         return;
       }
 
-      // Compute deltas from calibrated baseline
       final deltaY = event.y - _calY;
       final rawDeltaZ = event.z - _calZ;
 
       // ── Guard 2: Orientation guard using ΔY ──
-      // In landscape, Y should be near calibrated value (small ΔY).
-      // Large |ΔY| means phone is portrait or transitioning → ignore all sensor input.
       if (deltaY.abs() > _orientationGuardThreshold) {
         _sensorState = 'NOT LANDSCAPE (ΔY=${deltaY.toStringAsFixed(1)})';
-        // Don't reset smoothedDeltaZ — we'll let it naturally decay or stabilize
-        // when the phone returns to landscape
         return;
       }
 
@@ -608,10 +671,15 @@ class _GameplayScreenState extends State<GameplayScreen>
       _smoothedDeltaZ =
           _smoothedDeltaZ * (1 - _smoothingAlpha) + rawDeltaZ * _smoothingAlpha;
 
+      // ── Post-calibration warmup ──
+      // Let the EMA converge for a few samples before allowing triggers.
+      if (_warmupSamplesRemaining > 0) {
+        _warmupSamplesRemaining--;
+        _sensorState = 'WARMUP ($_warmupSamplesRemaining)';
+        return;
+      }
+
       // ── Baseline drift correction ──
-      // When the phone is near neutral (user isn't tilting), slowly nudge _calZ
-      // toward the actual current Z reading. This eliminates persistent bias
-      // from sensor offset or slight head angle without affecting tilt detection.
       if (!_waitingForReturn &&
           !_actionLocked &&
           _smoothedDeltaZ.abs() < _baselineDriftZone) {
@@ -620,8 +688,6 @@ class _GameplayScreenState extends State<GameplayScreen>
 
       // ── State: WAITING FOR RETURN TO NEUTRAL ──
       if (_waitingForReturn) {
-        // Check if phone has returned to neutral position
-        // Require BOTH smoothed AND raw to be near zero (prevents EMA from falsely declaring neutral)
         if (_smoothedDeltaZ.abs() < _returnThreshold &&
             rawDeltaZ.abs() < _returnThreshold) {
           _returnStableCount++;
@@ -636,13 +702,11 @@ class _GameplayScreenState extends State<GameplayScreen>
             _maybeUnlockAfterAction();
           }
         } else {
-          // Not neutral yet — reset consecutive counter
           _returnStableCount = 0;
           _sensorState =
               'WAIT NEUTRAL (ΔZ=${_smoothedDeltaZ.toStringAsFixed(1)})';
         }
 
-        // Watchdog: if stuck in waitingForReturn too long AND close to neutral, force-clear
         if (_waitingForReturn && _waitingStartTime != null) {
           final elapsed =
               DateTime.now().difference(_waitingStartTime!).inMilliseconds;
@@ -656,20 +720,12 @@ class _GameplayScreenState extends State<GameplayScreen>
             _maybeUnlockAfterAction();
           }
         }
-
-        // Update debug overlay periodically
-        if (DateTime.now().millisecondsSinceEpoch % 100 < 25) {
-          setState(() {});
-        }
         return;
       }
 
       // ── Don't trigger if action is locked (animation in progress) ──
       if (_actionLocked) {
         _sensorState = 'LOCKED (anim)';
-        if (DateTime.now().millisecondsSinceEpoch % 100 < 25) {
-          setState(() {});
-        }
         return;
       }
 
@@ -679,9 +735,6 @@ class _GameplayScreenState extends State<GameplayScreen>
             DateTime.now().difference(_lastActionTime!).inMilliseconds;
         if (elapsed < _cooldownMs) {
           _sensorState = 'COOLDOWN (${_cooldownMs - elapsed}ms)';
-          if (DateTime.now().millisecondsSinceEpoch % 100 < 25) {
-            setState(() {});
-          }
           return;
         }
       }
@@ -695,17 +748,12 @@ class _GameplayScreenState extends State<GameplayScreen>
       _sensorState = 'READY (ΔZ=${_smoothedDeltaZ.toStringAsFixed(1)})';
 
       // ── Trigger detection ──
-      // CORRECT = tilt forward (nod down) → ΔZ goes NEGATIVE (phone face tilts toward floor)
-      // PASS = tilt backward (lean back) → ΔZ goes POSITIVE (phone face tilts toward ceiling)
+      // CORRECT = tilt forward (nod down) → ΔZ goes NEGATIVE
+      // PASS = tilt backward (lean back) → ΔZ goes POSITIVE
       if (_smoothedDeltaZ < -_tiltTriggerThreshold) {
         _triggerAction(isCorrect: true);
       } else if (_smoothedDeltaZ > _tiltTriggerThreshold) {
         _triggerAction(isCorrect: false);
-      }
-
-      // Update debug overlay periodically
-      if (DateTime.now().millisecondsSinceEpoch % 100 < 25) {
-        setState(() {});
       }
     });
 
@@ -760,9 +808,9 @@ class _GameplayScreenState extends State<GameplayScreen>
 
     // Haptics on every correct card (before any other feedback so it always runs)
     if (_currentStreak >= _streakThreshold) {
-      _hapticService.streakBonus(); // 🔥 Extra celebration for hot streak!
+      _hapticService.streakBonus();
     } else {
-      _hapticService.correctAnswer(); // Celebratory haptic for every correct
+      _hapticService.correctAnswer();
     }
 
     // Log video event
@@ -775,10 +823,11 @@ class _GameplayScreenState extends State<GameplayScreen>
       );
     }
 
-    // Set action state for premium animation
+    // Set action state for premium animation and freeze the displayed card
     setState(() {
       _isCorrectAction = true;
       _isPassAction = false;
+      _animatingCard = currentWord;
     });
 
     // Show feedback with burst animation
@@ -793,6 +842,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       if (!mounted) return;
       setState(() {
         _isCorrectAction = false;
+        _animatingCard = null;
       });
       _cardExitController.reset();
       _cardEnterController.forward(from: 0);
@@ -827,10 +877,11 @@ class _GameplayScreenState extends State<GameplayScreen>
       );
     }
 
-    // Set action state for premium animation
+    // Set action state for premium animation and freeze the displayed card
     setState(() {
       _isPassAction = true;
       _isCorrectAction = false;
+      _animatingCard = currentWord;
     });
 
     // Show feedback
@@ -845,6 +896,7 @@ class _GameplayScreenState extends State<GameplayScreen>
       if (!mounted) return;
       setState(() {
         _isPassAction = false;
+        _animatingCard = null;
       });
       _cardExitController.reset();
       _cardEnterController.forward(from: 0);
@@ -902,14 +954,23 @@ class _GameplayScreenState extends State<GameplayScreen>
     if (_isNavigating) return;
     _isNavigating = true;
 
+    _audioService.playGameOver();
+    _hapticService.gameEnd();
+
     _calibrationSubscription?.cancel();
     _sensorSubscription?.cancel();
     _gyroSubscription?.cancel();
+    _debugRefreshTimer?.cancel();
+    _debugRefreshTimer = null;
 
     // Stop video recording and get result
     if (_isRecordingVideo) {
       await _stopRecordingAndNavigate();
     } else {
+      // Release camera even if recording never started
+      if (_isCameraEnabled) {
+        await _cameraRecording.releaseCamera();
+      }
       _navigateToResultsScreen();
     }
   }
@@ -926,6 +987,9 @@ class _GameplayScreenState extends State<GameplayScreen>
         widget.deck.name,
         widget.deck.color.toString(),
       );
+
+      // Fully release the camera hardware so the green indicator disappears
+      await _cameraRecording.releaseCamera();
 
       // Store in game provider
       if (recordingResult != null) {
@@ -1123,7 +1187,19 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   void _pauseGame() {
     context.read<GameProvider>().togglePause();
-    _isCalibrated = false; // Disable sensors during pause
+
+    // Fully stop sensor streams during pause. Previously we only set
+    // _isCalibrated=false which left the stream running, letting the EMA
+    // drift while paused and causing unreliable detection on resume.
+    _calibrationSubscription?.cancel();
+    _calibrationSubscription = null;
+    _sensorSubscription?.cancel();
+    _sensorSubscription = null;
+    _gyroSubscription?.cancel();
+    _gyroSubscription = null;
+    _debugRefreshTimer?.cancel();
+    _debugRefreshTimer = null;
+    _isCalibrated = false;
 
     showDialog(
       context: context,
@@ -1346,7 +1422,8 @@ class _GameplayScreenState extends State<GameplayScreen>
                                 child: InkWell(
                                   onTap: () {
                                     Navigator.pop(dialogContext);
-                                    _hapticService.mediumImpact();
+                                    _audioService.playGameOver();
+                                    _hapticService.gameEnd();
 
                                     // End the current game
                                     context.read<GameProvider>().endGame();
@@ -1440,9 +1517,12 @@ class _GameplayScreenState extends State<GameplayScreen>
     _backgroundAnimController.dispose();
     _glowController.dispose();
     _countdownTimer?.cancel();
+    _audioService.disposeCountdownPlayer();
     _calibrationSubscription?.cancel();
     _sensorSubscription?.cancel();
     _gyroSubscription?.cancel();
+    _debugRefreshTimer?.cancel();
+    _debugRefreshTimer = null;
     // Safety: always restore normal screen timeout on dispose
     WakelockPlus.disable();
     // Reset orientation to portrait only (not all orientations)
@@ -1464,7 +1544,12 @@ class _GameplayScreenState extends State<GameplayScreen>
                 'Recording stopped in dispose, but cannot save to provider',
               );
             }
-          });
+          })
+          .whenComplete(() => _cameraRecording.releaseCamera());
+    } else if (_isCameraEnabled) {
+      // Camera was initialized but recording may not have started;
+      // still need to release the hardware.
+      _cameraRecording.releaseCamera();
     }
 
     super.dispose();
@@ -1979,7 +2064,7 @@ class _GameplayScreenState extends State<GameplayScreen>
                               ),
                             ),
 
-                            // Main number with dramatic animation
+                            // Main number / "Get Ready" with dramatic animation
                             Transform.scale(
                               scale: numberScale,
                               child: ImageFiltered(
@@ -1989,7 +2074,10 @@ class _GameplayScreenState extends State<GameplayScreen>
                                 ),
                                 child: Opacity(
                                   opacity: numberOpacity * (1 - blurValue),
-                                  child: Stack(
+                                  child: _countdownValue == 0
+                                      ? _buildGetReadyText(
+                                          fontSize, letterSpacing, shadowOffset, scaleFactor)
+                                      : Stack(
                                     alignment: Alignment.center,
                                     children: [
                                       // Shadow layer
@@ -2072,6 +2160,41 @@ class _GameplayScreenState extends State<GameplayScreen>
           ],
         );
       },
+    );
+  }
+
+  Widget _buildGetReadyText(
+      double fontSize, double letterSpacing, double shadowOffset, double scaleFactor) {
+    final readyFontSize = fontSize * 0.34;
+    return ShaderMask(
+      shaderCallback: (bounds) => LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.white,
+          Colors.white.withOpacity(0.9),
+          Colors.white.withOpacity(0.7),
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(bounds),
+      child: Text(
+        'GET\nREADY',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: readyFontSize,
+          fontWeight: FontWeight.w900,
+          height: 1.15,
+          letterSpacing: letterSpacing * 0.4,
+          shadows: [
+            Shadow(
+              color: Colors.black26,
+              blurRadius: shadowOffset * 1.8,
+              offset: Offset(0, shadowOffset),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -2710,8 +2833,9 @@ class _GameplayScreenState extends State<GameplayScreen>
 
   Widget _buildGameplay() {
     final gameProvider = context.watch<GameProvider>();
-    final currentCard =
+    final providerCard =
         gameProvider.currentSession?.currentCard ?? 'Loading...';
+    final currentCard = _animatingCard ?? providerCard;
 
     return Column(
       children: [
@@ -3248,16 +3372,17 @@ class _GameplayScreenState extends State<GameplayScreen>
               _useManualControls = !_useManualControls;
 
               if (!_useManualControls) {
-                // Initialize sensors when switching to tilt mode
                 _initializeSensors(isRecalibration: true);
               } else {
-                // Stop all sensor subscriptions when using manual controls
+                _sensorGeneration++;
                 _calibrationSubscription?.cancel();
                 _calibrationSubscription = null;
                 _sensorSubscription?.cancel();
                 _sensorSubscription = null;
                 _gyroSubscription?.cancel();
                 _gyroSubscription = null;
+                _debugRefreshTimer?.cancel();
+                _debugRefreshTimer = null;
               }
             });
             SharedPreferences.getInstance().then((prefs) {

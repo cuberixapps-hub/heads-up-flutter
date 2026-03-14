@@ -1240,7 +1240,7 @@ class _CustomDeckScreenState extends State<CustomDeckScreen>
   // -----------------------------------------------------------------------
 
   Future<bool> _showDiscardDialog() async {
-    await _haptic.mediumImpact();
+    _haptic.mediumImpact();
     final l10n = AppLocalizations.of(context)!;
 
     final result = await showDialog<bool>(

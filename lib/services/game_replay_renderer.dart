@@ -22,6 +22,7 @@ class GameReplayRenderer {
     required Color deckColor,
     required Duration gameDuration,
     required VideoCancellationToken cancellationToken,
+    void Function(double progress)? onProgress,
   }) async {
     try {
       debugPrint('=== GENERATING GAME REPLAY FRAMES (with cancellation) ===');
@@ -79,9 +80,10 @@ class GameReplayRenderer {
           frames.add(framePath);
         }
 
-        // Show progress every 10 frames
+        // Report progress every 10 frames
         if (i % 10 == 0) {
           debugPrint('Generated ${i + 1}/$totalFrames frames');
+          onProgress?.call((i + 1) / totalFrames);
         }
 
         // Yield to allow other tasks and UI updates

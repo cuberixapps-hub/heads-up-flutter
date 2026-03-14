@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -32,7 +33,11 @@ import '../utils/responsive.dart';
 import '../services/purchases_service.dart';
 import '../services/deck_feedback_service.dart';
 import '../services/video_processing_manager.dart';
+import '../services/game_history_service.dart';
+import '../services/ad_service.dart';
+import '../models/game_history_entry.dart';
 import '../widgets/deck_preference_feedback_widget.dart';
+import 'video_player_screen.dart';
 
 class HomeScreenV2 extends StatefulWidget {
   const HomeScreenV2({super.key});
@@ -104,6 +109,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   bool _showDeckFeedback = false;
   final _deckFeedbackService = DeckFeedbackService();
 
+  // Game history state
+  final _gameHistoryService = GameHistoryService();
+  final _adService = AdService();
+  List<GameHistoryEntry> _gameHistoryEntries = [];
+
   @override
   void initState() {
     super.initState();
@@ -118,6 +128,7 @@ class _HomeScreenV2State extends State<HomeScreenV2>
     _loadDailyDeck();
     _loadRecentDecks();
     _loadStreakData();
+    _loadGameHistory();
     _checkFirstTimeUser();
     _checkDeckFeedback();
     _scrollController.addListener(_onScroll);
@@ -698,11 +709,11 @@ class _HomeScreenV2State extends State<HomeScreenV2>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Refresh daily deck and streak data when app resumes
-      // App resumed - refresh data
+      // Refresh data when app resumes
       _loadDailyDeck();
       _loadStreakData();
-      _checkDeckFeedback(); // Refresh feedback visibility
+      _loadGameHistory();
+      _checkDeckFeedback();
       // Resume animations when app comes back to foreground
       if (!_isAppActive) {
         setState(() => _isAppActive = true);
@@ -800,6 +811,19 @@ class _HomeScreenV2State extends State<HomeScreenV2>
       setState(() {
         _recentDecks = recent.take(10).toList();
       });
+    }
+  }
+
+  Future<void> _loadGameHistory() async {
+    try {
+      final entries = await _gameHistoryService.loadHistory(forceReload: true);
+      if (mounted) {
+        setState(() {
+          _gameHistoryEntries = entries;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading game history: $e');
     }
   }
 
@@ -1812,6 +1836,12 @@ class _HomeScreenV2State extends State<HomeScreenV2>
                             ),
 
                             SizedBox(height: 24.s),
+
+                            // Game History section
+                            if (_gameHistoryEntries.isNotEmpty) ...[
+                              _buildGameHistorySection(),
+                              SizedBox(height: 24.s),
+                            ],
 
                             // Quick stats banner
                             _buildStatsSection(),
@@ -5871,6 +5901,478 @@ class _HomeScreenV2State extends State<HomeScreenV2>
               ),
         ],
       ),
+    );
+  }
+
+  // ===========================================================================
+  // GAME HISTORY SECTION
+  // ===========================================================================
+
+  Widget _buildGameHistorySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.s),
+          child: Row(
+            children: [
+              Container(
+                width: 36.s,
+                height: 36.s,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.purple.shade400,
+                      Colors.deepPurple.shade600,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(10.s),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.purple.withOpacity(0.3),
+                      blurRadius: 8.s,
+                      offset: Offset(0, 3.s),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.video_library_rounded,
+                  color: Colors.white,
+                  size: 20.s,
+                ),
+              ),
+              SizedBox(width: 12.s),
+              Expanded(
+                child: Text(
+                  'Game History',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              if (_gameHistoryEntries.length > 3)
+                GestureDetector(
+                  onTap: () {
+                    _hapticService.lightImpact();
+                  },
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 12.s,
+                      vertical: 6.s,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(20.s),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.06),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      '${_gameHistoryEntries.length} videos',
+                      style: GoogleFonts.inter(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withOpacity(0.6),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        SizedBox(height: 14.s),
+        SizedBox(
+          height: 210.s,
+          child: ShaderMask(
+            shaderCallback: (Rect bounds) {
+              return LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: const [
+                  Color(0x00FFFFFF),
+                  Color(0x55FFFFFF),
+                  Color(0xEEFFFFFF),
+                  Colors.white,
+                  Colors.white,
+                  Color(0xEEFFFFFF),
+                  Color(0x55FFFFFF),
+                  Color(0x00FFFFFF),
+                ],
+                stops: const [0.0, 0.02, 0.04, 0.06, 0.94, 0.96, 0.98, 1.0],
+              ).createShader(bounds);
+            },
+            blendMode: BlendMode.dstIn,
+            child: ListView.builder(
+              padding: EdgeInsets.symmetric(horizontal: 12.s),
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              itemCount: _gameHistoryEntries.length,
+              itemBuilder: (context, index) {
+                return _buildGameHistoryCard(_gameHistoryEntries[index], index);
+              },
+            ),
+          ),
+        ),
+      ],
+    )
+        .animate()
+        .fadeIn(duration: 500.ms)
+        .slideY(begin: 0.04, end: 0, curve: Curves.easeOutCubic);
+  }
+
+  Widget _buildGameHistoryCard(GameHistoryEntry entry, int index) {
+    final deckColor = Color(entry.deckColor);
+    final isPremium = PurchasesService().isPremium;
+
+    return Container(
+      width: 175.s,
+      margin: EdgeInsets.only(right: 12.s),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16.s),
+        child: InkWell(
+          onTap: () => _onHistoryVideoTap(entry),
+          borderRadius: BorderRadius.circular(16.s),
+          splashColor: deckColor.withOpacity(0.2),
+          highlightColor: deckColor.withOpacity(0.1),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(16.s),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.08),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: deckColor.withOpacity(0.08),
+                  blurRadius: 12.s,
+                  offset: Offset(0, 4.s),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Thumbnail / video preview area
+                ClipRRect(
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(16.s),
+                    topRight: Radius.circular(16.s),
+                  ),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 10,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Thumbnail or gradient fallback
+                        if (entry.thumbnailPath != null)
+                          Image.file(
+                            File(entry.thumbnailPath!),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _buildThumbnailFallback(deckColor),
+                          )
+                        else
+                          _buildThumbnailFallback(deckColor),
+
+                        // Gradient overlay
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withOpacity(0.5),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Play / Lock icon
+                        Center(
+                          child: Container(
+                            width: 40.s,
+                            height: 40.s,
+                            decoration: BoxDecoration(
+                              color: (!isPremium
+                                      ? Colors.amber.shade700
+                                      : Colors.white)
+                                  .withOpacity(0.9),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 8.s,
+                                  offset: Offset(0, 2.s),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              !isPremium
+                                  ? Icons.lock_rounded
+                                  : Icons.play_arrow_rounded,
+                              color: !isPremium ? Colors.white : Colors.black,
+                              size: !isPremium ? 20.s : 24.s,
+                            ),
+                          ),
+                        ),
+
+                        // Duration badge
+                        Positioned(
+                          bottom: 6.s,
+                          right: 6.s,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 7.s,
+                              vertical: 3.s,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(6.s),
+                            ),
+                            child: Text(
+                              entry.formattedDuration,
+                              style: GoogleFonts.inter(
+                                fontSize: 10.sp,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Ad badge for non-premium
+                        if (!isPremium)
+                          Positioned(
+                            top: 6.s,
+                            left: 6.s,
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 6.s,
+                                vertical: 3.s,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.shade700.withOpacity(0.9),
+                                borderRadius: BorderRadius.circular(6.s),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.play_circle_filled_rounded,
+                                    color: Colors.white,
+                                    size: 10.s,
+                                  ),
+                                  SizedBox(width: 3.s),
+                                  Text(
+                                    'AD',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 9.sp,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Card info
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(12.s, 10.s, 12.s, 10.s),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Deck name
+                        Text(
+                          entry.deckName,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            height: 1.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: 4.s),
+                        // Score + date
+                        Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 6.s,
+                                vertical: 2.s,
+                              ),
+                              decoration: BoxDecoration(
+                                color: deckColor.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(6.s),
+                                border: Border.all(
+                                  color: deckColor.withOpacity(0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                '${entry.correctCount}/${entry.totalCards}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 10.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: deckColor,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 6.s),
+                            Expanded(
+                              child: Text(
+                                entry.formattedDate,
+                                style: GoogleFonts.inter(
+                                  fontSize: 10.sp,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white.withOpacity(0.45),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    )
+        .animate()
+        .fadeIn(delay: (100 * index).ms, duration: 400.ms)
+        .slideX(begin: 0.06, end: 0, delay: (100 * index).ms);
+  }
+
+  Widget _buildThumbnailFallback(Color deckColor) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            deckColor.withOpacity(0.6),
+            deckColor.withOpacity(0.3),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.videocam_rounded,
+          color: Colors.white.withOpacity(0.4),
+          size: 32.s,
+        ),
+      ),
+    );
+  }
+
+  void _onHistoryVideoTap(GameHistoryEntry entry) {
+    _hapticService.lightImpact();
+    final isPremium = PurchasesService().isPremium;
+
+    if (isPremium) {
+      _playHistoryVideo(entry);
+    } else {
+      _showAdThenPlayVideo(entry);
+    }
+  }
+
+  void _playHistoryVideo(GameHistoryEntry entry) {
+    final videoFile = File(entry.videoPath);
+    if (!videoFile.existsSync()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: Colors.white, size: 20.s),
+              SizedBox(width: 8.s),
+              Text(
+                'Video file not found',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF1C1C1E),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.s),
+          ),
+        ),
+      );
+      _gameHistoryService.removeEntry(entry.id);
+      _loadGameHistory();
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VideoPlayerScreen(
+          videoPath: entry.videoPath,
+          title: 'Heads Up! - ${entry.deckName}',
+        ),
+      ),
+    );
+  }
+
+  void _showAdThenPlayVideo(GameHistoryEntry entry) {
+    if (!_adService.isRewardedAdReady) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.hourglass_top_rounded, color: Colors.white, size: 20.s),
+              SizedBox(width: 8.s),
+              Text(
+                'Ad is loading, please try again shortly',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF1C1C1E),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.s),
+          ),
+        ),
+      );
+      _adService.loadRewardedAd();
+      return;
+    }
+
+    _adService.showRewardedAd(
+      rewardType: 'history_video_unlock',
+      onUserEarnedReward: (amount) {
+        if (mounted) {
+          _hapticService.success();
+          _playHistoryVideo(entry);
+        }
+      },
     );
   }
 }

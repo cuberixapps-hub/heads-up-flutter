@@ -31,7 +31,7 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
   }
 
   Future<void> _setPresetMode(SyncMode mode) async {
-    await HapticService.lightImpact();
+    HapticService().lightImpact();
     setState(() => _isLoading = true);
     
     await _syncConfigService.setPresetMode(mode);
@@ -53,7 +53,7 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
   }
 
   Future<void> _toggleCustomSetting(String setting, bool value) async {
-    await HapticService.lightImpact();
+    HapticService().lightImpact();
     
     switch (setting) {
       case 'realtime_decks':
@@ -82,7 +82,7 @@ class _SyncSettingsScreenState extends State<SyncSettingsScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () {
-            HapticService.lightImpact();
+            HapticService().lightImpact();
             Navigator.of(context).pop();
           },
         ),

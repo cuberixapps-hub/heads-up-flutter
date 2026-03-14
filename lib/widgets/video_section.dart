@@ -9,16 +9,25 @@ import '../models/video_recording_result.dart';
 import '../providers/game_provider.dart';
 import '../screens/video_player_with_overlay_screen.dart';
 import '../services/haptic_service.dart';
+import '../services/game_history_service.dart';
 import '../services/native_video_composer.dart';
 import '../services/video_processing_manager.dart';
+import '../models/game_session.dart';
 import '../utils/responsive.dart';
 import '../utils/video_utils.dart';
 import 'video_with_overlay.dart';
 
 class VideoSection extends StatefulWidget {
   final VoidCallback? onNavigateAway;
-  
-  const VideoSection({super.key, this.onNavigateAway});
+  final bool isLocked;
+  final VoidCallback? onLockedTap;
+
+  const VideoSection({
+    super.key,
+    this.onNavigateAway,
+    this.isLocked = false,
+    this.onLockedTap,
+  });
 
   @override
   State<VideoSection> createState() => VideoSectionState();
@@ -34,6 +43,7 @@ class VideoSectionState extends State<VideoSection>
   String? _thumbnailPath;
   bool _isProcessingVideo = false;
   bool _videoProcessingFailed = false;
+  double _processingProgress = 0.0;
   List<String> _generatedFrames = [];
   late AnimationController _videoSectionController;
   
@@ -106,6 +116,7 @@ class VideoSectionState extends State<VideoSection>
     setState(() {
       _isProcessingVideo = true;
       _videoProcessingFailed = false;
+      _processingProgress = 0.0;
     });
 
     try {
@@ -121,6 +132,13 @@ class VideoSectionState extends State<VideoSection>
         recordingResult: _recordingResult!,
         deckColor: _getDeckColor(),
         sessionId: _sessionId!,
+        onProgress: (progress) {
+          if (mounted) {
+            setState(() {
+              _processingProgress = progress.clamp(0.0, 1.0);
+            });
+          }
+        },
       );
 
       // Check if we're still mounted
@@ -155,6 +173,9 @@ class VideoSectionState extends State<VideoSection>
         _isProcessingVideo = false;
       });
 
+      // Auto-save to game history
+      _saveToGameHistory(session);
+
       debugPrint('📹 === VIDEO PROCESSING COMPLETE ===');
     } catch (e) {
       debugPrint('📹 Video processing error: $e');
@@ -164,6 +185,60 @@ class VideoSectionState extends State<VideoSection>
           _videoProcessingFailed = true;
         });
       }
+    }
+  }
+
+  Future<void> _saveToGameHistory(GameSession session) async {
+    if (_composedVideoPath == null) return;
+
+    try {
+      String videoPathToSave = _composedVideoPath!;
+      bool overlayBaked = false;
+
+      // Try to bake the overlay into the video using the already-generated frames
+      if (_recordingResult != null && _generatedFrames.isNotEmpty) {
+        debugPrint('📹 Composing video with overlay for history (${_generatedFrames.length} frames already available)...');
+        try {
+          final composedPath = await NativeVideoComposer.composeVideoWithOverlay(
+            reactionVideoPath: _composedVideoPath!,
+            recordingResult: _recordingResult!,
+            gameFrames: _generatedFrames,
+            deckColor: _getDeckColor(),
+            onProgress: (_) {},
+          );
+
+          if (composedPath != null && await File(composedPath).exists()) {
+            videoPathToSave = composedPath;
+            overlayBaked = true;
+            debugPrint('📹 Overlay baked into video successfully');
+          }
+        } catch (e) {
+          debugPrint('📹 Native composition failed, saving raw video: $e');
+        }
+      }
+
+      await GameHistoryService().addEntry(
+        videoPath: videoPathToSave,
+        thumbnailPath: _thumbnailPath,
+        deckName: session.deck.name,
+        deckColor: session.deck.color.value,
+        correctCount: session.correctCount,
+        passCount: session.passCount,
+        durationSeconds: session.roundDuration.inSeconds,
+        deckId: session.deck.id,
+        hasOverlayBaked: overlayBaked,
+      );
+
+      // Clean up the temp composed file if we used it
+      if (overlayBaked && videoPathToSave != _composedVideoPath) {
+        try {
+          await File(videoPathToSave).delete();
+        } catch (_) {}
+      }
+
+      debugPrint('📹 Video saved to game history (overlay baked: $overlayBaked)');
+    } catch (e) {
+      debugPrint('📹 Failed to save to game history: $e');
     }
   }
 
@@ -380,23 +455,39 @@ class VideoSectionState extends State<VideoSection>
 
   Widget _buildProcessingView() {
     final deckColor = _getDeckColor();
+    final percent = (_processingProgress * 100).round();
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SizedBox(
-            width: 56.s,
-            height: 56.s,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                deckColor,
-              ),
+            width: 64.s,
+            height: 64.s,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CircularProgressIndicator(
+                  value: _processingProgress,
+                  strokeWidth: 3.5,
+                  backgroundColor: Colors.white.withOpacity(0.12),
+                  valueColor: AlwaysStoppedAnimation<Color>(deckColor),
+                ),
+                Center(
+                  child: Text(
+                    '$percent%',
+                    style: GoogleFonts.inter(
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           SizedBox(height: 18.s),
           Text(
-            'Creating your reaction video...',
+            'Processing video… $percent%',
             style: GoogleFonts.inter(
               fontSize: 14.sp,
               fontWeight: FontWeight.w500,
@@ -404,11 +495,16 @@ class VideoSectionState extends State<VideoSection>
             ),
           ),
           SizedBox(height: 8.s),
-          Text(
-            'This may take a few seconds',
-            style: GoogleFonts.inter(
-              fontSize: 12.sp,
-              color: Colors.white.withOpacity(0.6),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 40.s),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4.s),
+              child: LinearProgressIndicator(
+                value: _processingProgress,
+                minHeight: 4.s,
+                backgroundColor: Colors.white.withOpacity(0.12),
+                valueColor: AlwaysStoppedAnimation<Color>(deckColor),
+              ),
             ),
           ),
         ],
@@ -459,6 +555,10 @@ class VideoSectionState extends State<VideoSection>
   }
 
   Widget _buildVideoPreview() {
+    final deckColor = _getDeckColor();
+    final videoPath = _composedVideoPath ?? _recordingResult!.videoPath;
+    final isLocked = widget.isLocked;
+
     // Use VideoWithOverlay for synchronized preview with pre-generated frames
     if (_recordingResult != null &&
         _composedVideoPath != null &&
@@ -469,11 +569,94 @@ class VideoSectionState extends State<VideoSection>
           VideoWithOverlay(
             videoPath: _composedVideoPath!,
             recordingResult: _recordingResult!,
-            deckColor: _getDeckColor(),
-            onTap: () => _playVideo(_composedVideoPath!),
+            deckColor: deckColor,
+            onTap: isLocked
+                ? () => widget.onLockedTap?.call()
+                : () => _playVideo(_composedVideoPath!),
             autoPlay: false,
             preGeneratedFrames: _generatedFrames,
           ),
+
+          // Play button / lock overlay
+          Center(
+            child: Container(
+              width: 72.s,
+              height: 72.s,
+              decoration: BoxDecoration(
+                color: (isLocked ? Colors.amber.shade700 : deckColor)
+                    .withOpacity(0.85),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: (isLocked ? Colors.amber.shade700 : deckColor)
+                        .withOpacity(0.4),
+                    blurRadius: 20.s,
+                    offset: Offset(0, 6.s),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  onTap: isLocked
+                      ? () => widget.onLockedTap?.call()
+                      : () => _playVideo(_composedVideoPath!),
+                  customBorder: const CircleBorder(),
+                  child: Icon(
+                    isLocked
+                        ? Icons.lock_rounded
+                        : Icons.play_arrow_rounded,
+                    size: isLocked ? 36.s : 44.s,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          if (isLocked)
+            Positioned(
+              bottom: 16.s,
+              left: 16.s,
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: 12.s,
+                  vertical: 6.s,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade700.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(10.s),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.play_circle_filled_rounded,
+                      color: Colors.white,
+                      size: 14.s,
+                    ),
+                    SizedBox(width: 6.s),
+                    Text(
+                      'Watch Ad to Unlock',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 11.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
           // Duration badge
           Positioned(
@@ -512,7 +695,6 @@ class VideoSectionState extends State<VideoSection>
     }
 
     // Fallback to simple preview - dark theme
-    final deckColor = _getDeckColor();
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -530,7 +712,8 @@ class VideoSectionState extends State<VideoSection>
             width: 72.s,
             height: 72.s,
             decoration: BoxDecoration(
-              color: deckColor.withOpacity(0.9),
+              color: (isLocked ? Colors.amber.shade700 : deckColor)
+                  .withOpacity(0.9),
               shape: BoxShape.circle,
               border: Border.all(
                 color: Colors.white.withOpacity(0.2),
@@ -538,7 +721,8 @@ class VideoSectionState extends State<VideoSection>
               ),
               boxShadow: [
                 BoxShadow(
-                  color: deckColor.withOpacity(0.4),
+                  color: (isLocked ? Colors.amber.shade700 : deckColor)
+                      .withOpacity(0.4),
                   blurRadius: 20.s,
                   offset: Offset(0, 6.s),
                 ),
@@ -548,11 +732,15 @@ class VideoSectionState extends State<VideoSection>
               color: Colors.transparent,
               shape: const CircleBorder(),
               child: InkWell(
-                onTap: () => _playVideo(_composedVideoPath!),
+                onTap: isLocked
+                    ? () => widget.onLockedTap?.call()
+                    : () => _playVideo(videoPath),
                 customBorder: const CircleBorder(),
                 child: Icon(
-                  Icons.play_arrow_rounded,
-                  size: 44.s,
+                  isLocked
+                      ? Icons.lock_rounded
+                      : Icons.play_arrow_rounded,
+                  size: isLocked ? 36.s : 44.s,
                   color: Colors.white,
                 ),
               ),

@@ -164,6 +164,7 @@ class VideoProcessingManager with WidgetsBindingObserver {
     required VideoRecordingResult recordingResult,
     required Color deckColor,
     required String sessionId,
+    void Function(double progress)? onProgress,
   }) async {
     final token = startProcessing(sessionId);
 
@@ -176,11 +177,15 @@ class VideoProcessingManager with WidgetsBindingObserver {
       // Video processing started
 
       // Generate game replay frames with cancellation support
+      // Frame generation is ~90% of total work
       final frames = await GameReplayRenderer.generateGameReplayFramesWithCancellation(
         recordingResult: recordingResult,
         deckColor: deckColor,
         gameDuration: recordingResult.duration,
         cancellationToken: token,
+        onProgress: onProgress != null
+            ? (p) => onProgress(p * 0.9)
+            : null,
       );
 
       // Check if cancelled during frame generation
@@ -207,6 +212,8 @@ class VideoProcessingManager with WidgetsBindingObserver {
         return VideoProcessingResult.cancelled();
       }
 
+      onProgress?.call(0.95);
+
       // Generate thumbnail
       String? thumbnailPath;
       try {
@@ -224,6 +231,7 @@ class VideoProcessingManager with WidgetsBindingObserver {
         return VideoProcessingResult.cancelled();
       }
 
+      onProgress?.call(1.0);
       completeProcessing(sessionId);
 
       return VideoProcessingResult(

@@ -166,25 +166,29 @@ class _VideoWithOverlayState extends State<VideoWithOverlay> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Main reaction video - maintain aspect ratio
+          // Main reaction video - mirrored to match natural front-camera perspective
           Container(
             color: Colors.black,
             child: Center(
-              child: AspectRatio(
-                aspectRatio: _videoController!.value.aspectRatio,
-                child: VideoPlayer(_videoController!),
+              child: Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()..scale(-1.0, 1.0),
+                child: AspectRatio(
+                  aspectRatio: _videoController!.value.aspectRatio,
+                  child: VideoPlayer(_videoController!),
+                ),
               ),
             ),
           ),
 
-          // PiP overlay
+          // Game overlay PiP - positioned bottom-left for consistency
           if (_gameFrames.isNotEmpty)
             Positioned(
               bottom: 20,
-              right: 20,
+              left: 20,
               child: Container(
-                width: 160, // 400 * 0.4
-                height: 120, // 300 * 0.4
+                width: 160,
+                height: 120,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
@@ -231,7 +235,7 @@ class _VideoWithOverlayState extends State<VideoWithOverlay> {
           if (_isGeneratingFrames)
             Positioned(
               bottom: 20,
-              right: 20,
+              left: 20,
               child: Container(
                 width: 160,
                 height: 120,
