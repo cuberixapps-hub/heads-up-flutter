@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { subscribeToDecks, deleteDeck, unsubscribeFromDecks, type DeckData } from '../services/supabaseDeckService';
+import { subscribeToDecks, deleteDeck, updateDeck, unsubscribeFromDecks, type DeckData } from '../services/supabaseDeckService';
+import { generateDeckContent } from '../services/aiContentService';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { Plus, Edit2, Trash2, Copy, Crown, Search, Filter, Grid, List, Calendar, Tag, Globe, Layers, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Edit2, Trash2, Copy, Crown, Search, Filter, Grid, List, Calendar, Tag, Globe, Layers, Eye, EyeOff, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import '../styles/DeckList.css';
 
 // Use DeckData from supabaseDeckService
@@ -28,11 +29,11 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate, filterTag,
     const [viewMode, setViewMode] = useState<ViewMode>('grid');
     const [filterType, setFilterType] = useState<FilterType>('all');
     const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+    const [refreshingDeckId, setRefreshingDeckId] = useState<string | null>(null);
 
     useEffect(() => {
         let channel: RealtimeChannel | null = null;
 
-        // Subscribe to Supabase real-time updates
         channel = subscribeToDecks(
             (deckData) => {
                 let decksWithId = deckData.filter((d): d is Deck => !!d.id);
@@ -59,7 +60,6 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate, filterTag,
     useEffect(() => {
         let filtered = decks;
 
-        // Apply search filter
         if (searchQuery) {
             filtered = filtered.filter(deck =>
                 deck.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -69,7 +69,6 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate, filterTag,
             );
         }
 
-        // Apply type filter
         switch (filterType) {
             case 'premium':
                 filtered = filtered.filter(deck => deck.isPremium);
@@ -112,6 +111,37 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate, filterTag,
                 console.error('Error deleting deck:', error);
                 alert('Failed to delete deck. Please try again.');
             }
+        }
+    };
+
+    /**
+     * Refresh a deck's cards using fresh web data.
+     * Regenerates content for the same topic/name and patches only the cards +
+     * fresh-data columns so all other metadata is preserved.
+     */
+    const handleRefresh = async (deck: Deck, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (refreshingDeckId) return; // one at a time
+
+        setRefreshingDeckId(deck.id);
+        try {
+            const topic = deck.generationTopic || deck.name;
+            const difficulty = (deck.tags?.find(t => ['easy', 'medium', 'hard'].includes(t)) as any) || 'medium';
+
+            const result = await generateDeckContent(topic, difficulty, undefined, true);
+
+            await updateDeck(deck.id, {
+                cards: result.cards,
+                usedFreshData: result.freshDataMeta?.usedFreshData ?? true,
+                freshDataRetrievedAt: result.freshDataMeta?.freshDataRetrievedAt?.toISOString() ?? new Date().toISOString(),
+            });
+
+            console.log(`✅ Deck "${deck.name}" refreshed with fresh web data`);
+        } catch (err) {
+            console.error('Refresh failed:', err);
+            alert('Failed to refresh deck cards. Please try again.');
+        } finally {
+            setRefreshingDeckId(null);
         }
     };
 
@@ -184,17 +214,6 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate, filterTag,
             month: 'short',
             day: 'numeric',
             year: 'numeric'
-        }).format(date);
-    };
-
-    const formatTime = (timestamp: string | undefined): string => {
-        if (!timestamp) return '';
-        const date = new Date(timestamp);
-        if (isNaN(date.getTime())) return '';
-        return new Intl.DateTimeFormat('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
         }).format(date);
     };
 
@@ -290,8 +309,8 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate, filterTag,
                     </div>
                     <div className="filter-group">
                         <Filter size={18} />
-                        <select 
-                            value={filterType} 
+                        <select
+                            value={filterType}
                             onChange={(e) => setFilterType(e.target.value as FilterType)}
                             className="filter-select"
                         >
@@ -303,13 +322,13 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate, filterTag,
                         </select>
                     </div>
                     <div className="view-toggle">
-                        <button 
+                        <button
                             className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
                             onClick={() => setViewMode('grid')}
                         >
                             <Grid size={18} />
                         </button>
-                        <button 
+                        <button
                             className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
                             onClick={() => setViewMode('list')}
                         >
@@ -376,16 +395,16 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate, filterTag,
                                         </div>
                                     </div>
                                 ) : (
-                                    <div 
+                                    <div
                                         className="deck-placeholder"
-                                        style={{ 
-                                            background: `linear-gradient(135deg, ${colorToHex(deck.colorValue)}, ${colorToHex(deck.colorValue)}dd)` 
+                                        style={{
+                                            background: `linear-gradient(135deg, ${colorToHex(deck.colorValue)}, ${colorToHex(deck.colorValue)}dd)`
                                         }}
                                     >
                                         <span className="placeholder-letter">{deck.name.charAt(0).toUpperCase()}</span>
                                     </div>
                                 )}
-                                
+
                                 {/* Badges on image */}
                                 <div className="deck-badges">
                                     {deck.isPremium && (
@@ -403,8 +422,18 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate, filterTag,
                                             <EyeOff size={12} /> Inactive
                                         </span>
                                     )}
+                                    {deck.usedFreshData && (
+                                        <span
+                                            className="badge fresh-badge"
+                                            title={deck.freshDataRetrievedAt
+                                                ? `Fresh data retrieved: ${new Date(deck.freshDataRetrievedAt).toLocaleString()}`
+                                                : 'Generated with live web data'}
+                                        >
+                                            🌐 Fresh
+                                        </span>
+                                    )}
                                     {deck.difficulty && (
-                                        <span 
+                                        <span
                                             className="badge difficulty-badge"
                                             style={{ backgroundColor: getDifficultyColor(deck.difficulty) }}
                                         >
@@ -418,7 +447,7 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate, filterTag,
                             <div className="deck-content-section">
                                 <div className="deck-header-row">
                                     <h3 className="deck-title">{deck.name}</h3>
-                                    <div 
+                                    <div
                                         className="deck-color-dot"
                                         style={{ backgroundColor: colorToHex(deck.colorValue) }}
                                         title={`Theme: ${colorToHex(deck.colorValue)}`}
@@ -483,11 +512,17 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate, filterTag,
                                         <Calendar size={12} />
                                         <span className="stat-value">{formatDate(deck.createdAt)}</span>
                                     </div>
+                                    {deck.freshDataRetrievedAt && (
+                                        <div className="stat-mini date" title="Last fresh data fetch">
+                                            <Globe size={12} />
+                                            <span className="stat-value">{formatDate(deck.freshDataRetrievedAt)}</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Expandable Cards Preview */}
                                 <div className="cards-preview-section">
-                                    <button 
+                                    <button
                                         className="expand-cards-btn"
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -500,7 +535,7 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate, filterTag,
                                             <>Show Cards <ChevronDown size={16} /></>
                                         )}
                                     </button>
-                                    
+
                                     {expandedCards.has(deck.id) && (
                                         <div className="cards-grid">
                                             {deck.cards.slice(0, 12).map((card, idx) => (
@@ -530,6 +565,18 @@ export const DeckList: React.FC<DeckListProps> = ({ onEdit, onCreate, filterTag,
                                     >
                                         <Copy size={16} />
                                         <span>Copy</span>
+                                    </button>
+                                    <button
+                                        className={`action-btn refresh ${refreshingDeckId === deck.id ? 'loading' : ''}`}
+                                        onClick={(e) => handleRefresh(deck, e)}
+                                        title="Refresh cards with fresh web data"
+                                        disabled={refreshingDeckId !== null}
+                                    >
+                                        <RefreshCw
+                                            size={16}
+                                            className={refreshingDeckId === deck.id ? 'spin' : ''}
+                                        />
+                                        <span>{refreshingDeckId === deck.id ? 'Refreshing...' : 'Refresh'}</span>
                                     </button>
                                     <button
                                         className="action-btn delete"

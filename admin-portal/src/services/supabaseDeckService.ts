@@ -39,6 +39,9 @@ export interface DeckData {
   baseTopic?: string;
   research?: Record<string, unknown>;
   translations?: Record<string, unknown>;
+  // Fresh web-data columns (migration 2026-05-02)
+  usedFreshData?: boolean;
+  freshDataRetrievedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -98,6 +101,9 @@ function toSnakeCase(data: DeckData): Record<string, unknown> {
     base_topic: data.baseTopic,
     research: data.research,
     translations: data.translations,
+    // Fresh data columns
+    used_fresh_data: data.usedFreshData ?? false,
+    fresh_data_retrieved_at: data.freshDataRetrievedAt ?? null,
   };
 }
 
@@ -135,6 +141,9 @@ function toCamelCase(row: Record<string, unknown>): DeckData {
     baseTopic: row.base_topic as string,
     research: row.research as Record<string, unknown>,
     translations: row.translations as Record<string, unknown>,
+    // Fresh data columns
+    usedFreshData: (row.used_fresh_data as boolean) ?? false,
+    freshDataRetrievedAt: (row.fresh_data_retrieved_at as string | null) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -226,7 +235,7 @@ export async function getDeckById(id: string): Promise<DeckData | null> {
  */
 export async function createDeck(deckData: DeckData): Promise<DeckData> {
   const snakeCaseData = toSnakeCase(deckData);
-  
+
   const { data, error } = await supabase
     .from('decks')
     .insert(snakeCaseData)
@@ -246,7 +255,7 @@ export async function createDeck(deckData: DeckData): Promise<DeckData> {
  */
 export async function updateDeck(id: string, deckData: Partial<DeckData>): Promise<DeckData> {
   const snakeCaseData = toSnakeCase(deckData as DeckData);
-  
+
   // Remove undefined values
   const cleanData = Object.fromEntries(
     Object.entries(snakeCaseData).filter(([, v]) => v !== undefined)
@@ -329,7 +338,7 @@ export async function getCountryDistribution(): Promise<Record<string, number>> 
   }
 
   const distribution: Record<string, number> = {};
-  
+
   (data || []).forEach(row => {
     const countries = (row.countries as string[]) || ['UNIVERSAL'];
     countries.forEach(country => {
@@ -345,7 +354,7 @@ export async function getCountryDistribution(): Promise<Record<string, number>> 
  */
 export async function incrementPlayCount(id: string): Promise<void> {
   const { error } = await supabase.rpc('increment_play_count', { deck_id: id });
-  
+
   if (error) {
     // Fallback to manual increment if RPC doesn't exist
     const { data: deck } = await supabase
@@ -353,7 +362,7 @@ export async function incrementPlayCount(id: string): Promise<void> {
       .select('play_count')
       .eq('id', id)
       .single();
-    
+
     if (deck) {
       await supabase
         .from('decks')
@@ -389,7 +398,7 @@ export async function getAllDailyDecks(): Promise<DailyDeckData[]> {
  */
 export async function createDailyDeck(deckData: DailyDeckData): Promise<DailyDeckData> {
   const snakeCaseData = dailyDeckToSnakeCase(deckData);
-  
+
   const { data, error } = await supabase
     .from('daily_decks')
     .insert(snakeCaseData)
@@ -409,7 +418,7 @@ export async function createDailyDeck(deckData: DailyDeckData): Promise<DailyDec
  */
 export async function updateDailyDeck(id: string, deckData: Partial<DailyDeckData>): Promise<DailyDeckData> {
   const snakeCaseData = dailyDeckToSnakeCase(deckData as DailyDeckData);
-  
+
   const cleanData = Object.fromEntries(
     Object.entries(snakeCaseData).filter(([, v]) => v !== undefined)
   );
@@ -505,7 +514,7 @@ export async function getAutomationStats(): Promise<{
     countries.forEach(country => {
       countryDistribution[country] = (countryDistribution[country] || 0) + 1;
     });
-    
+
     if (index === 0 && row.created_at) {
       lastGeneratedAt = new Date(row.created_at as string);
     }

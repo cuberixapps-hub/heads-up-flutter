@@ -1,6 +1,7 @@
 import { getOpenAIClient, handleAIError, withRetry } from './aiConfig';
 import type { DeckContent, DifficultyLevel, DIFFICULTY_CONFIGS } from '../types/ai';
 import { DIFFICULTY_CONFIGS as difficultyConfigs } from '../types/ai';
+import { fetchFreshData, topicNeedsFreshData } from './freshDataService';
 
 // Default color values for different deck categories
 const categoryColors: { [key: string]: number } = {
@@ -28,31 +29,66 @@ const categoryIcons: { [key: string]: { codePoint: number; fontFamily: string } 
   default: { codePoint: 0xf005, fontFamily: 'FontAwesomeIcons' } // Star
 };
 
+export interface FreshDataMeta {
+  usedFreshData: boolean;
+  freshDataRetrievedAt?: Date;
+}
+
+export interface DeckContentWithMeta extends DeckContent {
+  freshDataMeta?: FreshDataMeta;
+}
+
 /**
- * Generate deck content using Claude with difficulty support and country context
+ * Generate deck content using OpenAI with optional live web grounding
  * @param topic The deck topic/theme
  * @param difficulty The difficulty level (easy, medium, hard)
  * @param countryContext Optional country name for culturally relevant content
- * @returns Promise<DeckContent> Generated deck content
+ * @param useFreshData When true (or auto-detected for meme/trending topics),
+ *                     calls freshDataService to ground cards in live 2026 content
+ * @returns Promise<DeckContentWithMeta> Generated deck content + fresh-data metadata
  */
 export const generateDeckContent = async (
   topic: string,
   difficulty: DifficultyLevel = 'medium',
-  countryContext?: string
-): Promise<DeckContent> => {
+  countryContext?: string,
+  useFreshData?: boolean
+): Promise<DeckContentWithMeta> => {
   try {
     const openai = getOpenAIClient();
     const diffConfig = difficultyConfigs[difficulty];
-    
-    const contextNote = countryContext 
+
+    // -----------------------------------------------------------------------
+    // Fresh web data grounding
+    // -----------------------------------------------------------------------
+    const shouldUseFresh = useFreshData ?? topicNeedsFreshData(topic);
+    let freshGrounding = '';
+    let freshDataMeta: FreshDataMeta = { usedFreshData: false };
+
+    if (shouldUseFresh) {
+      console.log('🌐 Fetching fresh web data for topic:', topic);
+      try {
+        const freshResult = await fetchFreshData(topic);
+        freshGrounding = `\n\n🌐 LIVE WEB DATA (retrieved ${freshResult.retrievedAt.toISOString()}):\nUse the following current trending items to build the deck cards — these are real 2026 viral/trending items:\n${freshResult.summary}`;
+        freshDataMeta = {
+          usedFreshData: true,
+          freshDataRetrievedAt: freshResult.retrievedAt,
+        };
+        console.log('✅ Fresh web data incorporated into prompt');
+      } catch (freshErr) {
+        console.warn('⚠️ Fresh data fetch failed, continuing without it:', freshErr);
+      }
+    }
+    // -----------------------------------------------------------------------
+
+    const contextNote = countryContext
       ? `\n\n🌍 COUNTRY CONTEXT: This deck is primarily for ${countryContext}. Make content culturally relevant and relatable to ${countryContext} audiences while still being accessible to others. Include references, examples, or items that are popular or trending in ${countryContext}.`
       : '\n\n🌍 COUNTRY CONTEXT: This deck is for UNIVERSAL audiences. Make content globally accessible and recognizable.';
-    
+
     const systemPrompt = `You are a creative game designer for the Heads Up! game. 
     Generate engaging and fun content for game decks based on the given topic, difficulty level, and cultural context.
     Return your response as valid JSON only, with no additional text.`;
-    
-    const userPrompt = `Create a Heads Up! game deck about "${topic}" with ${difficulty.toUpperCase()} difficulty.${contextNote}
+
+    const userPrompt = `Create a Heads Up! game deck about "${topic}" with ${difficulty.toUpperCase()} difficulty.${contextNote}${freshGrounding}
 
 🎯 DIFFICULTY: ${difficulty.toUpperCase()}
 ${diffConfig.wordComplexity}
@@ -113,7 +149,7 @@ HARD MODE:
 Generate EXACTLY ${diffConfig.cardCount} amazing cards for this ${difficulty} difficulty deck!`;
 
     console.log(`Generating ${difficulty} deck content for topic:`, topic);
-    
+
     // Call OpenAI API with retry logic
     const response = await withRetry(async () => {
       return await openai.chat.completions.create({
@@ -126,14 +162,14 @@ Generate EXACTLY ${diffConfig.cardCount} amazing cards for this ${difficulty} di
         ]
       });
     });
-    
+
     // Extract the text content from OpenAI's response
     const textContent = response.choices[0]?.message?.content?.trim();
-    
+
     if (!textContent) {
       throw new Error('No text content in OpenAI response');
     }
-    
+
     // Parse JSON response
     let parsedContent;
     try {
@@ -144,22 +180,22 @@ Generate EXACTLY ${diffConfig.cardCount} amazing cards for this ${difficulty} di
       console.error('Failed to parse Claude response:', textContent);
       throw new Error('Invalid JSON response from AI');
     }
-    
+
     // Determine color and icon based on category
     const category = parsedContent.category || 'default';
     const colorValue = categoryColors[category] || categoryColors.default;
     const iconSuggestion = categoryIcons[category] || categoryIcons.default;
-    
+
     // Ensure we have the right number of cards
     if (!parsedContent.cards || parsedContent.cards.length < 10) {
       throw new Error('Insufficient cards generated');
     }
-    
+
     // Limit to the difficulty-specific card count
     const cards = parsedContent.cards.slice(0, diffConfig.cardCount);
-    
+
     // Construct the deck content with difficulty
-    const deckContent: DeckContent = {
+    const deckContent: DeckContentWithMeta = {
       name: parsedContent.name || `${topic} Deck`,
       description: parsedContent.description || `A fun ${difficulty} deck about ${topic}`,
       cards,
@@ -168,25 +204,26 @@ Generate EXACTLY ${diffConfig.cardCount} amazing cards for this ${difficulty} di
       difficulty,
       baseTopic: topic, // Store the base topic to link related difficulty versions
       colorSuggestion: colorValue,
-      iconSuggestion: iconSuggestion
+      iconSuggestion: iconSuggestion,
+      freshDataMeta,
     };
-    
+
     console.log(`✅ Successfully generated ${difficulty} deck content: "${deckContent.name}" (${cards.length} cards)`);
     return deckContent;
-    
+
   } catch (error: any) {
     console.error('Content generation error:', error);
-    
+
     // Handle specific AI errors
     const aiError = handleAIError(error);
-    
+
     // For content generation failures, return fallback content
-    if (aiError.code === 'api_key_missing' || 
+    if (aiError.code === 'api_key_missing' ||
         aiError.code === 'rate_limit') {
       console.warn('Falling back to basic content due to:', aiError.message);
       return generateFallbackContent(topic, difficulty);
     }
-    
+
     throw aiError;
   }
 };
@@ -194,17 +231,17 @@ Generate EXACTLY ${diffConfig.cardCount} amazing cards for this ${difficulty} di
 /**
  * Generate fallback content when AI is unavailable
  */
-const generateFallbackContent = (topic: string, difficulty: DifficultyLevel = 'medium'): DeckContent => {
+const generateFallbackContent = (topic: string, difficulty: DifficultyLevel = 'medium'): DeckContentWithMeta => {
   const topicLower = topic.toLowerCase();
   const diffConfig = difficultyConfigs[difficulty];
-  
+
   // Simple category detection
   let category = 'default';
   let cards: string[] = [];
-  
+
   if (topicLower.includes('movie') || topicLower.includes('film')) {
     category = 'movies';
-    cards = difficulty === 'easy' 
+    cards = difficulty === 'easy'
       ? ['Titanic', 'Avatar', 'Frozen', 'Star Wars', 'The Matrix', 'Toy Story', 'Harry Potter', 'The Avengers', 'Jurassic Park', 'The Lion King', 'Shrek', 'Finding Nemo', 'Inception', 'Forrest Gump', 'The Dark Knight']
       : difficulty === 'medium'
       ? ['Titanic Sinking', 'Avatar Blue People', 'Frozen Elsa', 'Star Wars Lightsaber', 'The Matrix Bullet Time', 'Toy Story Woody', 'Harry Potter Wand', 'Avengers Team Up', 'Jurassic Park T-Rex', 'Lion King Circle', 'Shrek Donkey', 'Finding Nemo Dory', 'Inception Dream', 'Forrest Gump Running', 'Dark Knight Joker', 'Titanic Door Scene', 'Avatar Tree', 'Frozen Castle']
@@ -232,10 +269,10 @@ const generateFallbackContent = (topic: string, difficulty: DifficultyLevel = 'm
       return `${topic} Detailed Item ${i + 1}`;
     });
   }
-  
+
   // Adjust to exact card count
   cards = cards.slice(0, diffConfig.cardCount);
-  
+
   return {
     name: `${topic} ${difficulty === 'easy' ? 'Easy' : difficulty === 'hard' ? 'Hard' : ''}`,
     description: `A ${difficulty} difficulty collection about ${topic}`,
@@ -245,7 +282,8 @@ const generateFallbackContent = (topic: string, difficulty: DifficultyLevel = 'm
     difficulty,
     baseTopic: topic,
     colorSuggestion: categoryColors[category],
-    iconSuggestion: categoryIcons[category]
+    iconSuggestion: categoryIcons[category],
+    freshDataMeta: { usedFreshData: false },
   };
 };
 
@@ -259,13 +297,13 @@ export const generateAdditionalCards = async (
 ): Promise<string[]> => {
   try {
     const openai = getOpenAIClient();
-    
+
     const prompt = `Given a Heads Up! deck called "${deckName}" with these existing cards:
 ${existingCards.slice(0, 10).join(', ')}${existingCards.length > 10 ? ', ...' : ''}
 
 Generate ${count} additional cards that fit the same theme and style.
 Return only a JSON array of strings, no other text.`;
-    
+
     const response = await withRetry(async () => {
       return await openai.chat.completions.create({
         model: 'gpt-5.1', // Latest flagship model
@@ -276,23 +314,23 @@ Return only a JSON array of strings, no other text.`;
         ]
       });
     });
-    
+
     const textContent = response.choices[0]?.message?.content?.trim();
-    
+
     if (!textContent) {
       throw new Error('No text content in OpenAI response');
     }
-    
+
     // Parse the response
     const jsonStr = textContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const suggestions = JSON.parse(jsonStr);
-    
+
     if (!Array.isArray(suggestions)) {
       throw new Error('Invalid response format');
     }
-    
+
     return suggestions.slice(0, count);
-    
+
   } catch (error) {
     console.error('Failed to generate additional cards:', error);
     // Return empty array as fallback
